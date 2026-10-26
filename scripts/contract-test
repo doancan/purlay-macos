@@ -14,6 +14,11 @@ PORT="${PURLAY_TEST_PORT:-4390}"
 [ -d "$CHECKOUT/apps/api" ] || { echo "FAIL: $CHECKOUT is not a checkout of the server repository (set PURLAY_SERVER_CHECKOUT)" >&2; exit 1; }
 [ -d "$CHECKOUT/apps/web/dist" ] || { echo "FAIL: build the server's web client first ($CHECKOUT/apps/web/dist is missing)" >&2; exit 1; }
 scripts/contract verify >/dev/null
+# A server already on the port would answer in place of the one this starts, and the tests would meet a world they were not made for.
+if curl -fsS "http://localhost:$PORT/api/client" >/dev/null 2>&1; then
+  echo "FAIL: something already answers on port $PORT (a demo left running?). Stop it, or set PURLAY_TEST_PORT." >&2
+  exit 1
+fi
 
 WORK="$(mktemp -d)"
 MANIFEST="$WORK/world.json"
