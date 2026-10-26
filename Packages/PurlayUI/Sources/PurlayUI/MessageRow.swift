@@ -10,6 +10,8 @@ struct MessageRow: View {
     var inThread = false
     /// The message a search went to: marked for a moment, so the eye finds it.
     var highlighted = false
+    /// The row the keyboard is on (↑ ↓): a bar at its edge, quiet enough not to be mistaken for a search hit.
+    var keyboard = false
     @State private var confirmingDelete = false
     @State private var hovering = false
     @State private var picking = false
@@ -53,6 +55,10 @@ struct MessageRow: View {
             highlighted ? Color.accentColor.opacity(0.18) : hovering && !editing ? Color.primary.opacity(0.04) : .clear
         )
         .animation(.easeOut(duration: 0.4), value: highlighted)
+        .overlay(alignment: .leading) {
+            if keyboard { Rectangle().fill(Color.accentColor).frame(width: 3) }
+        }
+        .accessibilityAddTraits(keyboard ? .isSelected : [])
         .overlay(alignment: .topTrailing) {
             if (hovering || picking) && !deleted && !editing {
                 ActionBar(

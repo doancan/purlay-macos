@@ -458,6 +458,7 @@ public final class AppModel {
         uploadsByPlace = [:]
         waitingSends = [:]
         handedBack = [:]
+        keyboardRow = nil
         uploadBytes = [:]
         attachmentCache = [:]
         attachmentCacheOrder = []
@@ -648,6 +649,49 @@ public final class AppModel {
     public func goToUnread(_ direction: Navigation.Direction) async {
         guard let next = Navigation.unread(sidebar, from: selectedChannel, direction) else { return }
         await open(next)
+    }
+
+    public enum RowMove: Sendable {
+        case up, down, first, last
+    }
+
+    private var keyboardRow: Uuid?
+
+    /// The row the keyboard is on in the open channel's feed, if it is still there: a row that went (deleted away, a channel left) is nowhere.
+    public var keyboardFocus: Uuid? {
+        guard let keyboardRow, window?.messages.contains(where: { $0.id == keyboardRow }) == true else { return nil }
+        return keyboardRow
+    }
+
+    /// ↑ ↓ Home End. From nowhere, ↑ and ↓ land on the newest; at either end the keyboard stays, it does not wrap.
+    public func moveMessageFocus(_ move: RowMove) {
+        let rows = window?.messages ?? []
+        guard !rows.isEmpty else { return }
+        let at = keyboardFocus.flatMap { id in rows.firstIndex { $0.id == id } }
+        let target: Int
+        switch move {
+        case .first: target = 0
+        case .last: target = rows.count - 1
+        case .up: target = at.map { max($0 - 1, 0) } ?? rows.count - 1
+        case .down: target = at.map { min($0 + 1, rows.count - 1) } ?? rows.count - 1
+        }
+        keyboardRow = rows[target].id
+    }
+
+    /// T and R: the thread of the row the keyboard is on opens beside the channel.
+    public func openFocusedThread() async {
+        guard let id = keyboardFocus, let message = window?.messages.first(where: { $0.id == id }) else { return }
+        await openThread(message)
+    }
+
+    /// E: the row's words are opened to be changed, when the row is one's own and has not been deleted.
+    @discardableResult
+    public func editFocused() -> Bool {
+        guard let id = keyboardFocus, let message = window?.messages.first(where: { $0.id == id }), isMine(message),
+            message.deletedAt == nil
+        else { return false }
+        beginEdit(id)
+        return true
     }
 
     /// Escape: closes the topmost thing the model holds, a message being edited before the thread beside the channel. Whether it closed
@@ -933,14 +977,17 @@ public final class AppModel {
 
     /// The words of a send that could not go, once, for the box they belong to to take back; nil when there are none.
     public func takeHandedBack(channel: Uuid, parent: Uuid?) -> String? {
-        handedBack.removeValue(forKey: Place(channel: channel, parent: parent))
+        let place = Place(channel: channel, parent: parent)
+        // Writes only when there is something to give: a view may ask while it is drawn, and a write there would draw it again.
+        guard handedBack[place] != nil else { return nil }
+        return handedBack.removeValue(forKey: place)
     }
 
     /// Counts the times words were handed back, so a box on the screen knows to ask.
     public private(set) var handedBackCount = 0
 
     private var waitingSends: [Place: String] = [:]
-    private var handedBack: [Place: String] = [:]
+    @ObservationIgnored private var handedBack: [Place: String] = [:]
 
     /// Sends what a box holds, or, with a file still on its way, takes the words and waits: nothing leaves before every file is there.
     private func submit(_ words: String, _ place: Place) {
@@ -1512,6 +1559,8 @@ public final class AppModel {
 
     /// Opens a channel: the window of messages it already holds is shown at once, and the newest page is read.
     public func open(_ channelID: Uuid) async {
+        // Read again for a new frame is the same channel: the keyboard stays where it was.
+        if selectedChannel != channelID { keyboardRow = nil }
         if thread?.channel != channelID { closeThread() }
         focus = nil
         editing = nil

@@ -160,6 +160,7 @@ struct ChannelRow: View {
 struct ChannelView: View {
     let model: AppModel
     @State private var marked: Uuid?
+    @FocusState private var feedFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -172,8 +173,10 @@ struct ChannelView: View {
                         }
                         if let window = model.window {
                             ForEach(window.messages, id: \.id) { message in
-                                MessageRow(message: message, model: model, highlighted: marked == message.id).id(
-                                    message.id)
+                                MessageRow(
+                                    message: message, model: model, highlighted: marked == message.id,
+                                    keyboard: model.keyboardFocus == message.id
+                                ).id(message.id)
                             }
                             if window.isEmpty && model.selectedPending.isEmpty {
                                 ContentUnavailableView(
@@ -197,6 +200,15 @@ struct ChannelView: View {
                     .padding(.vertical, 8)
                 }
                 .defaultScrollAnchor(.bottom)
+                .focusable()
+                .focused($feedFocused)
+                .focusEffectDisabled()
+                // A click in the feed is how the keyboard comes to it; the rows' own buttons still get theirs.
+                .simultaneousGesture(TapGesture().onEnded { feedFocused = true })
+                .onKeyPress(phases: .down) { press in feedKey(press) }
+                .onChange(of: model.keyboardFocus) { _, row in
+                    if let row { proxy.scrollTo(row) }
+                }
                 // Reading what is not seen is not reading: the model is told whether the newest message is in view.
                 .onScrollGeometryChange(for: Bool.self) { geometry in
                     geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 48
@@ -225,6 +237,29 @@ struct ChannelView: View {
                 ComposerView(model: model, channel: channelID, placeholder: placeholder).id(channelID)
             }
         }
+    }
+
+    /// The feed's keys, when the feed has the keyboard: ↑ ↓ Home End move, T and R open the thread, E edits, Escape closes. A key with a
+    /// modifier is somebody else's (a menu's), and so is one that has nothing to do.
+    private func feedKey(_ press: KeyPress) -> KeyPress.Result {
+        // The arrow keys carry the numeric-pad and function flags; only the keys a menu would want count as a modifier.
+        guard press.modifiers.intersection([.command, .option, .control, .shift]).isEmpty else { return .ignored }
+        switch press.key {
+        case .upArrow: model.moveMessageFocus(.up)
+        case .downArrow: model.moveMessageFocus(.down)
+        case .home: model.moveMessageFocus(.first)
+        case .end: model.moveMessageFocus(.last)
+        case .escape: return model.dismissTopmost() ? .handled : .ignored
+        default:
+            switch press.characters.lowercased() {
+            case "t", "r":
+                guard model.keyboardFocus != nil else { return .ignored }
+                Task { await model.openFocusedThread() }
+            case "e": return model.editFocused() ? .handled : .ignored
+            default: return .ignored
+            }
+        }
+        return .handled
     }
 
     private var placeholder: String {

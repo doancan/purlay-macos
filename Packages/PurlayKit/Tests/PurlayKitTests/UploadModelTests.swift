@@ -1,5 +1,6 @@
 import Foundation
 import PurlayContract
+import Synchronization
 import Testing
 
 @testable import PurlayKit
@@ -313,6 +314,24 @@ struct UploadModelTests {
         try? await Task.sleep(for: .milliseconds(50))
         #expect(!h.model.isWaiting(channel: one, parent: nil))
         #expect(messageFrames(h).isEmpty)
+    }
+
+    @Test(
+        "asking for handed-back words changes nothing a view could be watching: a view asks while it is drawn, and a change would draw it again"
+    )
+    func askingChangesNothing() async {
+        let h = await opened()
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = h.model.takeHandedBack(channel: one, parent: nil)
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+        _ = h.model.takeHandedBack(channel: one, parent: nil)
+        _ = h.model.takeHandedBack(channel: one, parent: idAt(1_000))
+        #expect(
+            !changed.withLock { $0 },
+            "asking with nothing to give wrote to the model, which would loop a view that asks while it is drawn")
     }
 
     @Test("the length limit is asked at once, not after the wait")

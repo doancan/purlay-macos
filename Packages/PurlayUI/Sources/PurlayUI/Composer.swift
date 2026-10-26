@@ -21,10 +21,6 @@ struct ComposerView: View {
         self.placeholder = placeholder
         let state = ComposerState()
         state.text = model.draft(for: channel, parent: parent)
-        // Words a waiting send gave back while no box was showing come first, ahead of what was written since.
-        if let words = model.takeHandedBack(channel: channel, parent: parent) {
-            state.text = state.text.isEmpty ? words : words + "\n\n" + state.text
-        }
         _state = State(initialValue: state)
     }
 
@@ -82,7 +78,15 @@ struct ComposerView: View {
         } isTargeted: {
             dropping = $0
         }
-        .onAppear { state.togglePreview = { previewing.toggle() } }
+        .onAppear {
+            state.togglePreview = { previewing.toggle() }
+            // Words a waiting send gave back while no box was showing come first, ahead of what was written since. Asked here, not
+            // while the view is made: a view that writes to what it watches is drawn again, and again.
+            if let words = model.takeHandedBack(channel: channel, parent: parent) {
+                let merged = state.text.isEmpty ? words : words + "\n\n" + state.text
+                if let replace = state.replaceAll { replace(merged) } else { state.text = merged }
+            }
+        }
         .onChange(of: state.text) { _, text in remember(text) }
         .onChange(of: model.handedBackCount) {
             guard let words = model.takeHandedBack(channel: channel, parent: parent) else { return }
