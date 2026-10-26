@@ -6,11 +6,16 @@ import SwiftUI
 struct MainView: View {
     let model: AppModel
     @State private var selection: Uuid?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
-            List(model.channels, id: \.id, selection: $selection) { channel in
-                ChannelRow(channel: channel)
+            List(selection: $selection) {
+                ForEach(Sidebar.sections(Array(model.chat.channels.values))) { section in
+                    Section(Words.header(section.kind)) {
+                        ForEach(section.channels, id: \.id) { channel in ChannelRow(channel: channel) }
+                    }
+                }
             }
             .navigationTitle(model.workspace?.name ?? "Purlay")
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
@@ -42,6 +47,8 @@ struct MainView: View {
             }
         }
         .onAppear { selection = model.selectedChannel }
+        // Only what is in front of the person is read (D-143).
+        .onChange(of: scenePhase, initial: true) { _, phase in model.setActive(phase == .active) }
         .onChange(of: selection) { _, new in
             guard let new, new != model.selectedChannel else { return }
             Task { await model.open(new) }
@@ -110,6 +117,12 @@ struct ChannelView: View {
                     .padding(.vertical, 8)
                 }
                 .defaultScrollAnchor(.bottom)
+                // Reading what is not seen is not reading: the model is told whether the newest message is in view.
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 48
+                } action: { _, atBottom in
+                    model.setAtBottom(atBottom)
+                }
                 .onChange(of: model.window?.messages.last?.id) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
                 .onChange(of: model.selectedPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
             }

@@ -81,6 +81,14 @@ enum Words {
         }
     }
 
+    static func header(_ kind: SidebarSection.Kind) -> String {
+        switch kind {
+        case .starred: return String(localized: "Starred")
+        case .channels: return String(localized: "Channels")
+        case .conversations: return String(localized: "Conversations")
+        }
+    }
+
     /// A channel is named with a hash; a conversation with people is named by them, with none.
     static func channelLabel(_ channel: Channel) -> String {
         switch channel.type {

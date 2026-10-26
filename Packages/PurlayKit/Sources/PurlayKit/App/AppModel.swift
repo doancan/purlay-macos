@@ -78,6 +78,17 @@ public final class AppModel {
     private var api: PurlayAPI?
     private var observation: Task<Void, Never>?
     private var noticeCounter = 0
+    /// The newest message of each channel that was marked read from here, so the same one is not asked for twice.
+    private var markedRead: [Uuid: Uuid] = [:]
+    private var marking = Set<Uuid>()
+    /// After a read the server refused, nothing is asked again for a while unless the person's own seeing changes: a failing server is
+    /// not asked on every frame.
+    private var readRetryAfter: [Uuid: Date] = [:]
+    private static let readRetryDelay: TimeInterval = 30
+    /// The window is in front of the person (D-143): only then is anything read.
+    public private(set) var isActive = true
+    /// The newest message is in view: reading what is not seen is not reading.
+    public private(set) var atBottom = true
 
     public static let serverKey = "server"
 
@@ -400,6 +411,9 @@ public final class AppModel {
 
     private func tearDown() {
         cookieCache = nil
+        markedRead = [:]
+        marking = []
+        readRetryAfter = [:]
         engine?.stop()
         engine = nil
         api = nil
@@ -418,6 +432,52 @@ public final class AppModel {
         pending = engine.pending
         connection = engine.status
         degraded = engine.degraded
+        markReadIfSeen()
+    }
+
+    // MARK: Reading
+
+    /// The window is, or is not, the one in front of the person.
+    public func setActive(_ active: Bool) {
+        guard active != isActive else { return }
+        isActive = active
+        readRetryAfter = [:]
+        markReadIfSeen()
+    }
+
+    /// The person is at the end of the messages, or has scrolled up.
+    public func setAtBottom(_ bottom: Bool) {
+        guard bottom != atBottom else { return }
+        atBottom = bottom
+        readRetryAfter = [:]
+        markReadIfSeen()
+    }
+
+    /// Marks the open channel read up to its newest message when the person can see it: the app is in front, the newest message is in
+    /// view, and the window reaches the present. Nothing is marked read from a window short of the present, and a message already read
+    /// is not marked again.
+    private func markReadIfSeen() {
+        guard isActive, atBottom, let channel = selectedChannel, let window = chat.windows[channel],
+            window.reachesNewest,
+            let newest = window.messages.last?.id, let api, engine != nil, !marking.contains(channel),
+            (readRetryAfter[channel] ?? .distantPast) <= environment.clock()
+        else { return }
+        let read = [markedRead[channel], chat.channels[channel]?.state?.lastReadMessageId].compactMap { $0 }.max()
+        if let read, read >= newest { return }
+        marking.insert(channel)
+        Task { @MainActor in
+            defer { marking.remove(channel) }
+            do {
+                let state = try await api.markChannelRead(
+                    channelId: channel.value, body: ReadChannelRequest(lastReadMessageId: newest))
+                markedRead[channel] = newest
+                engine?.setState(state, for: channel)
+                sync()
+            } catch {
+                // Not read yet, and nothing said: it is asked again when the person next sees the channel, or after a while.
+                readRetryAfter[channel] = environment.clock().addingTimeInterval(Self.readRetryDelay)
+            }
+        }
     }
 
     // MARK: What the person does

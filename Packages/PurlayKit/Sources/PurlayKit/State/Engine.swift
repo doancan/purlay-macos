@@ -201,6 +201,12 @@ public final class Engine {
         options.onChange()
     }
 
+    /// What the server says a channel's read state is now, from the answer to marking it read.
+    public func setState(_ state: ChannelState, for channel: Uuid) {
+        chat.channels[channel]?.state = state
+        options.onChange()
+    }
+
     public func setChannels(_ channels: [Channel]) {
         for channel in channels { chat.channels[channel.id] = channel }
         options.onChange()

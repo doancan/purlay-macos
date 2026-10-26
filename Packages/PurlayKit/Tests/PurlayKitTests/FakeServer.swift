@@ -20,6 +20,8 @@ final class FakeServer: HTTPTransport {
         var logoutStatus = 204
         var online = true
         var sessionValid = true
+        var readStatus = 200
+        var reads: [(channel: String, id: String)] = []
     }
 
     let state = Mutex(State())
@@ -78,6 +80,8 @@ final class FakeServer: HTTPTransport {
             if snapshot.tokenStatus != 204 {
                 return json(snapshot.tokenStatus, #"{"error":{"code":"NATIVE_CODE_NOT_FOUND","message":"x"}}"#)
             }
+            // A new sign-in makes a session: one that was signed out is valid again.
+            state.withLock { $0.sessionValid = true }
             let headers =
                 snapshot.cookieOnToken
                 ? ["Set-Cookie": "__Host-purlay_session=\(Self.sessionValue); Path=/; Max-Age=2592000; HttpOnly"] : [:]
@@ -89,6 +93,16 @@ final class FakeServer: HTTPTransport {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(
                 snapshot.channelsStatus, "[\(Self.channelJSON(1, name: "api")),\(Self.channelJSON(2, name: "design"))]")
+        case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/read"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/read".count))
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let id = body?["lastReadMessageId"] as? String ?? ""
+            state.withLock { $0.reads.append((channelID, id)) }
+            if snapshot.readStatus != 200 {
+                return json(snapshot.readStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            return json(200, #"{"lastReadMessageId":"\#(id)","unreadCount":0,"unreadMentionCount":0}"#)
         case ("POST", "/auth/logout"), ("POST", "/auth/logout-all"):
             if snapshot.logoutStatus == 204 { state.withLock { $0.sessionValid = false } }
             return HTTPResponse(status: snapshot.logoutStatus)

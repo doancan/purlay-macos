@@ -392,3 +392,118 @@ struct SigningOutTests {
         #expect(h.server.requests.contains { $0.url.path == "/auth/logout" })
     }
 }
+
+@MainActor
+@Suite("reading")
+struct ReadingTests {
+    private func reads(_ h: ModelHarness) -> [String] { h.server.state.withLock { $0.reads.map(\.id) } }
+
+    private func ready(_ messages: [Message] = [makeMessage(idAt(1_000)), makeMessage(idAt(2_000))]) async
+        -> ModelHarness
+    {
+        let h = ModelHarness()
+        h.server.edit { $0.messages[channel(1)] = messages }
+        await h.signedIn()
+        await h.settle()
+        return h
+    }
+
+    @Test("a channel opened with the app in front is read up to its newest message, once")
+    func readsOnOpen() async {
+        let h = await ready()
+        #expect(reads(h) == [idAt(2_000).value])
+        // Seen again, with nothing new: not asked again.
+        h.model.setAtBottom(false)
+        h.model.setAtBottom(true)
+        await h.settle()
+        #expect(reads(h) == [idAt(2_000).value])
+    }
+
+    @Test("what the server says the read state is replaces what the sidebar showed")
+    func updatesCounters() async {
+        let h = await ready()
+        #expect(h.model.chat.channels[Uuid(channel(1))!]?.state?.unreadCount == 0)
+        #expect(h.model.chat.channels[Uuid(channel(1))!]?.state?.lastReadMessageId == idAt(2_000))
+    }
+
+    @Test("nothing is read while the app is not in front, and what was waiting is read when it comes forward")
+    func needsToBeActive() async {
+        let h = ModelHarness()
+        h.server.edit { $0.messages[channel(1)] = [makeMessage(idAt(1_000))] }
+        h.model.setActive(false)
+        await h.signedIn()
+        await h.settle()
+        #expect(reads(h).isEmpty)
+        h.model.setActive(true)
+        await h.settle()
+        #expect(reads(h) == [idAt(1_000).value])
+    }
+
+    @Test("nothing is read while the person is scrolled up, and what is now in view is read when they come to the end")
+    func needsToBeAtBottom() async {
+        let h = ModelHarness()
+        h.server.edit { $0.messages[channel(1)] = [makeMessage(idAt(1_000))] }
+        h.model.setAtBottom(false)
+        await h.signedIn()
+        await h.settle()
+        #expect(reads(h).isEmpty)
+        h.model.setAtBottom(true)
+        await h.settle()
+        #expect(reads(h) == [idAt(1_000).value])
+    }
+
+    @Test("a message that arrives while the person is looking is read, and only that one is asked for")
+    func liveMessage() async {
+        let h = await ready()
+        h.last.handlers.message(Wire.created(channel(1), idAt(5_000)))
+        await h.settle()
+        #expect(reads(h) == [idAt(2_000).value, idAt(5_000).value])
+    }
+
+    @Test("a message that arrives while the person is scrolled up waits for them")
+    func liveWhileScrolledUp() async {
+        let h = await ready()
+        h.model.setAtBottom(false)
+        h.last.handlers.message(Wire.created(channel(1), idAt(5_000)))
+        await h.settle()
+        #expect(reads(h) == [idAt(2_000).value])
+        h.model.setAtBottom(true)
+        await h.settle()
+        #expect(reads(h) == [idAt(2_000).value, idAt(5_000).value])
+    }
+
+    @Test("a channel with nothing in it asks nothing")
+    func emptyChannel() async {
+        let h = await ready([])
+        #expect(reads(h).isEmpty)
+    }
+
+    @Test("a read the server refuses is not said, and is asked again when the channel is next seen")
+    func refused() async {
+        let h = ModelHarness()
+        h.server.edit {
+            $0.messages[channel(1)] = [makeMessage(idAt(1_000))]
+            $0.readStatus = 500
+        }
+        await h.signedIn()
+        await h.settle()
+        #expect(h.model.notices.isEmpty)
+        h.server.edit { $0.readStatus = 200 }
+        h.model.setAtBottom(false)
+        h.model.setAtBottom(true)
+        await h.settle()
+        #expect(reads(h) == [idAt(1_000).value, idAt(1_000).value], "\(reads(h))")
+        #expect(h.model.chat.channels[Uuid(channel(1))!]?.state?.lastReadMessageId == idAt(1_000))
+    }
+
+    @Test("signing out forgets what was read, so another person's channel is read afresh")
+    func forgetsOnSignOut() async {
+        let h = await ready()
+        await h.model.signOut(.thisDevice)
+        await h.signedIn()
+        await h.settle()
+        #expect(
+            reads(h) == [idAt(2_000).value, idAt(2_000).value],
+            "\(reads(h)) \(h.model.phase) \(h.model.notices.map(\.kind))")
+    }
+}
