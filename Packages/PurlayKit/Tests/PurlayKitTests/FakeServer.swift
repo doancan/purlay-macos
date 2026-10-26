@@ -28,6 +28,14 @@ final class FakeServer: HTTPTransport {
         var pins: [String: [String]] = [:]
         var pinError: (status: Int, code: String)?
         var searchStatus = 200
+        /// What the person was told, newest first, as the server keeps it; reading one sets its time.
+        var notifications: [PurlayContract.Notification] = []
+        var notificationsStatus = 200
+        var notificationPageSize: Int?
+        /// How long the server takes over a list, by the `unreadOnly` it was asked with ("true" or "false").
+        var notificationDelays: [String: Int] = [:]
+        var notificationReadStatus = 204
+        var notificationReads: [ReadNotificationsRequest] = []
         var searchPageSize: Int?
         var searchDelays: [String: Int] = [:]
         var aroundNewer: String?
@@ -60,6 +68,7 @@ final class FakeServer: HTTPTransport {
 
     var requests: [HTTPRequest] { state.withLock { $0.requests } }
     var discardedIDs: [String] { state.withLock { $0.discarded } }
+    var notificationReads: [ReadNotificationsRequest] { state.withLock { $0.notificationReads } }
     var threadReadsSeen: [(root: String, read: String)] { state.withLock { $0.threadReads } }
     static func encoded<T: Encodable>(_ value: T) -> String {
         (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
@@ -248,6 +257,54 @@ final class FakeServer: HTTPTransport {
                 "{\"lastReplyAt\":null,\"replyCount\":\(snapshot.threads[id]?.count ?? 0),\"resolvedAt\":\(resolved ? "\"2026-10-09T14:00:00.000Z\"" : "null"),\"resolvedBy\":\(resolved ? who : "null")}"
             )
             return json(200, Self.encoded(root))
+        case ("GET", "/api/notifications"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let unreadOnly = items.first { $0.name == "unreadOnly" }?.value ?? "false"
+            if let wait = snapshot.notificationDelays[unreadOnly] { try? await Task.sleep(for: .milliseconds(wait)) }
+            if snapshot.notificationsStatus != 200 {
+                return json(snapshot.notificationsStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            var list = snapshot.notifications
+            if unreadOnly == "true" { list = list.filter { $0.readAt == nil } }
+            if let before = items.first(where: { $0.name == "before" })?.value {
+                guard let at = list.firstIndex(where: { $0.id.value == before }) else {
+                    return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+                }
+                list = Array(list[(at + 1)...])
+            }
+            let size =
+                snapshot.notificationPageSize ?? items.first { $0.name == "limit" }?.value.flatMap(Int.init) ?? 50
+            let page = Array(list.prefix(size))
+            let next = list.count > size ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+            return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next)}")
+        case ("PUT", "/api/notifications/read"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.notificationReadStatus != 204 {
+                return json(snapshot.notificationReadStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            guard let body = request.body,
+                let read = try? JSONDecoder().decode(ReadNotificationsRequest.self, from: body)
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            state.withLock { state in
+                state.notificationReads.append(read)
+                let stamp = Timestamp(Date())
+                for at in state.notifications.indices where state.notifications[at].readAt == nil {
+                    let note = state.notifications[at]
+                    let named = read.ids?.contains(note.id) == true
+                    let upTo =
+                        read.before.map { before in
+                            guard let edge = state.notifications.firstIndex(where: { $0.id == before }) else {
+                                return false
+                            }
+                            return at >= edge
+                        } ?? false
+                    if named || upTo || (read.workspaceId != nil && read.before == nil && read.ids == nil) {
+                        state.notifications[at].readAt = stamp
+                    }
+                }
+            }
+            return HTTPResponse(status: 204)
         case ("GET", _) where path.hasPrefix("/api/workspaces/") && path.hasSuffix("/search"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []

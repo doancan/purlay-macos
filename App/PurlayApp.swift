@@ -42,6 +42,8 @@ struct PurlayApp: App {
                 Button("Next Unread Channel") { Task { await model.goToUnread(.next) } }
                     .keyboardShortcut(.downArrow, modifiers: [.option, .shift])
                 Divider()
+                Button("Inbox…") { Task { await model.openInbox() } }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
                 Button("Pinned Messages…") { model.pinsOpen = true }
                 Button("Saved Messages…") { model.savedOpen = true }
             }

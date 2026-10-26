@@ -49,6 +49,9 @@ struct MainView: View {
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
             }
+            .sheet(isPresented: Binding(get: { model.inboxOpen }, set: { model.inboxOpen = $0 })) {
+                InboxSheet(model: model)
+            }
             .sheet(isPresented: Binding(get: { model.shortcutsOpen }, set: { model.shortcutsOpen = $0 })) {
                 ShortcutsSheet()
             }
@@ -107,6 +110,7 @@ struct MainView: View {
             }
             ToolbarItem {
                 Menu {
+                    Button("Inbox…") { Task { await model.openInbox() } }
                     Button("Saved Messages…") { model.savedOpen = true }
                     DeepWorkItems(model: model)
                     Divider()
