@@ -19,6 +19,14 @@ step "architecture rules, and the demonstration that each one refuses its violat
 scripts/enforcement
 scripts/enforcement --demo
 
+step "the contract bundle is the one the lock pins, and the generated code is what it generates"
+scripts/contract verify
+scripts/generate --check
+
+step "the generator: build and test"
+(cd Tools/PurlayGen && swift test 2>&1 | tail -3)
+(cd Tools/PurlayGen && swift test 2>&1 | grep -q "Test run with .* passed") || { echo "FAIL: Tools/PurlayGen" >&2; exit 1; }
+
 step "format"
 # Swift sources only; the generated packages are held to the same rule once they exist.
 find App Packages Tools -name '*.swift' -not -path '*/.build/*' -print0 | xargs -0 xcrun swift-format lint --strict --parallel

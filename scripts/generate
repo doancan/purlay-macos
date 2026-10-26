@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# The Swift the contract package is made of, generated from the pinned bundle (§6.2). Never edited by hand.
+#
+#   scripts/generate            write it
+#   scripts/generate --check    fail unless what is on disk is exactly what would be written
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+scripts/contract verify >/dev/null
+exec swift run --package-path Tools/PurlayGen -q purlay-gen \
+  --bundle Contract/bundle \
+  --out Packages/PurlayContract/Sources/PurlayContract/Generated "$@"
