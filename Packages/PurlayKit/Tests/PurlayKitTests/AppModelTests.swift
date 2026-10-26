@@ -42,12 +42,25 @@ struct ScriptedBrowser: WebAuthenticator {
     }
 }
 
+/// What was told of what needs the person, in the order it was told.
+@MainActor
+final class RecordingAttention: AttentionPresenter {
+    private(set) var badges: [Int?] = []
+    private(set) var shown: [AttentionNotice] = []
+    private(set) var retracted: [String] = []
+    var badge: Int? { badges.last ?? nil }
+    func setBadge(_ count: Int?) { badges.append(count) }
+    func show(_ notice: AttentionNotice) { shown.append(notice) }
+    func retract(_ ids: [String]) { retracted += ids }
+}
+
 @MainActor
 final class ModelHarness {
     let server = FakeServer()
     let sessions = MemorySessions()
     let preferences: MemoryPreferences
     let owner = MemoryOwnerStore()
+    let attention = RecordingAttention()
     var sockets: [FakeSocket] = []
     var openedWith: [String] = []
     private var timers: [(due: Int, work: () -> Void, live: SendHarness.Flag)] = []
@@ -64,6 +77,7 @@ final class ModelHarness {
         let sessions = sessions
         let preferences = preferences
         let owner = owner
+        let attention = attention
         let directory = directory
         model = AppModel(
             AppEnvironment(
@@ -84,7 +98,7 @@ final class ModelHarness {
                     return { flag.live = false }
                 },
                 random: { 0 }, clock: { Date(timeIntervalSince1970: Double(epochMs) / 1_000) }, owner: owner,
-                sleep: { _ in }))
+                sleep: { _ in }, attention: attention))
     }
 
     func settle() async {

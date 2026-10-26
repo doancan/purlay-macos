@@ -214,6 +214,18 @@ enum Wire {
         """
     }
 
+    /// A conversation's read state as the server tells it, with the version that orders it.
+    static func channelState(_ channelID: String, mentions: Int, unread: Int = 1, version: Int) -> String {
+        """
+        {"event":"CHANNEL_STATE","ts":\(epochMs),"version":\(version),"data":{"channelId":"\(channelID)",\
+        "state":{"lastReadMessageId":null,"unreadCount":\(unread),"unreadMentionCount":\(mentions)}}}
+        """
+    }
+
+    static func channelsUpdated(_ workspaceID: String, version: Int) -> String {
+        #"{"event":"CHANNELS_UPDATED","ts":\#(epochMs),"version":\#(version),"data":{"workspaceId":"\#(workspaceID)"}}"#
+    }
+
     static func pong(_ refID: String?, ts: Int = epochMs) -> String {
         let ref = refID.map { #","refId":"\#($0)""# } ?? ""
         return #"{"event":"PONG","data":{},"ts":\#(ts)\#(ref)}"#

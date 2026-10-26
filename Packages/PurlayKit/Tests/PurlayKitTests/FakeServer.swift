@@ -17,6 +17,7 @@ final class FakeServer: HTTPTransport {
         var cookieOnToken = true
         var channelsStatus = 200
         var membersStatus = 200
+        var deepWorkUntil: String?
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
@@ -84,6 +85,8 @@ final class FakeServer: HTTPTransport {
         var joined = true
         var starred = false
         var peerName: String?
+        var mentions = 0
+        var level = "mentions"
     }
 
     static func json(_ chan: Chan) -> String {
@@ -95,7 +98,7 @@ final class FakeServer: HTTPTransport {
             } ?? "[]"
         return """
             {"id":"\(channel(chan.n))","workspaceId":"\(workspaceID)","name":\(name),"topic":\(topic),"type":"\(chan.type)","lastMessageAt":null,\
-            "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0}"# : "null"),"notificationLevel":"mentions",\
+            "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":\#(chan.mentions)}"# : "null"),"notificationLevel":"\(chan.level)",\
             "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1}
             """
     }
@@ -108,12 +111,14 @@ final class FakeServer: HTTPTransport {
         """
     }
 
-    static let meJSON = """
+    static func meJSON(deepWorkUntil: String? = nil) -> String {
+        """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
         "profile":{"title":null,"timeZone":null,"status":null},\
         "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"member",\
-        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":null}],"mayCreateWorkspace":false,"isServerAdmin":false}
+        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false}
         """
+    }
 
     func send(_ request: HTTPRequest) async throws -> HTTPResponse {
         let snapshot = state.withLock { state -> State in
@@ -146,7 +151,7 @@ final class FakeServer: HTTPTransport {
             return HTTPResponse(status: 204, headers: headers)
         case ("GET", "/api/me"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            return json(snapshot.meStatus, Self.meJSON)
+            return json(snapshot.meStatus, Self.meJSON(deepWorkUntil: snapshot.deepWorkUntil))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")

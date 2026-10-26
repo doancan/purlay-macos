@@ -341,6 +341,7 @@ public final class AppModel {
             if load.corruptFile != nil { say(.outboxCorrupt) }
             let channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
             engine.setChannels(channels)
+            attention.prime(channels)
             watchJoined()
             engine.start()
             sync()
@@ -439,6 +440,12 @@ public final class AppModel {
         engine = nil
         api = nil
         me = nil
+        // After the engine is gone: stopping it says it changed, and that would count what is no longer anybody's.
+        attention = Attention()
+        deepWorkTimer?()
+        deepWorkTimer = nil
+        if lastBadge != nil { environment.attention.setBadge(nil) }
+        lastBadge = nil
         workspacePeople = []
         channelPeople = [:]
         workspace = nil
@@ -456,6 +463,7 @@ public final class AppModel {
         connection = engine.status
         degraded = engine.degraded
         markReadIfSeen()
+        tellAttention()
     }
 
     // MARK: Reading
@@ -711,6 +719,51 @@ public final class AppModel {
 
     private var drafts: Drafts? {
         me.map { Drafts(store: environment.preferences, user: $0.user.id) }
+    }
+
+    // MARK: What needs the person
+
+    public static let noticesKey = "notifications.enabled"
+
+    private var attention = Attention()
+    private var lastBadge: Int?
+    private var deepWorkTimer: (() -> Void)?
+
+    /// Whether notices pop up while the app is not in front. The Dock badge does not depend on it.
+    public var noticesOn: Bool { environment.preferences.string(for: Self.noticesKey) != "0" }
+
+    public func setNoticesOn(_ on: Bool) {
+        environment.preferences.set(on ? "1" : "0", for: Self.noticesKey)
+    }
+
+    /// When the open workspace's Deep Work ends, if it has not.
+    private var deepWorkEnd: Date? {
+        guard let until = me?.memberships.first(where: { $0.workspace.id == workspace?.id })?.deepWorkUntil?.date else {
+            return nil
+        }
+        return until > environment.clock() ? until : nil
+    }
+
+    /// Tells what needs the person where they are not looking: the Dock badge, and a notice for what is new while the window is not in front,
+    /// never in Deep Work. What the badge counts is what interrupts; nothing is classified twice (D-148).
+    private func tellAttention() {
+        guard engine != nil else { return }
+        let end = deepWorkEnd
+        let outcome = attention.observe(
+            Array(chat.channels.values), deepWork: end != nil, inFront: isActive, noticesOn: noticesOn)
+        if outcome.badge != lastBadge || lastBadge == nil {
+            lastBadge = outcome.badge
+            environment.attention.setBadge(outcome.badge)
+        }
+        if !outcome.retract.isEmpty { environment.attention.retract(outcome.retract) }
+        for notice in outcome.notices { environment.attention.show(notice) }
+        // Deep Work ending is not a frame: look again when it does, so the badge comes back.
+        deepWorkTimer?()
+        deepWorkTimer = nil
+        if let end {
+            let wait = max(0, Int(end.timeIntervalSince(environment.clock()) * 1_000)) + 1_000
+            deepWorkTimer = environment.schedule(wait) { [weak self] in self?.sync() }
+        }
     }
 
     // MARK: Channels

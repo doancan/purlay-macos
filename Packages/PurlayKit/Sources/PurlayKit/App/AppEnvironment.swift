@@ -23,6 +23,23 @@ public struct UserDefaultsPreferences: PreferenceStore {
     }
 }
 
+/// Where what needs the person is told: the Dock badge and the notices of the system. The model decides; this shows.
+@MainActor
+public protocol AttentionPresenter {
+    func setBadge(_ count: Int?)
+    func show(_ notice: AttentionNotice)
+    func retract(_ ids: [String])
+}
+
+/// For where nothing can be told: a test that does not look, and a build with no notifications.
+@MainActor
+public struct SilentAttention: AttentionPresenter {
+    public init() {}
+    public func setBadge(_ count: Int?) {}
+    public func show(_ notice: AttentionNotice) {}
+    public func retract(_ ids: [String]) {}
+}
+
 /// Everything the app's model reaches the outside world through, so a test replaces each: the network, the keychain, the browser, the
 /// files, the socket, the clock and the timers.
 @MainActor
@@ -44,6 +61,7 @@ public struct AppEnvironment {
     /// Called with the kept owner of the retained data (a person's id), so what one person left is not sent as another's.
     public var owner: any OwnerMemory
     public var sleep: @Sendable (Duration) async throws -> Void
+    public var attention: any AttentionPresenter
 
     public init(
         transport: any HTTPTransport, sessions: any SessionStore, preferences: any PreferenceStore,
@@ -53,7 +71,8 @@ public struct AppEnvironment {
         random: @escaping () -> Double = { Double.random(in: 0...1) },
         clock: @escaping @Sendable () -> Date = Date.init,
         owner: any OwnerMemory,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        attention: any AttentionPresenter = SilentAttention()
     ) {
         self.transport = transport
         self.sessions = sessions
@@ -63,6 +82,7 @@ public struct AppEnvironment {
         self.deviceName = deviceName
         self.allowsLocalHTTP = allowsLocalHTTP
         self.dataDirectory = dataDirectory
+        self.attention = attention
         self.openSocket = openSocket
         self.schedule = schedule
         self.random = random

@@ -18,7 +18,7 @@ struct DefaultsOwner: OwnerMemory {
 /// The app's real environment: the Keychain, the defaults, the network, the browser and the files, as the sandbox gives them.
 @MainActor
 enum RealEnvironment {
-    static func make() -> AppEnvironment {
+    static func make(attention: any AttentionPresenter = SilentAttention()) -> AppEnvironment {
         let info = Bundle.main.infoDictionary
         let version =
             SemanticVersion(info?["CFBundleShortVersionString"] as? String ?? "0.0.0") ?? SemanticVersion("0.0.0")!
@@ -49,7 +49,7 @@ enum RealEnvironment {
                 }
                 return { task.cancel() }
             },
-            owner: DefaultsOwner())
+            owner: DefaultsOwner(), attention: attention)
     }
 
     #if DEBUG

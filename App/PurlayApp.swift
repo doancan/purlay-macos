@@ -8,13 +8,16 @@ import SwiftUI
 struct PurlayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model: AppModel
+    private let attention = SystemAttention()
 
     init() {
-        let environment = RealEnvironment.make()
+        let environment = RealEnvironment.make(attention: attention)
         #if DEBUG
             RealEnvironment.seedDevelopmentSession(environment)
         #endif
-        _model = State(initialValue: AppModel(environment))
+        let model = AppModel(environment)
+        attention.open = { channel in Task { await model.open(channel) } }
+        _model = State(initialValue: model)
     }
 
     var body: some Scene {
@@ -23,6 +26,7 @@ struct PurlayApp: App {
                 .task { await model.launch() }
         }
         .defaultSize(width: 1_100, height: 720)
+        Settings { SettingsView(model: model) }
     }
 }
 

@@ -110,3 +110,26 @@ enum Words {
         }
     }
 }
+
+/// What a system notice says: where and why, never what was said, because a notice is read over a shoulder and stays in the notification
+/// centre (D-126 §2).
+public enum AttentionWords {
+    public static func title(_ notice: AttentionNotice) -> String {
+        switch notice.content {
+        case .place(_, let label, _): label
+        case .several: String(localized: "Purlay")
+        }
+    }
+
+    public static func body(_ notice: AttentionNotice) -> String {
+        switch notice.content {
+        case .place(_, _, let reason):
+            switch reason {
+            case .directMessage: String(localized: "New message")
+            case .everyMessage: String(localized: "New message")
+            case .mention: String(localized: "Needs you: a mention or a reply")
+            }
+        case .several(let count): String(localized: "\(count) conversations need you")
+        }
+    }
+}
