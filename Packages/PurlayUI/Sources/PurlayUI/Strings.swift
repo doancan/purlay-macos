@@ -1,0 +1,91 @@
+import Foundation
+import PurlayContract
+import PurlayKit
+
+/// Every sentence a person reads, in one place, so each is a key a catalogue can translate (§12.11). The model hands over what
+/// happened; this says it. The server's own `message` is never shown: it is English, written for a log.
+enum Words {
+    static func notice(_ kind: Notice.Kind) -> String {
+        switch kind {
+        case .invalidAddress(let problem):
+            switch problem {
+            case .empty: return String(localized: "Type the address of your Purlay server.")
+            case .unreadable: return String(localized: "That is not an address a browser would open.")
+            case .notAWebAddress: return String(localized: "Use a web address, starting with https.")
+            case .hasCredentials: return String(localized: "Leave the user name and password out of the address.")
+            case .hasMoreThanAHost: return String(localized: "Give only the server's address, without a path.")
+            case .insecure: return String(localized: "This server must be reached over https.")
+            }
+        case .signInFailed(let error): return signIn(error)
+        case .sessionExpired: return String(localized: "Your session has expired. Sign in again.")
+        case .sessionEndedByServer: return String(localized: "You were signed out by the server. Sign in again.")
+        case .signedOutElsewhere: return String(localized: "You were signed out.")
+        case .serverNotTold:
+            return String(
+                localized:
+                    "You are signed out here. The server could not be reached, so this session stays valid there until it expires."
+            )
+        case .signOutEverywhereFailed:
+            return String(localized: "Could not sign out everywhere. You are still signed in.")
+        case .unsentLost(let count):
+            return String(
+                localized: "\(count) unsent messages were removed because you no longer have access to their channel.")
+        case .unrestorable(let count): return String(localized: "\(count) unsent messages could not be restored.")
+        case .outboxCorrupt: return String(localized: "Your unsent messages could not be read and were set aside.")
+        case .storageProblem:
+            return String(localized: "Unsent messages can't be saved on this Mac right now. Sending still works.")
+        case .originMismatch:
+            return String(localized: "The server refused this app's connection. Check the server's address.")
+        case .sendTooLong: return String(localized: "That message is too long to send.")
+        case .loadFailed: return String(localized: "Could not load messages. Check your connection.")
+        }
+    }
+
+    static func signIn(_ error: SignInError) -> String {
+        switch error {
+        case .cancelled: return ""
+        case .browserFailed: return String(localized: "The browser could not be opened.")
+        case .callbackRejected: return String(localized: "The sign-in did not come back the way it should. Try again.")
+        case .codeRejected: return String(localized: "That sign-in expired or was already used. Try again.")
+        case .rateLimited: return String(localized: "Too many attempts. Wait a moment and try again.")
+        case .refused: return String(localized: "The server did not accept this sign-in.")
+        case .noSessionInAnswer: return String(localized: "The server did not start a session. Try again.")
+        case .unreachable: return String(localized: "The server could not be reached.")
+        case .storage: return String(localized: "The session could not be saved to your Keychain.")
+        }
+    }
+
+    static func problem(_ problem: ServerProblem) -> (title: String, detail: String) {
+        switch problem {
+        case .unreachable:
+            return (
+                String(localized: "Can't reach the server"), String(localized: "Check the address and your connection.")
+            )
+        case .notAPurlayServer:
+            return (
+                String(localized: "That doesn't look like a Purlay server"),
+                String(localized: "The address answered, but not as Purlay does.")
+            )
+        case .rateLimited:
+            return (String(localized: "Too many requests"), String(localized: "The server asks you to wait a moment."))
+        case .appTooOld(let minimum):
+            let needed = minimum.appVersion.map { String(localized: "It needs version \($0) or newer.") } ?? ""
+            return (String(localized: "This server needs a newer Purlay"), needed)
+        case .serverTooOld:
+            return (
+                String(localized: "This server is older than this app supports"),
+                String(localized: "Ask whoever runs it to update the server.")
+            )
+        case .unusableOrigin(let text):
+            return (String(localized: "The server gave an address this app can't use"), text)
+        }
+    }
+
+    /// A channel is named with a hash; a conversation with people is named by them, with none.
+    static func channelLabel(_ channel: Channel) -> String {
+        switch channel.type {
+        case .directMessage: return channel.title
+        case .public, .private, .unknown: return "# \(channel.title)"
+        }
+    }
+}

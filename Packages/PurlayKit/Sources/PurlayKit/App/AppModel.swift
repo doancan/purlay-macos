@@ -92,10 +92,7 @@ public final class AppModel {
         chat.channels.values.sorted { Self.title($0) < Self.title($1) }
     }
 
-    public static func title(_ channel: Channel) -> String {
-        if let name = channel.name { return name }
-        return channel.peers.map(\.displayName).sorted().joined(separator: ", ")
-    }
+    public static func title(_ channel: Channel) -> String { channel.title }
 
     public var window: ChannelWindow? {
         selectedChannel.flatMap { chat.windows[$0] }
@@ -508,5 +505,13 @@ public final class AppModel {
     private func reloadMe() async {
         guard let api else { return }
         if let fresh = try? await api.getMe() { me = fresh }
+    }
+}
+
+extension Channel {
+    /// A channel's name, or the people in a conversation, by name.
+    public var title: String {
+        if let name { return name }
+        return peers.map(\.displayName).sorted().joined(separator: ", ")
     }
 }
