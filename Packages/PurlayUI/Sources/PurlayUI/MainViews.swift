@@ -16,7 +16,7 @@ struct MainView: View {
                 ForEach(model.sidebar) { section in
                     Section(Words.header(section.kind)) {
                         ForEach(section.channels, id: \.id) { channel in
-                            ChannelRow(channel: channel)
+                            ChannelRow(channel: channel, quiet: model.deepWorkEnds != nil)
                                 .contextMenu { ChannelMenu(model: model, channel: channel, leaving: $leaving) }
                         }
                     }
@@ -66,6 +66,7 @@ struct MainView: View {
         } detail: {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
+                DeepWorkBar(model: model)
                 ForEach(model.notices) { notice in
                     NoticeBanner(notice: notice) { model.dismiss(notice) }
                 }
@@ -88,6 +89,8 @@ struct MainView: View {
         .toolbar {
             ToolbarItem {
                 Menu {
+                    DeepWorkItems(model: model)
+                    Divider()
                     Button("Sign out") { Task { await model.signOut(.thisDevice) } }
                     Button("Sign out everywhere") { Task { await model.signOut(.everywhere) } }
                     Divider()
@@ -114,15 +117,20 @@ struct MainView: View {
 
 struct ChannelRow: View {
     let channel: Channel
+    /// Deep Work is on: no count is drawn, though all are kept.
+    var quiet = false
 
     var body: some View {
-        HStack {
-            Text(Words.channelLabel(channel)).lineLimit(1)
+        HStack(spacing: 4) {
+            Text(Words.channelLabel(channel)).lineLimit(1).fontWeight(channel.isUnread ? .semibold : .regular)
+            if channel.isMuted {
+                Image(systemName: "bell.slash").font(.caption).foregroundStyle(.secondary).accessibilityLabel("Muted")
+            }
             Spacer()
-            if let unread = channel.state?.unreadCount, unread > 0 {
-                Text("\(unread)").font(.caption.bold()).padding(.horizontal, 6).padding(.vertical, 1)
+            if let mentions = channel.mentionBadge(deepWork: quiet) {
+                Text("\(mentions)").font(.caption.bold()).padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(.tint)).foregroundStyle(.white)
-                    .accessibilityLabel("\(unread) unread")
+                    .accessibilityLabel("\(mentions) mentions")
             }
         }
         .tag(channel.id)

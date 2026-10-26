@@ -62,3 +62,17 @@ public enum Sidebar {
         }
     }
 }
+
+extension Channel {
+    /// Unread is said by the row's weight: bold while anything in it is unread.
+    public var isUnread: Bool { (state?.unreadCount ?? 0) > 0 }
+
+    /// A channel set to tell nothing is said as muted, with a struck-through bell after its name.
+    public var isMuted: Bool { notificationLevel == NotificationLevel.none }
+
+    /// The count a row carries: the mentions waiting, and nothing else (`UX.md` §2). While Deep Work lasts none is drawn, though all are kept.
+    public func mentionBadge(deepWork: Bool) -> Int? {
+        guard !deepWork, let mentions = state?.unreadMentionCount, mentions > 0 else { return nil }
+        return mentions
+    }
+}

@@ -31,6 +31,14 @@ struct PurlayApp: App {
                 Button("Jump to…") { model.togglePalette() }.keyboardShortcut("k")
                 Button("Search Messages…") { model.openSearch() }.keyboardShortcut("f", modifiers: [.command, .shift])
             }
+            CommandMenu("Deep Work") {
+                Button(model.deepWorkEnds == nil ? "Start Deep Work for an Hour" : "End Deep Work") {
+                    Task { await model.toggleDeepWork() }
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                Divider()
+                DeepWorkItems(model: model)
+            }
         }
         Settings { SettingsView(model: model) }
     }

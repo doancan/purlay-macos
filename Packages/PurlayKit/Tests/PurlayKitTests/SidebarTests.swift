@@ -84,6 +84,30 @@ struct SidebarTests {
         #expect(sections[0].channels.map(\.title) == ["Bob", "Dev", "Ada", "Alp", "Cem"])
     }
 
+    @Test(
+        "unread is said by weight and mentions by a count: nothing else gets a badge, and in Deep Work no count is drawn"
+    )
+    func rowSigns() {
+        let plain = make(1, name: "api")
+        #expect(!plain.isUnread && plain.mentionBadge(deepWork: false) == nil)
+        var channel = make(2, name: "api")
+        channel.state = ChannelState(lastReadMessageId: nil, unreadCount: 7, unreadMentionCount: 0)
+        #expect(channel.isUnread, "bold")
+        #expect(channel.mentionBadge(deepWork: false) == nil, "unread messages are not a badge")
+        channel.state = ChannelState(lastReadMessageId: nil, unreadCount: 7, unreadMentionCount: 2)
+        #expect(channel.mentionBadge(deepWork: false) == 2)
+        #expect(channel.mentionBadge(deepWork: true) == nil, "the count is kept, not drawn")
+        #expect(make(3, name: "x", joined: false).mentionBadge(deepWork: false) == nil)
+    }
+
+    @Test("a channel set to tell nothing is said as muted")
+    func muted() {
+        var channel = make(1, name: "api")
+        #expect(!channel.isMuted)
+        channel.notificationLevel = NotificationLevel.none
+        #expect(channel.isMuted)
+    }
+
     @Test("a conversation with several people is named by all of them, in order")
     func groupTitle() {
         var channel = make(1, name: nil, type: "direct_message", peer: "Zoe")

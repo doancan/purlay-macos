@@ -45,6 +45,7 @@ enum Words {
         case .lastMember:
             return String(localized: "You are the last member of this private channel, so you can't leave it.")
         case .starFailed: return String(localized: "Could not change the star. Try again.")
+        case .deepWorkFailed: return String(localized: "Could not change Deep Work. Try again.")
         case .editFailed: return String(localized: "Could not change the message. Check your connection and try again.")
         case .deleteFailed:
             return String(localized: "Could not delete the message. Check your connection and try again.")

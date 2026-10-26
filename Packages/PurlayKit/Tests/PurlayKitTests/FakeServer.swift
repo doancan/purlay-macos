@@ -22,6 +22,7 @@ final class FakeServer: HTTPTransport {
         var searchDelays: [String: Int] = [:]
         var aroundNewer: String?
         var deepWorkUntil: String?
+        var deepWorkStatus = 200
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
@@ -274,6 +275,15 @@ final class FakeServer: HTTPTransport {
                 200,
                 "{\"data\":\(Self.encoded(roots)),\"newerCursor\":\(newer),\"olderCursor\":null,\"target\":\(Self.encoded(target))}"
             )
+        case ("PUT", "/api/workspaces/\(Self.workspaceID)/deep-work"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.deepWorkStatus != 200 {
+                return json(snapshot.deepWorkStatus, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let until = body?["active"] as? Bool == true ? (body?["until"] as? String) : nil
+            state.withLock { $0.deepWorkUntil = until }
+            return json(200, "{\"until\":\(until.map { "\"\($0)\"" } ?? "null")}")
         case ("PATCH", _) where path.hasPrefix("/api/messages/"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count))
