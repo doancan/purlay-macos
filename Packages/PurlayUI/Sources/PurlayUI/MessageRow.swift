@@ -8,6 +8,8 @@ struct MessageRow: View {
     let model: AppModel
     /// Drawn in the thread panel: a reply has no thread of its own, and the root's affordance is the panel's heading.
     var inThread = false
+    /// The message a search went to: marked for a moment, so the eye finds it.
+    var highlighted = false
     @State private var editing = false
     @State private var confirmingDelete = false
     @State private var hovering = false
@@ -40,7 +42,10 @@ struct MessageRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(hovering && !editing ? Color.primary.opacity(0.04) : .clear)
+        .background(
+            highlighted ? Color.accentColor.opacity(0.18) : hovering && !editing ? Color.primary.opacity(0.04) : .clear
+        )
+        .animation(.easeOut(duration: 0.4), value: highlighted)
         .overlay(alignment: .topTrailing) {
             if (hovering || picking) && !deleted && !editing {
                 ActionBar(

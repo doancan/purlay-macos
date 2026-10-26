@@ -37,6 +37,12 @@ struct MainView: View {
                 .padding(.vertical, 8)
                 .help("New channel, browse channels, new conversation")
             }
+            .sheet(isPresented: Binding(get: { model.paletteOpen }, set: { model.paletteOpen = $0 })) {
+                PaletteSheet(model: model)
+            }
+            .sheet(isPresented: Binding(get: { model.searchOpen }, set: { model.searchOpen = $0 })) {
+                SearchSheet(model: model)
+            }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
                 case .newChannel: NewChannelSheet(model: model)
@@ -126,6 +132,7 @@ struct ChannelRow: View {
 /// A channel's messages, newest at the bottom, and the composer.
 struct ChannelView: View {
     let model: AppModel
+    @State private var marked: Uuid?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -138,7 +145,8 @@ struct ChannelView: View {
                         }
                         if let window = model.window {
                             ForEach(window.messages, id: \.id) { message in
-                                MessageRow(message: message, model: model).id(message.id)
+                                MessageRow(message: message, model: model, highlighted: marked == message.id).id(
+                                    message.id)
                             }
                             if window.isEmpty && model.selectedPending.isEmpty {
                                 ContentUnavailableView(
@@ -168,7 +176,21 @@ struct ChannelView: View {
                 } action: { _, atBottom in
                     model.setAtBottom(atBottom)
                 }
-                .onChange(of: model.window?.messages.last?.id) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
+                .task(id: model.focus) {
+                    // A message that a search went to: scrolled to once the feed has laid out, and marked for a moment.
+                    guard let focus = model.focus,
+                        model.window?.messages.contains(where: { $0.id == focus.message }) == true
+                    else { return }
+                    try? await Task.sleep(for: .milliseconds(150))
+                    proxy.scrollTo(focus.message, anchor: .center)
+                    marked = focus.message
+                    try? await Task.sleep(for: .seconds(2))
+                    if marked == focus.message { marked = nil }
+                }
+                .onChange(of: model.window?.messages.last?.id) { _, _ in
+                    // A new message at the bottom takes the reader there only if the reader was not sent somewhere by a search.
+                    if model.focus == nil { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
                 .onChange(of: model.selectedPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
             }
             Divider()

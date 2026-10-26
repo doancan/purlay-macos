@@ -6,6 +6,7 @@ import SwiftUI
 /// a time. Escape closes it.
 struct ThreadPanel: View {
     let model: AppModel
+    @State private var marked: Uuid?
 
     var body: some View {
         if let thread = model.thread {
@@ -23,7 +24,9 @@ struct ThreadPanel: View {
                                 ProgressView().frame(maxWidth: .infinity).padding(24)
                             } else {
                                 ForEach(thread.replies, id: \.id) { reply in
-                                    MessageRow(message: reply, model: model, inThread: true).id(reply.id)
+                                    MessageRow(
+                                        message: reply, model: model, inThread: true, highlighted: marked == reply.id
+                                    ).id(reply.id)
                                 }
                             }
                             ForEach(model.threadPending) { pending in
@@ -35,6 +38,16 @@ struct ThreadPanel: View {
                             }
                             Color.clear.frame(height: 1).id("bottom")
                         }
+                    }
+                    .task(id: model.focus) {
+                        guard let focus = model.focus, thread.replies.contains(where: { $0.id == focus.message }) else {
+                            return
+                        }
+                        try? await Task.sleep(for: .milliseconds(200))
+                        proxy.scrollTo(focus.message, anchor: .center)
+                        marked = focus.message
+                        try? await Task.sleep(for: .seconds(2))
+                        if marked == focus.message { marked = nil }
                     }
                     .onChange(of: thread.replies.last?.id) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
                     .onChange(of: model.threadPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }

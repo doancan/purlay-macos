@@ -17,6 +17,10 @@ final class FakeServer: HTTPTransport {
         var cookieOnToken = true
         var channelsStatus = 200
         var membersStatus = 200
+        var searchStatus = 200
+        var searchPageSize: Int?
+        var searchDelays: [String: Int] = [:]
+        var aroundNewer: String?
         var deepWorkUntil: String?
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
@@ -62,6 +66,11 @@ final class FakeServer: HTTPTransport {
             WorkspaceMember.self,
             #"{"joinedAt":"2026-10-09T12:00:00.000Z","profile":{"title":null,"timeZone":null,"status":null},"role":"member","user":"#
                 + encoded(user) + "}")
+    }
+
+    /// Which of the numbered test channels an id is.
+    func channelNumber(of id: String) -> Int {
+        (1...20).first { channel($0) == id } ?? 1
     }
 
     func edit(_ change: (inout State) -> Void) { state.withLock { change(&$0) } }
@@ -227,6 +236,44 @@ final class FakeServer: HTTPTransport {
                 "{\"lastReplyAt\":null,\"replyCount\":\(snapshot.threads[id]?.count ?? 0),\"resolvedAt\":\(resolved ? "\"2026-10-09T14:00:00.000Z\"" : "null"),\"resolvedBy\":\(resolved ? who : "null")}"
             )
             return json(200, Self.encoded(root))
+        case ("GET", _) where path.hasPrefix("/api/workspaces/") && path.hasSuffix("/search"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let q = items.first { $0.name == "q" }?.value ?? ""
+            if let wait = snapshot.searchDelays[q] { try? await Task.sleep(for: .milliseconds(wait)) }
+            if snapshot.searchStatus != 200 {
+                return json(snapshot.searchStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            if q.count < 3 || q.count > 200 {
+                return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            let before = items.first { $0.name == "before" }?.value
+            var found = (Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined()))
+                .filter { $0.deletedAt == nil && $0.content.lowercased().contains(q.lowercased()) }
+                .sorted { $0.id > $1.id }
+            if let before { found = found.filter { $0.id.value < before } }
+            let size = snapshot.searchPageSize ?? 20
+            let page = Array(found.prefix(size))
+            let next = found.count > size ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+            return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next)}")
+        case ("GET", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/around"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.searchStatus != 200 {
+                return json(snapshot.searchStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/around".count))
+            let everything = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
+            guard let target = everything.first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            let roots = (snapshot.messages[channel(channelNumber(of: target.channelId.value))] ?? []).sorted {
+                $0.id < $1.id
+            }
+            let newer = snapshot.aroundNewer.map { "\"\($0)\"" } ?? "null"
+            return json(
+                200,
+                "{\"data\":\(Self.encoded(roots)),\"newerCursor\":\(newer),\"olderCursor\":null,\"target\":\(Self.encoded(target))}"
+            )
         case ("PATCH", _) where path.hasPrefix("/api/messages/"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count))

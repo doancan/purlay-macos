@@ -26,6 +26,12 @@ struct PurlayApp: App {
                 .task { await model.launch() }
         }
         .defaultSize(width: 1_100, height: 720)
+        .commands {
+            CommandGroup(after: .textEditing) {
+                Button("Jump to…") { model.togglePalette() }.keyboardShortcut("k")
+                Button("Search Messages…") { model.openSearch() }.keyboardShortcut("f", modifiers: [.command, .shift])
+            }
+        }
         Settings { SettingsView(model: model) }
     }
 }
