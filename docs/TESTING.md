@@ -33,5 +33,5 @@ that is not yet ported says so.
 | `server-clock.test.ts` | `RealtimePrimitivesTests` — `ServerClockTests` | ported |
 | `connection.test.ts` | `ConnectionTests`, `ConnectionNetworkTests`, `ConnectionReplayTests` | ported (every case) |
 | `socket.test.ts` | `Tests/ContractTests` — `LiveSocketTests` | covered against the real server (the transport is `URLSession`'s, and a fake of it would test the fake) |
-| `pending-store.test.ts` | — | with the outbox (M2-4) |
+| `pending-store.ts` and the send cases of `engine.test.ts` | `OutboxStoreTests`, `SendCoordinatorTests` | ported: a send over the socket, over HTTP, with attachments, across a reconnect, kept across a relaunch, a channel that went away, and an id the server finds too old |
 | `engine.test.ts` | — | with the engine (M2-3 to M2-5) |
