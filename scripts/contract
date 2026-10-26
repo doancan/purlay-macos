@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# The server's contract bundle (D-189 there), pinned. The app generates code from it and never writes a wire fact by
+# hand; what it was generated from is the bundle this lock names.
+#
+#   scripts/contract use DIR      take a bundle from a directory (a checkout's `bun run contract:bundle --out DIR`)
+#   scripts/contract fetch TAG    take the bundle a GitHub release carries, after checking its digest file
+#   scripts/contract verify       fail unless Contract/bundle is exactly the bundle Contract/contract.lock names
+#
+# The lock is committed: it is `{serverVersion, contractVersion, bundleFormat, manifestSha256}`. The bundle itself is
+# fetched (git-ignored). Every file's digest is checked against the manifest, and the manifest's against the lock.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+BUNDLE=Contract/bundle
+LOCK=Contract/contract.lock
+REPOSITORY="${PURLAY_SERVER_REPOSITORY:-doancan/purlay}"
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# Every listed file is present with the digest the manifest gives, and nothing else is there.
+check_bundle() { # dir
+  python3 - "$1" <<'PY'
+import hashlib, json, os, sys
+root = sys.argv[1]
+try:
+    manifest = json.load(open(os.path.join(root, "MANIFEST.json")))
+except (OSError, ValueError) as error:
+    sys.exit(f"FAIL: {root}/MANIFEST.json cannot be read: {error}")
+listed = {entry["path"]: entry["sha256"] for entry in manifest["files"]}
+present = set()
+for directory, _, names in os.walk(root):
+    for name in names:
+        present.add(os.path.relpath(os.path.join(directory, name), root).replace(os.sep, "/"))
+present.discard("MANIFEST.json")
+problems = []
+for path, digest in sorted(listed.items()):
+    target = os.path.join(root, path)
+    if not os.path.isfile(target):
+        problems.append(f"missing: {path}")
+    elif hashlib.sha256(open(target, "rb").read()).hexdigest() != digest:
+        problems.append(f"differs: {path}")
+problems += [f"unexpected: {path}" for path in sorted(present - set(listed))]
+if problems:
+    sys.exit("FAIL: the bundle is not what its manifest says:\n  " + "\n  ".join(problems))
+PY
+}
+
+write_lock() { # dir
+  python3 - "$1" "$LOCK" <<'PY'
+import hashlib, json, sys
+root, lock = sys.argv[1], sys.argv[2]
+raw = open(f"{root}/MANIFEST.json", "rb").read()
+manifest = json.loads(raw)
+json.dump({
+    "serverVersion": manifest["serverVersion"],
+    "contractVersion": manifest["contractVersion"],
+    "bundleFormat": manifest["format"],
+    "manifestSha256": hashlib.sha256(raw).hexdigest(),
+}, open(lock, "w"), indent=2, sort_keys=True)
+open(lock, "a").write("\n")
+PY
+}
+
+install() { # dir
+  check_bundle "$1"
+  rm -rf "$BUNDLE"; mkdir -p "$(dirname "$BUNDLE")"; cp -R "$1" "$BUNDLE"
+  write_lock "$BUNDLE"
+  echo "pinned: $(cat "$LOCK" | tr -d '\n ')"
+}
+
+case "${1:-}" in
+  use)
+    [ -n "${2:-}" ] || fail "usage: scripts/contract use DIR"
+    [ -d "$2" ] || fail "$2 is not a directory"
+    install "$2" ;;
+  fetch)
+    [ -n "${2:-}" ] || fail "usage: scripts/contract fetch TAG"
+    work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+    name="purlay-contract-$2"
+    gh release download "$2" --repo "$REPOSITORY" --pattern "$name.tar.gz" --pattern "$name.tar.gz.sha256" --dir "$work" \
+      || fail "cannot download $name from $REPOSITORY"
+    (cd "$work" && shasum -a 256 -c "$name.tar.gz.sha256") || fail "the digest of $name.tar.gz does not match"
+    tar -xzf "$work/$name.tar.gz" -C "$work"
+    install "$work/$name" ;;
+  verify)
+    [ -f "$LOCK" ] || fail "$LOCK does not exist: run scripts/contract use or fetch"
+    [ -d "$BUNDLE" ] || fail "$BUNDLE does not exist: run scripts/contract fetch with the tag in $LOCK"
+    check_bundle "$BUNDLE"
+    python3 - "$BUNDLE" "$LOCK" <<'PY'
+import hashlib, json, sys
+root, lock = sys.argv[1], json.load(open(sys.argv[2]))
+actual = hashlib.sha256(open(f"{root}/MANIFEST.json", "rb").read()).hexdigest()
+if actual != lock["manifestSha256"]:
+    sys.exit(f"FAIL: the bundle is not the one the lock pins\n  lock:   {lock['manifestSha256']}\n  actual: {actual}")
+print(f"the bundle is the pinned one (server {lock['serverVersion']}, contract {lock['contractVersion']})")
+PY
+    ;;
+  *) fail "usage: scripts/contract use DIR | fetch TAG | verify" ;;
+esac
