@@ -29,7 +29,7 @@ step "the generator: build and test"
 
 step "format"
 # Swift sources only; the generated packages are held to the same rule once they exist.
-find App Packages Tools -name '*.swift' -not -path '*/.build/*' -print0 | xargs -0 xcrun swift-format lint --strict --parallel
+find App Packages Tools Tests -name '*.swift' -not -path '*/.build/*' -print0 | xargs -0 xcrun swift-format lint --strict --parallel
 
 step "packages: build and test, Swift 6, every warning an error"
 for package in Packages/*/; do
@@ -37,6 +37,14 @@ for package in Packages/*/; do
   (cd "$package" && swift test 2>&1 | tail -4)
   (cd "$package" && swift test 2>&1 | grep -q "Test run with .* passed") || { echo "FAIL: $package" >&2; exit 1; }
 done
+
+step "the real client against a real server of the pinned version"
+if [ -n "${PURLAY_SERVER_CHECKOUT:-}" ]; then
+  scripts/contract-test
+else
+  # Not a pass: these tests are the only thing that checks the client against the server's own behaviour. CI sets it.
+  echo "SKIPPED: set PURLAY_SERVER_CHECKOUT to a checkout of the server repository to run them (scripts/contract-test)"
+fi
 
 step "the app: generate, build Debug and Release"
 xcodegen generate --quiet

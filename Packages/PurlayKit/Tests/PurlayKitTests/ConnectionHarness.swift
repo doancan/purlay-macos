@@ -62,6 +62,7 @@ final class Harness {
     var frames: [ServerFrame] = []
     var statuses: [Connection.Status] = []
     var refused: [(channels: [Uuid], code: ErrorCode, refID: Uuid)] = []
+    var refusals: [Int] = []
     var local = Double(epochMs)
     let serverClock: ServerClock
     /// One entry per `checkSession` call, in order; resolved to answer.
@@ -108,8 +109,10 @@ final class Harness {
                 },
                 onFrame: { [weak self] frame in self?.frames.append(frame) },
                 onStatus: { [weak self] status in self?.statuses.append(status) },
-                onSubscribeRefused: { [weak self] channels, code, refID in self?.refused.append((channels, code, refID))
-                }))
+                onSubscribeRefused: { [weak self] channels, code, refID in
+                    self?.refused.append((channels, code, refID))
+                },
+                onRefused: { [weak self] status in self?.refusals.append(status) }))
     }
 
     private let clockBox: ClockBox

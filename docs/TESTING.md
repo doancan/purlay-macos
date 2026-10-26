@@ -9,6 +9,7 @@ How this repository is tested, and what has been ported from the web client's te
 | Generator | `Tools/PurlayGen/Tests` | `swift test` in `Tools/PurlayGen` |
 | Contract types | `Packages/PurlayContract/Tests` | `swift test` — every schema is read from an example built out of itself and written back unchanged |
 | Kit (transport, auth, realtime) | `Packages/PurlayKit/Tests`, `Packages/PurlayTestSupport/Tests` | `swift test` — against a scripted transport and a scripted socket |
+| Contract tests | `Tests/ContractTests` | `scripts/contract-test` — the real client against a real server of the pinned version: the handshake, every read the contract lists, the socket (open, subscribe, live frames, send, replay after a drop, refused upgrades), and the sign-in as the application, end to end |
 | Whole | `scripts/verify` | everything above, the architecture rules, the build of the app in both configurations |
 
 Tests are written to the behaviour a document states and the contract's own fixtures, not to the implementation. Faults are
@@ -31,6 +32,6 @@ that is not yet ported says so.
 | `cursors.test.ts` | `RealtimePrimitivesTests` — `CursorsTests` | ported |
 | `server-clock.test.ts` | `RealtimePrimitivesTests` — `ServerClockTests` | ported |
 | `connection.test.ts` | `ConnectionTests`, `ConnectionNetworkTests`, `ConnectionReplayTests` | ported (every case) |
-| `socket.test.ts` | — | with the URLSession socket transport (M2-1) |
+| `socket.test.ts` | `Tests/ContractTests` — `LiveSocketTests` | covered against the real server (the transport is `URLSession`'s, and a fake of it would test the fake) |
 | `pending-store.test.ts` | — | with the outbox (M2-4) |
 | `engine.test.ts` | — | with the engine (M2-3 to M2-5) |

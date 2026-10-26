@@ -393,3 +393,60 @@ struct NewerServerTests {
         #expect(socket.closedByClient)
     }
 }
+
+@MainActor
+@Suite("a refused upgrade")
+struct RefusedUpgradeTests {
+    @Test(
+        "the session is over, the origin does not match, or this app is too old: the connection ends and says so, once",
+        arguments: [
+            401, 403, 426,
+        ])
+    func endsConnection(status: Int) {
+        let h = Harness()
+        h.connection.start()
+        h.last.handlers.refused(status)
+        #expect(h.connection.status == .ended)
+        #expect(h.refusals == [status])
+        #expect(h.live.isEmpty)
+        #expect(h.sockets.count == 1)
+    }
+
+    @Test(
+        "a server that is busy, restarting, or behind a proxy that is, is an ordinary failed attempt",
+        arguments: [
+            429, 500, 502, 503, 504, 400, 404,
+        ])
+    func retried(status: Int) {
+        let h = Harness()
+        h.connection.start()
+        h.last.handlers.refused(status)
+        #expect(h.connection.status == .waiting)
+        #expect(h.refusals.isEmpty)
+        #expect(h.waits == [base / 2])
+        h.fireNext()
+        #expect(h.sockets.count == 2)
+    }
+
+    @Test("a refusal from a socket that has been replaced changes nothing")
+    func lateRefusal() {
+        let h = Harness()
+        h.connection.start()
+        let old = h.last
+        old.handlers.closed(1006)
+        h.fireNext()
+        old.handlers.refused(401)
+        #expect(h.connection.status == .connecting)
+        #expect(h.refusals.isEmpty)
+    }
+
+    @Test("after an ended connection, signing in again starts it again")
+    func startsAgain() {
+        let h = Harness()
+        h.connection.start()
+        h.last.handlers.refused(401)
+        h.connection.start()
+        #expect(h.connection.status == .connecting)
+        #expect(h.sockets.count == 2)
+    }
+}

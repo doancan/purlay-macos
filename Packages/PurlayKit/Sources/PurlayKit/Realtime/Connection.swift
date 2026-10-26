@@ -7,11 +7,17 @@ public struct SocketHandlers {
     /// Text: the contract is text, and a transport that delivers anything else delivers it as a failure to read.
     public let message: (String) -> Void
     public let closed: (Int) -> Void
+    /// The server answered the upgrade with an HTTP status instead of opening: the socket never opened.
+    public let refused: (Int) -> Void
 
-    public init(opened: @escaping () -> Void, message: @escaping (String) -> Void, closed: @escaping (Int) -> Void) {
+    public init(
+        opened: @escaping () -> Void, message: @escaping (String) -> Void, closed: @escaping (Int) -> Void,
+        refused: @escaping (Int) -> Void = { _ in }
+    ) {
         self.opened = opened
         self.message = message
         self.closed = closed
+        self.refused = refused
     }
 }
 
@@ -72,13 +78,16 @@ public final class Connection {
         /// A chunk of channels the server refused for a reason waiting will not change. Told before `onFrame` gets the same
         /// `ERROR`, so whoever owns the store can say so and then recognise the frame.
         public var onSubscribeRefused: (([Uuid], ErrorCode, Uuid) -> Void)?
+        /// The server refused the upgrade for a reason that ends the connection (`401` the session is over, `403` the origin does
+        /// not match, `426` this app is too old). Told once, and the connection is `ended`: reconnecting would be refused again.
+        public var onRefused: ((Int) -> Void)?
 
         public init(
             url: URL, openSocket: @escaping OpenSocket, schedule: @escaping Schedule, random: @escaping () -> Double,
             clock: @escaping () -> Date, serverClock: ServerClock,
             checkSession: @escaping @Sendable () async -> SessionCheck,
             newID: @escaping () -> Uuid, onFrame: @escaping (ServerFrame) -> Void, onStatus: ((Status) -> Void)? = nil,
-            onSubscribeRefused: (([Uuid], ErrorCode, Uuid) -> Void)? = nil
+            onSubscribeRefused: (([Uuid], ErrorCode, Uuid) -> Void)? = nil, onRefused: ((Int) -> Void)? = nil
         ) {
             self.url = url
             self.openSocket = openSocket
@@ -91,6 +100,7 @@ public final class Connection {
             self.onFrame = onFrame
             self.onStatus = onStatus
             self.onSubscribeRefused = onSubscribeRefused
+            self.onRefused = onRefused
         }
     }
 
@@ -376,6 +386,18 @@ public final class Connection {
                 // Told to come back later: begin the wait part-way up the ladder.
                 if code == CloseCode.tooBusy { failures = max(failures, ContractConstants.tooBusyBackoffStep) }
                 lost()
+            },
+            refused: { [weak self] status in
+                guard let self, mine == generation else { return }
+                switch status {
+                case 401, 403, 426:
+                    // The session is over, the origin does not match, or this app is too old: asking again is refused again.
+                    end()
+                    options.onRefused?(status)
+                default:
+                    // A server that is busy, restarting or behind a proxy that is: the same as any failed attempt.
+                    lost()
+                }
             })
 
         do {

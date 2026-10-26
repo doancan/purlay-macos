@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# The real client against a real server of the pinned version (§16.3): starts the server's own demo from a checkout of the
+# server repository, on a port and in a database of its own, runs the contract tests against it, and stops it.
+#
+#   PURLAY_SERVER_CHECKOUT=~/Projects/purlay scripts/contract-test
+#
+# The server repository must be at the version `Contract/contract.lock` names (or a branch carrying it), with its web client
+# built (`apps/web/dist`) and a database up (`bun run db:up`). The demo only ever creates a database named `purlay_e2e…`.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+CHECKOUT="${PURLAY_SERVER_CHECKOUT:-../purlay}"
+PORT="${PURLAY_TEST_PORT:-4390}"
+[ -d "$CHECKOUT/apps/api" ] || { echo "FAIL: $CHECKOUT is not a checkout of the server repository (set PURLAY_SERVER_CHECKOUT)" >&2; exit 1; }
+[ -d "$CHECKOUT/apps/web/dist" ] || { echo "FAIL: build the server's web client first ($CHECKOUT/apps/web/dist is missing)" >&2; exit 1; }
+scripts/contract verify >/dev/null
+
+WORK="$(mktemp -d)"
+MANIFEST="$WORK/world.json"
+LOG="$WORK/server.log"
+trap 'kill "${SERVER:-0}" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+
+(cd "$CHECKOUT" && exec bun --no-env-file --env-file=.env.test run scripts/demo.ts --no-build \
+  --db "purlay_e2e_macos_$PORT" --port "$PORT" --manifest "$MANIFEST") >"$LOG" 2>&1 &
+SERVER=$!
+
+for _ in $(seq 1 120); do
+  if curl -fsS "http://localhost:$PORT/api/client" >/dev/null 2>&1 && [ -s "$MANIFEST" ]; then break; fi
+  kill -0 "$SERVER" 2>/dev/null || { echo "FAIL: the server stopped:" >&2; tail -20 "$LOG" >&2; exit 1; }
+  sleep 1
+done
+curl -fsS "http://localhost:$PORT/api/client" >/dev/null || { echo "FAIL: the server did not come up:" >&2; tail -20 "$LOG" >&2; exit 1; }
+
+cd Tests/ContractTests
+PURLAY_TEST_SERVER="http://localhost:$PORT" PURLAY_TEST_MANIFEST="$MANIFEST" swift test "$@"
