@@ -17,6 +17,12 @@ final class FakeServer: HTTPTransport {
         var cookieOnToken = true
         var channelsStatus = 200
         var membersStatus = 200
+        var uploaded: [(id: String, name: String, size: Int)] = []
+        var discarded: [String] = []
+        var uploadError: (status: Int, code: String, remaining: Int?)?
+        var uploadErrors: [String: (status: Int, code: String, remaining: Int?)] = [:]
+        var uploadDelays: [String: Int] = [:]
+        var attachmentData: [String: Data] = [:]
         var saved: [String: String] = [:]
         var saveError: (status: Int, code: String)?
         var pins: [String: [String]] = [:]
@@ -53,6 +59,7 @@ final class FakeServer: HTTPTransport {
     static let sessionValue = "session-value"
 
     var requests: [HTTPRequest] { state.withLock { $0.requests } }
+    var discardedIDs: [String] { state.withLock { $0.discarded } }
     var threadReadsSeen: [(root: String, read: String)] { state.withLock { $0.threadReads } }
     static func encoded<T: Encodable>(_ value: T) -> String {
         (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
@@ -355,6 +362,39 @@ final class FakeServer: HTTPTransport {
                 state.pins[message.channelId.value] = list
             }
             return HTTPResponse(status: 204)
+        case ("POST", "/api/workspaces/\(Self.workspaceID)/uploads"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let id = items.first { $0.name == "id" }?.value ?? ""
+            let name = items.first { $0.name == "name" }?.value ?? ""
+            if let wait = snapshot.uploadDelays[name] { try? await Task.sleep(for: .milliseconds(wait)) }
+            if let failure = snapshot.uploadErrors[name] ?? snapshot.uploadError {
+                let details = failure.remaining.map { #","details":{"remainingBytes":\#($0)}"# } ?? ""
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"\#(details)}}"#)
+            }
+            let size = request.body?.count ?? 0
+            let again = snapshot.uploaded.contains { $0.id == id }
+            state.withLock { if !again { $0.uploaded.append((id, name, size)) } }
+            let image = ["png", "jpg", "jpeg", "gif", "webp"].contains((name as NSString).pathExtension.lowercased())
+            let attachment =
+                "{\"id\":\"\(id)\",\"fileName\":\"\(name)\",\"kind\":\"\(image ? "image" : "file")\",\"mimeType\":\"\(image ? "image/webp" : "application/octet-stream")\","
+                + "\"sizeBytes\":\(size),\"width\":\(image ? "2" : "null"),\"height\":\(image ? "2" : "null")}"
+            return json(again ? 200 : 201, attachment)
+        case ("DELETE", _) where path.hasPrefix("/api/attachments/"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/attachments/".count))
+            state.withLock {
+                $0.discarded.append(id)
+                $0.uploaded.removeAll { $0.id == id }
+            }
+            return HTTPResponse(status: 204)
+        case ("GET", _) where path.hasPrefix("/api/attachments/"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/attachments/".count).split(separator: "/").first ?? "")
+            guard let data = snapshot.attachmentData[id] else {
+                return json(404, #"{"error":{"code":"ATTACHMENT_NOT_FOUND","message":"x"}}"#)
+            }
+            return HTTPResponse(status: 200, headers: ["Content-Type": "application/octet-stream"], body: data)
         case ("PATCH", _) where path.hasPrefix("/api/messages/"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count))

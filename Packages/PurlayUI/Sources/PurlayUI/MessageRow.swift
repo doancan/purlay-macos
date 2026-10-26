@@ -38,7 +38,8 @@ struct MessageRow: View {
             } else if editing {
                 EditBox(message: message, model: model) { model.endEdit() }
             } else {
-                MessageBody(text: message.content)
+                if !message.content.isEmpty { MessageBody(text: message.content) }
+                AttachmentList(model: model, attachments: message.attachments)
             }
             if !deleted && !message.reactions.isEmpty { ReactionRow(message: message, model: model) }
             if !inThread && message.parentId == nil, let summary = message.thread, summary.replyCount > 0 {

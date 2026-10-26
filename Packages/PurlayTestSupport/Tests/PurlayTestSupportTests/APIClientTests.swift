@@ -342,4 +342,125 @@ struct APIClientTests {
         _ = try await client.send(try endpoint("getMe"), as: JSONValue.self)
         #expect(await sleeps.asked == [1_250])
     }
+
+    // MARK: Bytes
+
+    private let uploadID = "0199155c-6200-7b7f-8c11-2a4d3f9e1b71"
+    private let attachmentJSON =
+        #"{"id":"0199155c-6200-7b7f-8c11-2a4d3f9e1b71","fileName":"a.png","kind":"image","mimeType":"image/webp","sizeBytes":3,"width":2,"height":2}"#
+
+    @Test(
+        "a file goes up as its raw bytes, with its length, as an octet stream, to its workspace, under an id and a name"
+    )
+    func uploadShape() async throws {
+        let h = harness([ScriptedTransport.json(201, attachmentJSON)])
+        let bytes = Data([1, 2, 3, 4, 5])
+        let attachment = try await h.client.sendBytes(
+            try endpoint("uploadFile"), path: ["workspaceId": channel],
+            query: UploadQuery(id: Uuid(uploadID)!, name: "a.png"), bytes: bytes,
+            idempotent: true, as: Attachment.self)
+        #expect(attachment.id.value == uploadID)
+        let request = try #require(await h.transport.requests.first)
+        #expect(request.method == "POST")
+        #expect(request.url.path == "/api/workspaces/\(channel)/uploads")
+        #expect(request.body == bytes)
+        #expect(request.headers["Content-Type"] == "application/octet-stream")
+        #expect(request.headers["Content-Length"] == "5")
+        #expect(request.headers["Cookie"]?.hasSuffix("=session-value") == true)
+        let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(items.first { $0.name == "id" }?.value == uploadID)
+        #expect(items.first { $0.name == "name" }?.value == "a.png")
+    }
+
+    @Test(
+        "a name is spelled so that it comes back as it was, whatever is in it",
+        arguments: [
+            "my file.png", "a&b=c#d.txt", "İstanbul ışık.pdf", "slash/inside.txt", "100% real?.md", "emoji 👍.gif",
+            "ünï.txt",
+        ])
+    func uploadName(name: String) async throws {
+        let h = harness([ScriptedTransport.json(200, attachmentJSON)])
+        _ = try await h.client.sendBytes(
+            try endpoint("uploadFile"), path: ["workspaceId": channel],
+            query: UploadQuery(id: Uuid(uploadID)!, name: name), bytes: Data([0]),
+            idempotent: true, as: Attachment.self)
+        let request = try #require(await h.transport.requests.first)
+        let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(items.first { $0.name == "name" }?.value == name)
+        #expect(items.count == 2, "nothing in the name became a parameter")
+    }
+
+    @Test("an upload the server already has is read the same as a new one")
+    func uploadTwice() async throws {
+        let h = harness([ScriptedTransport.json(200, attachmentJSON)])
+        let attachment = try await h.client.sendBytes(
+            try endpoint("uploadFile"), path: ["workspaceId": channel],
+            query: UploadQuery(id: Uuid(uploadID)!, name: "a.png"), bytes: Data([0]),
+            idempotent: true, as: Attachment.self)
+        #expect(attachment.fileName == "a.png")
+    }
+
+    @Test(
+        "an upload is tried again when the server was briefly away, since the same id is the same upload; a refusal is not"
+    )
+    func uploadRetries() async throws {
+        let h = harness([unavailable, ScriptedTransport.json(201, attachmentJSON)])
+        _ = try await h.client.sendBytes(
+            try endpoint("uploadFile"), path: ["workspaceId": channel],
+            query: UploadQuery(id: Uuid(uploadID)!, name: "a.png"), bytes: Data([0]),
+            idempotent: true, as: Attachment.self)
+        #expect(await h.transport.requests.count == 2)
+        let refused = harness([
+            ScriptedTransport.json(
+                413, #"{"error":{"code":"STORAGE_QUOTA_EXCEEDED","message":"x","details":{"remainingBytes":1024}}}"#)
+        ])
+        let error = await #expect(throws: APIError.self) {
+            _ = try await refused.client.sendBytes(
+                try endpoint("uploadFile"), path: ["workspaceId": channel],
+                query: UploadQuery(id: Uuid(uploadID)!, name: "a.png"),
+                bytes: Data([0]), idempotent: true, as: Attachment.self)
+        }
+        #expect(error?.code == .storageQuotaExceeded)
+        if case .object(let details)? = error?.details, case .integer(let room)? = details["remainingBytes"] {
+            #expect(room == 1024)
+        } else {
+            Issue.record("no remainingBytes in the details")
+        }
+        #expect(await refused.transport.requests.count == 1)
+    }
+
+    @Test("bytes are for a route that takes bytes, and a route that takes bytes is not sent none")
+    func bytesRoutes() async throws {
+        let h = harness([ScriptedTransport.json(200, "{}")])
+        await #expect(throws: TransportError.self) {
+            _ = try await h.client.sendBytes(
+                try endpoint("getMe"), query: nil, bytes: Data([1]), idempotent: false, as: JSONValue.self)
+        }
+        await #expect(throws: TransportError.self) {
+            _ = try await h.client.send(
+                try endpoint("uploadFile"), path: ["workspaceId": channel],
+                query: UploadQuery(id: Uuid(uploadID)!, name: "a"),
+                as: Attachment.self)
+        }
+        #expect(await h.transport.requests.isEmpty, "nothing was sent")
+    }
+
+    @Test("a download is the bytes, whatever they are; one that is not there is the contract's error")
+    func download() async throws {
+        let payload = Data((0..<255).map { UInt8($0) })
+        let h = harness([
+            .respond(HTTPResponse(status: 200, headers: ["Content-Type": "application/octet-stream"], body: payload))
+        ])
+        let bytes = try await h.client.sendForData(try endpoint("downloadAttachment"), path: ["attachmentId": uploadID])
+        #expect(bytes == payload)
+        let request = try #require(await h.transport.requests.first)
+        #expect(request.url.path == "/api/attachments/\(uploadID)")
+        let missing = harness([ScriptedTransport.json(404, #"{"error":{"code":"ATTACHMENT_NOT_FOUND","message":"x"}}"#)]
+        )
+        let error = await #expect(throws: APIError.self) {
+            _ = try await missing.client.sendForData(
+                try endpoint("downloadAttachment"), path: ["attachmentId": uploadID])
+        }
+        #expect(error?.code == .attachmentNotFound)
+    }
 }

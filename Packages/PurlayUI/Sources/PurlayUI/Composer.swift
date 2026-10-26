@@ -24,14 +24,16 @@ struct ComposerView: View {
         _state = State(initialValue: state)
     }
 
-    private var empty: Bool { state.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSend: Bool { model.canSend(text: state.text, channel: channel, parent: parent) }
+    @State private var dropping = false
     private var over: Bool { ComposerText.unitsOver(state.text) > 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if !state.suggestions.isEmpty { SuggestionList(state: state) }
             if let notice = state.notice { ComposerNotice(text: notice) { state.notice = nil } }
-            FormatRow(state: state, previewing: $previewing)
+            UploadChips(model: model, channel: channel, parent: parent)
+            FormatRow(state: state, previewing: $previewing, attach: attach)
             if previewing {
                 MessageBody(text: state.text.isEmpty ? " " : state.text)
                     .padding(8)
@@ -42,7 +44,7 @@ struct ComposerView: View {
                 ComposerTextView(
                     state: state, placeholder: placeholder, candidates: { model.mentionCandidates }, onSend: send,
                     onPeopleMissing: { Task { await model.refreshPeople() } },
-                    onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil)
+                    onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil, onFiles: { files in add(files) })
                 VStack(alignment: .trailing, spacing: 4) {
                     if let left = ComposerText.unitsLeft(state.text) {
                         Text(left, format: .number)
@@ -53,7 +55,7 @@ struct ComposerView: View {
                     }
                     Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.title2) }
                         .buttonStyle(.borderless)
-                        .disabled(empty || over)
+                        .disabled(!canSend || over)
                         .accessibilityLabel("Send")
                         .help("Send  ↩")
                 }
@@ -61,6 +63,15 @@ struct ComposerView: View {
         }
         .padding(8)
         .background(.bar)
+        .overlay {
+            if dropping { RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2).padding(2) }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            Task { add(await PickedFiles.read(urls.filter(\.isFileURL))) }
+            return !urls.isEmpty
+        } isTargeted: {
+            dropping = $0
+        }
         .onAppear { state.togglePreview = { previewing.toggle() } }
         .onChange(of: state.text) { _, text in remember(text) }
         .onDisappear {
@@ -76,6 +87,13 @@ struct ComposerView: View {
             try? await Task.sleep(for: .milliseconds(400))
             if !Task.isCancelled { model.setDraft(text, for: channel, parent: parent) }
         }
+    }
+
+    private func attach() { Task { add(await PickedFiles.choose()) } }
+
+    private func add(_ files: [PickedFile]) {
+        guard !files.isEmpty else { return }
+        Task { await model.attach(files, channel: channel, parent: parent) }
     }
 
     private func send() {
@@ -94,6 +112,7 @@ struct ComposerView: View {
 private struct FormatRow: View {
     let state: ComposerState
     @Binding var previewing: Bool
+    let attach: () -> Void
 
     var body: some View {
         HStack(spacing: 2) {
@@ -109,6 +128,10 @@ private struct FormatRow: View {
             button("curlybraces", "Code block", .code)
             Divider().frame(height: 14).padding(.horizontal, 4)
             button("at", "Mention", .mention)
+            Button(action: attach) { Image(systemName: "paperclip").frame(width: 22, height: 20) }
+                .buttonStyle(.borderless)
+                .help("Attach files")
+                .accessibilityLabel("Attach files")
             Spacer()
             Toggle(isOn: $previewing) { Image(systemName: "eye") }
                 .toggleStyle(.button)

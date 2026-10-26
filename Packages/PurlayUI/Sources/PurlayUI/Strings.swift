@@ -52,12 +52,44 @@ enum Words {
         case .pinFailed: return String(localized: "Could not change the pin. Try again.")
         case .pinsFull:
             return String(localized: "This channel has as many pinned messages as it can hold. Unpin one first.")
+        case .tooManyFiles:
+            return String(
+                localized:
+                    "A message holds at most \(ContractConstants.attachmentsPerMessageMax) files. The rest were not added."
+            )
         case .editFailed: return String(localized: "Could not change the message. Check your connection and try again.")
         case .deleteFailed:
             return String(localized: "Could not delete the message. Check your connection and try again.")
         case .reactionFailed:
             return String(localized: "Could not react to the message. Check your connection and try again.")
         case .loadFailed: return String(localized: "Could not load messages. Check your connection.")
+        }
+    }
+
+    /// What a file's failure says, in words from what the server answered (D-159, D-164).
+    static func upload(_ failure: UploadFailure) -> String {
+        switch failure {
+        case .empty: return String(localized: "This file is empty.")
+        case .tooLarge:
+            return String(
+                localized:
+                    "This file is larger than the limit of \(ByteCountFormatter.string(fromByteCount: Int64(ContractConstants.attachmentBytesMax), countStyle: .file))."
+            )
+        case .imageTooLarge: return String(localized: "This picture is larger than Purlay can take.")
+        case .imageUnreadable: return String(localized: "This picture cannot be read.")
+        case .unsupported: return String(localized: "This kind of file is not accepted.")
+        case .storageFull(let remaining):
+            return String(
+                localized:
+                    "The workspace's storage is full. \(ByteCountFormatter.string(fromByteCount: Int64(remaining), countStyle: .file)) left."
+            )
+        case .tooManyWaiting: return String(localized: "Too many files are waiting. Send or remove some first.")
+        case .noConnection: return String(localized: "No connection.")
+        case .busy: return String(localized: "The server is busy.")
+        case .storageUnavailable: return String(localized: "File storage is unavailable right now.")
+        case .sessionEnded: return String(localized: "Your session has ended. Sign in again.")
+        case .noAccess: return String(localized: "You no longer have access here.")
+        case .unknown: return String(localized: "The file could not be sent.")
         }
     }
 

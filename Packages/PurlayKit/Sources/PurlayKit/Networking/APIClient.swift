@@ -71,6 +71,21 @@ public final class APIClient: Sendable {
         }
     }
 
+    /// A route that takes the file's own bytes (`application/octet-stream`) and answers with a body. A route that takes bytes is never sent
+    /// none, and a route that does not is never sent any: the contract says which is which.
+    public func sendBytes<Response: Decodable & Sendable>(
+        _ endpoint: EndpointSpec, path: [String: String] = [:], query: (any Encodable & Sendable)? = nil, bytes: Data,
+        idempotent: Bool = false, as type: Response.Type = Response.self
+    ) async throws -> Response {
+        let response = try await exchange(
+            endpoint, path: path, query: query, body: nil, bytes: bytes, idempotent: idempotent)
+        do {
+            return try JSONDecoder().decode(Response.self, from: response.body)
+        } catch {
+            throw TransportError.contractViolation(endpoint: endpoint.id, status: response.status)
+        }
+    }
+
     /// A route that answers with nothing (`204`).
     public func sendEmpty(
         _ endpoint: EndpointSpec, path: [String: String] = [:], query: (any Encodable & Sendable)? = nil,
@@ -98,10 +113,11 @@ public final class APIClient: Sendable {
 
     private func exchange(
         _ endpoint: EndpointSpec, path: [String: String], query: (any Encodable & Sendable)?,
-        body: (any Encodable & Sendable)?, idempotent: Bool
+        body: (any Encodable & Sendable)?, bytes: Data? = nil, idempotent: Bool
     ) async throws -> HTTPResponse {
         let requestID = makeRequestID()
-        let request = try await build(endpoint, path: path, query: query, body: body, requestID: requestID)
+        let request = try await build(
+            endpoint, path: path, query: query, body: body, bytes: bytes, requestID: requestID)
         let mayRetry = endpoint.method == "GET" || idempotent
 
         var attempt = 1
@@ -138,7 +154,7 @@ public final class APIClient: Sendable {
 
     private func build(
         _ endpoint: EndpointSpec, path: [String: String], query: (any Encodable & Sendable)?,
-        body: (any Encodable & Sendable)?, requestID: String
+        body: (any Encodable & Sendable)?, bytes: Data? = nil, requestID: String
     ) async throws -> HTTPRequest {
         var headers = [
             "Accept": "application/json",
@@ -153,7 +169,15 @@ public final class APIClient: Sendable {
         }
 
         var payload: Data?
-        if let body {
+        if let bytes {
+            guard case .octetStream? = endpoint.body, body == nil else {
+                throw TransportError.malformedRequest("\(endpoint.id) does not take bytes")
+            }
+            payload = bytes
+            headers["Content-Type"] = "application/octet-stream"
+        } else if case .octetStream? = endpoint.body {
+            throw TransportError.malformedRequest("\(endpoint.id) needs the file's bytes")
+        } else if let body {
             guard case .schema? = endpoint.body else {
                 throw TransportError.malformedRequest("\(endpoint.id) takes no JSON body")
             }

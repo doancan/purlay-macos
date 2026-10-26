@@ -38,6 +38,8 @@ struct ComposerTextView: NSViewRepresentable {
     var takesFocus = false
     /// ↑ in an empty box: change the last thing said.
     var onEditLast: (() -> Void)?
+    /// A file or a picture was pasted: it is attached, not typed.
+    var onFiles: (([PickedFile]) -> Void)?
 
     private static let maxRows: CGFloat = 12
 
@@ -319,6 +321,11 @@ struct ComposerTextView: NSViewRepresentable {
         /// than no help at all. Undo takes it back.
         func paste(into view: KeyedTextView) {
             let pasted = NSPasteboard.general.string(forType: .string) ?? ""
+            // Words win over a picture of them; a file or a picture alone is attached.
+            if pasted.isEmpty, PickedFiles.pasteboardHasFiles(.general), let onFiles = parent.onFiles {
+                Task { onFiles(await PickedFiles.fromPasteboard(.general)) }
+                return
+            }
             if ComposerText.isLongPaste(pasted) {
                 view.insertText(ComposerText.asCodeBlock(pasted), replacementRange: view.selectedRange())
                 parent.state.notice = "Pasted as a code block. Press ⌘Z to undo."
@@ -346,6 +353,12 @@ final class KeyedTextView: NSTextView {
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    /// A plain-text view turns Paste off when the pasteboard holds only a picture or files, so neither ⌘V nor the menu would reach
+    /// `paste`; naming the kinds the composer attaches keeps it on.
+    override var readablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        super.readablePasteboardTypes + [.png, .tiff, .fileURL]
     }
 
     override func paste(_ sender: Any?) {

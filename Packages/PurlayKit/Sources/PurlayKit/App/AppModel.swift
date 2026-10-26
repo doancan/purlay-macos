@@ -20,6 +20,7 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case storageProblem
         case originMismatch
         case sendTooLong
+        case tooManyFiles
         case saveFailed
         case savedFull
         case pinFailed
@@ -107,8 +108,11 @@ public final class AppModel {
 
     public static let serverKey = "server"
 
+    private let uploadIDs: MessageIDGenerator
+
     public init(_ environment: AppEnvironment) {
         self.environment = environment
+        uploadIDs = MessageIDGenerator(now: environment.clock)
     }
 
     // MARK: What a view reads
@@ -449,6 +453,11 @@ public final class AppModel {
         clearSearch()
         focus = nil
         editing = nil
+        uploadsByPlace = [:]
+        uploadBytes = [:]
+        attachmentCache = [:]
+        attachmentCacheOrder = []
+        attachmentCacheBytes = 0
         savedIDs = [:]
         savedItems = []
         pins = [:]
@@ -645,16 +654,23 @@ public final class AppModel {
         markThreadReadIfSeen()
     }
 
-    /// Answers the open thread. Nothing is sent that the server would refuse for its length, and nothing with no thread to answer.
+    /// Answers the open thread, with its words and its own files. Nothing is sent that the server would refuse for its length, with a file
+    /// not yet gone, with nothing in it, or with no thread to answer.
     @discardableResult
     public func sendReply(_ text: String) -> Bool {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let thread, let engine, !words.isEmpty else { return false }
+        guard let thread, let engine, canSend(text: text, channel: thread.channel, parent: thread.root) else {
+            return false
+        }
         guard words.count <= ContractConstants.messageContentMax else {
             say(.sendTooLong)
             return false
         }
-        engine.send(Outgoing(channelID: thread.channel, content: words, parentID: thread.root))
+        let place = Place(channel: thread.channel, parent: thread.root)
+        let attachments = (uploadsByPlace[place] ?? []).compactMap(\.attachment)
+        engine.send(
+            Outgoing(channelID: thread.channel, content: words, parentID: thread.root, attachments: attachments))
+        uploadsByPlace[place] = nil
         setDraft("", for: thread.channel, parent: thread.root)
         return true
     }
@@ -846,6 +862,145 @@ public final class AppModel {
 
     public func beginEdit(_ message: Uuid) { editing = message }
     public func endEdit() { editing = nil }
+
+    // MARK: Files
+
+    private struct Place: Hashable {
+        let channel: Uuid
+        let parent: Uuid?
+    }
+
+    /// Files chosen for a message, by the place they were chosen for: a channel's box, or one thread's. Moving to another channel loses none.
+    private var uploadsByPlace: [Place: [Upload]] = [:]
+    /// What a file that has not gone, or has not gone yet, is made of: kept only so a retry can send the same bytes under the same id.
+    private var uploadBytes: [Uuid: Data] = [:]
+    private var attachmentCache: [String: Data] = [:]
+    private var attachmentCacheOrder: [String] = []
+    private var attachmentCacheBytes = 0
+
+    /// How many downloaded files and pictures are kept, and how many bytes they may add up to: a feed of pictures is not a leak.
+    static let attachmentCacheMax = 64
+    private static let attachmentCacheBytesMax = 48 * 1_024 * 1_024
+    var attachmentCacheCount: Int { attachmentCache.count }
+
+    public func uploads(channel: Uuid, parent: Uuid?) -> [Upload] {
+        uploadsByPlace[Place(channel: channel, parent: parent)] ?? []
+    }
+
+    /// Whether what is in a box can be sent: words or files, and every file gone. One still on its way, or one that failed, holds the send;
+    /// it goes when each is done or removed.
+    public func canSend(text: String, channel: Uuid, parent: Uuid?) -> Bool {
+        let held = uploads(channel: channel, parent: parent)
+        guard held.allSatisfy({ $0.attachment != nil }) else { return false }
+        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !held.isEmpty
+    }
+
+    /// Chosen files are uploaded at once, a few at a time, each under an id of the app's making so that the same upload again is the same
+    /// upload. A file that cannot be sent is a failed upload that says why and is never asked of the server.
+    public func attach(_ files: [PickedFile], channel: Uuid, parent: Uuid?) async {
+        guard api != nil, workspace != nil else { return }
+        let place = Place(channel: channel, parent: parent)
+        let room = max(0, ContractConstants.attachmentsPerMessageMax - (uploadsByPlace[place]?.count ?? 0))
+        if files.count > room { say(.tooManyFiles) }
+        var started: [Uuid] = []
+        for file in files.prefix(room) {
+            let name = UploadRules.name(file.name)
+            let id = uploadIDs.next()
+            if let refusal = UploadRules.check(name: name, size: file.data.count) {
+                uploadsByPlace[place, default: []].append(
+                    Upload(id: id, name: name, size: file.data.count, state: .failed(refusal)))
+            } else {
+                uploadBytes[id] = file.data
+                uploadsByPlace[place, default: []].append(
+                    Upload(id: id, name: name, size: file.data.count, state: .uploading))
+                started.append(id)
+            }
+        }
+        // A few at a time: a folder of pictures is not a hundred requests at once.
+        for batch in stride(from: 0, to: started.count, by: 3) {
+            let running = started[batch..<min(batch + 3, started.count)].map { id in
+                Task { @MainActor in await runUpload(id, place) }
+            }
+            for task in running { await task.value }
+        }
+    }
+
+    private func upload(_ id: Uuid, _ place: Place) -> Upload? { uploadsByPlace[place]?.first { $0.id == id } }
+
+    private func setUpload(_ id: Uuid, _ place: Place, _ state: Upload.State) {
+        guard let at = uploadsByPlace[place]?.firstIndex(where: { $0.id == id }) else { return }
+        uploadsByPlace[place]?[at].state = state
+    }
+
+    private func runUpload(_ id: Uuid, _ place: Place) async {
+        guard let api, let workspace, let held = upload(id, place), let data = uploadBytes[id] else { return }
+        do {
+            let attachment = try await api.uploadFile(
+                workspaceId: workspace.id.value, id: id, name: held.name, bytes: data)
+            guard upload(id, place) != nil else {
+                // Removed while it was on its way: the server has it, and it is let go.
+                try? await api.discardAttachment(attachmentId: id.value)
+                return
+            }
+            setUpload(id, place, .done(attachment))
+            uploadBytes[id] = nil
+        } catch {
+            guard upload(id, place) != nil else { return }
+            let failure = UploadFailure.from(error)
+            setUpload(id, place, .failed(failure))
+            if !failure.canRetry { uploadBytes[id] = nil }
+        }
+    }
+
+    /// Sends the same file again under the same id, when trying again can be answered differently.
+    public func retryUpload(_ id: Uuid, channel: Uuid, parent: Uuid?) async {
+        let place = Place(channel: channel, parent: parent)
+        guard let held = upload(id, place), case .failed(let failure) = held.state, failure.canRetry,
+            uploadBytes[id] != nil
+        else { return }
+        setUpload(id, place, .uploading)
+        await runUpload(id, place)
+    }
+
+    /// Takes a file off: the server's copy of one that went up is let go, and one still on its way is not waited for.
+    public func removeUpload(_ id: Uuid, channel: Uuid, parent: Uuid?) async {
+        let place = Place(channel: channel, parent: parent)
+        guard let held = upload(id, place) else { return }
+        uploadsByPlace[place]?.removeAll { $0.id == id }
+        if uploadsByPlace[place]?.isEmpty == true { uploadsByPlace[place] = nil }
+        uploadBytes[id] = nil
+        if case .done = held.state, let api { try? await api.discardAttachment(attachmentId: id.value) }
+    }
+
+    /// What was attached, or its picture, read once and kept; nil when it is not there to read.
+    public func attachmentData(_ attachment: Attachment, thumbnail: Bool) async -> Data? {
+        let key = attachment.id.value + (thumbnail ? ":thumbnail" : "")
+        if let kept = attachmentCache[key] { return kept }
+        guard let api else { return nil }
+        do {
+            let data =
+                thumbnail
+                ? try await api.downloadThumbnail(attachmentId: attachment.id.value)
+                : try await api.downloadAttachment(attachmentId: attachment.id.value)
+            remember(data, key)
+            return data
+        } catch {
+            return nil
+        }
+    }
+
+    private func remember(_ data: Data, _ key: String) {
+        guard data.count <= Self.attachmentCacheBytesMax else { return }
+        attachmentCache[key] = data
+        attachmentCacheOrder.append(key)
+        attachmentCacheBytes += data.count
+        while attachmentCache.count > Self.attachmentCacheMax || attachmentCacheBytes > Self.attachmentCacheBytesMax,
+            let oldest = attachmentCacheOrder.first
+        {
+            attachmentCacheOrder.removeFirst()
+            attachmentCacheBytes -= attachmentCache.removeValue(forKey: oldest)?.count ?? 0
+        }
+    }
 
     // MARK: What is on show
 
@@ -1307,16 +1462,22 @@ public final class AppModel {
         }
     }
 
-    /// Sends words to the open channel. Nothing is sent that the server would refuse for its length.
+    /// Sends what is in the open channel's box: its words and the files that went up. Nothing is sent that the server would refuse for its
+    /// length, with a file still on its way or failed, or with nothing in it.
     @discardableResult
     public func send(_ text: String) -> Bool {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let channelID = selectedChannel, let engine, !words.isEmpty else { return false }
+        guard let channelID = selectedChannel, let engine, canSend(text: text, channel: channelID, parent: nil) else {
+            return false
+        }
         guard words.count <= ContractConstants.messageContentMax else {
             say(.sendTooLong)
             return false
         }
-        engine.send(Outgoing(channelID: channelID, content: words))
+        let place = Place(channel: channelID, parent: nil)
+        let attachments = (uploadsByPlace[place] ?? []).compactMap(\.attachment)
+        engine.send(Outgoing(channelID: channelID, content: words, attachments: attachments))
+        uploadsByPlace[place] = nil
         setDraft("", for: channelID)
         return true
     }

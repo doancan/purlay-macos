@@ -240,8 +240,14 @@ struct PendingRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(pending.content).foregroundStyle(pending.delivery == .failed ? .red : .secondary).textSelection(
-                .enabled)
+            if !pending.content.isEmpty {
+                Text(pending.content).foregroundStyle(pending.delivery == .failed ? .red : .secondary).textSelection(
+                    .enabled)
+            }
+            ForEach(pending.attachments, id: \.id) { attachment in
+                Label(attachment.fileName, systemImage: attachment.kind == .image ? "photo" : "doc").font(.callout)
+                    .foregroundStyle(.secondary)
+            }
             switch pending.delivery {
             case .sending:
                 Text("Sending…").font(.caption).foregroundStyle(.secondary)
