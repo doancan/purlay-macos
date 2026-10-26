@@ -42,6 +42,8 @@ public final class Engine {
         public var onRefused: (Int) -> Void
         public var onLost: (Int) -> Void
         public var onStorageProblem: (String) -> Void
+        /// Something the screen shows has changed: the state, the pending sends, the connection, what is degraded.
+        public var onChange: () -> Void
 
         public init(
             url: URL, openSocket: @escaping OpenSocket, schedule: @escaping Schedule, random: @escaping () -> Double,
@@ -53,7 +55,7 @@ public final class Engine {
             refresh: @escaping (Refresh) -> Void,
             onSessionEnded: @escaping (SessionEndedFrame.Payload.Reason) -> Void = { _ in },
             onRefused: @escaping (Int) -> Void = { _ in }, onLost: @escaping (Int) -> Void = { _ in },
-            onStorageProblem: @escaping (String) -> Void = { _ in }
+            onStorageProblem: @escaping (String) -> Void = { _ in }, onChange: @escaping () -> Void = {}
         ) {
             self.url = url
             self.openSocket = openSocket
@@ -71,6 +73,7 @@ public final class Engine {
             self.onRefused = onRefused
             self.onLost = onLost
             self.onStorageProblem = onStorageProblem
+            self.onChange = onChange
         }
     }
 
@@ -108,6 +111,7 @@ public final class Engine {
                 ids: ids, serverClock: options.serverClock, schedule: options.schedule, outbox: options.outbox,
                 sendFrame: { [weak self] frame in self?.connection.send(frame) ?? false }, sendHTTP: options.sendHTTP,
                 onDelivered: { [weak self] message in self?.delivered(message) },
+                onChange: { [weak self] _ in self?.options.onChange() },
                 onLost: { [weak self] count in self?.noteLost(count) }, onStorageProblem: options.onStorageProblem))
         connection = Connection(
             .init(
@@ -192,10 +196,14 @@ public final class Engine {
     public func lose(_ channels: [Uuid]) { sends.dropUnsent(channels: channels) }
 
     /// The state a channel's window is loaded into: the app reads, the engine holds.
-    public func load(_ window: ChannelWindow, for channel: Uuid) { chat.windows[channel] = window }
+    public func load(_ window: ChannelWindow, for channel: Uuid) {
+        chat.windows[channel] = window
+        options.onChange()
+    }
 
     public func setChannels(_ channels: [Channel]) {
         for channel in channels { chat.channels[channel.id] = channel }
+        options.onChange()
     }
 
     // MARK: Frames
@@ -225,6 +233,7 @@ public final class Engine {
         }
         let effects = chat.apply(frame, now: options.clock())
         for effect in effects { perform(effect) }
+        options.onChange()
     }
 
     private func routeError(_ error: ErrorFrame) {
@@ -277,6 +286,7 @@ public final class Engine {
     }
 
     private func statusChanged(_ next: Connection.Status) {
+        defer { options.onChange() }
         status = next
         if next == .open {
             let returning = connectedOnce
@@ -313,6 +323,7 @@ public final class Engine {
             return
         }
         for channel in channels { degraded[channel] = .code(code) }
+        options.onChange()
     }
 
     // MARK: A replay that was one page
@@ -333,6 +344,7 @@ public final class Engine {
                 guard mine == epoch else { return }
                 connection.continuationDone(channel: channel.value, from: from.value)
                 degraded[channel] = nil
+                options.onChange()
                 return
             } catch {
                 guard mine == epoch else { return }
