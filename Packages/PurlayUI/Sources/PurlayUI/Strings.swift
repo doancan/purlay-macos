@@ -40,6 +40,11 @@ enum Words {
         case .threadFailed: return String(localized: "Could not load the thread. Check your connection and try again.")
         case .resolveFailed: return String(localized: "Could not change whether this thread is resolved. Try again.")
         case .followFailed: return String(localized: "Could not change whether you follow this thread. Try again.")
+        case .joinFailed: return String(localized: "Could not open that. Check your connection and try again.")
+        case .leaveFailed: return String(localized: "Could not leave the channel. Check your connection and try again.")
+        case .lastMember:
+            return String(localized: "You are the last member of this private channel, so you can't leave it.")
+        case .starFailed: return String(localized: "Could not change the star. Try again.")
         case .editFailed: return String(localized: "Could not change the message. Check your connection and try again.")
         case .deleteFailed:
             return String(localized: "Could not delete the message. Check your connection and try again.")

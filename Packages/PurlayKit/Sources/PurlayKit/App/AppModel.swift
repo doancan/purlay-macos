@@ -20,6 +20,10 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case storageProblem
         case originMismatch
         case sendTooLong
+        case joinFailed
+        case leaveFailed
+        case lastMember
+        case starFailed
         case threadFailed
         case resolveFailed
         case followFailed
@@ -110,6 +114,12 @@ public final class AppModel {
     }
 
     public static func title(_ channel: Channel) -> String { channel.title }
+
+    /// What the sidebar lists: starred, channels and conversations the person is in.
+    public var sidebar: [SidebarSection] { Sidebar.sections(Array(chat.channels.values)) }
+
+    /// Public channels the person could join: what Browse lists.
+    public var joinableChannels: [Channel] { Sidebar.joinable(Array(chat.channels.values)) }
 
     public var window: ChannelWindow? {
         selectedChannel.flatMap { chat.windows[$0] }
@@ -331,14 +341,15 @@ public final class AppModel {
             if load.corruptFile != nil { say(.outboxCorrupt) }
             let channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
             engine.setChannels(channels)
-            engine.watch(channels.map(\.id))
+            watchJoined()
             engine.start()
             sync()
             await refreshPeople()
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
                 Uuid.init)
             let first =
-                channels.first { $0.id == remembered } ?? channels.sorted { Self.title($0) < Self.title($1) }.first
+                channels.first { $0.id == remembered && $0.state != nil }
+                ?? Sidebar.sections(channels).first?.channels.first
             phase = .ready
             if let first { await open(first.id) }
         } catch let error as APIError where error.status == 401 {
@@ -496,7 +507,7 @@ public final class AppModel {
     // MARK: People
 
     /// The people of the workspace, and the members of the private channels that were opened: who an `@` could reach.
-    private(set) var workspacePeople: [User] = []
+    public private(set) var workspacePeople: [User] = []
     private var channelPeople: [Uuid: [User]] = [:]
 
     /// Who a mention written in the open channel would reach, and nobody while that is not known.
@@ -702,6 +713,127 @@ public final class AppModel {
         me.map { Drafts(store: environment.preferences, user: $0.user.id) }
     }
 
+    // MARK: Channels
+
+    public enum CreateChannelOutcome: Equatable, Sendable {
+        case created(Uuid)
+        case invalidName
+        case nameTaken
+        case failed
+    }
+
+    /// Receives the channels the person is in and no others: a public channel they could merely join is Browse's, and the server would
+    /// refuse a subscription to it.
+    private func watchJoined() {
+        engine?.watch(chat.channels.values.filter { $0.state != nil }.map(\.id))
+    }
+
+    /// A channel that is now the person's: held, subscribed to and opened.
+    private func adopt(_ channel: Channel) async {
+        engine?.setChannels([channel])
+        watchJoined()
+        sync()
+        await open(channel.id)
+    }
+
+    /// Makes a channel. The name is put into the contract's form as it is typed ("Genel Sohbet" is `genel-sohbet`) and a name that comes
+    /// to nothing is refused before the server is asked; a taken name is said as taken. Nothing is held that the server did not make.
+    public func createChannel(name: String, topic: String, isPrivate: Bool) async -> CreateChannelOutcome {
+        guard let api, let workspace else { return .failed }
+        guard let wanted = ChannelName.finished(name) else { return .invalidName }
+        let words = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let made = try await api.createChannel(
+                workspaceId: workspace.id.value,
+                body: CreateChannelRequest(
+                    name: wanted, topic: words.isEmpty ? nil : words, type: isPrivate ? .private : nil))
+            await adopt(made)
+            return .created(made.id)
+        } catch let error as APIError where error.code == .channelNameTaken {
+            return .nameTaken
+        } catch {
+            return .failed
+        }
+    }
+
+    /// Joins a public channel: it becomes the person's, is subscribed to and opened.
+    @discardableResult
+    public func join(_ channel: Channel) async -> Bool {
+        guard let api else { return false }
+        do {
+            await adopt(try await api.joinChannel(channelId: channel.id.value))
+            return true
+        } catch {
+            say(.joinFailed)
+            return false
+        }
+    }
+
+    /// Leaves a channel. The last member of a private channel is told why not. What was open and is no longer the person's gives way to
+    /// another of theirs, or to nothing.
+    @discardableResult
+    public func leave(_ channel: Channel) async -> Bool {
+        guard let api else { return false }
+        do {
+            try await api.leaveChannel(channelId: channel.id.value)
+        } catch let error as APIError where error.code == .lastChannelMember {
+            say(.lastMember)
+            return false
+        } catch {
+            say(.leaveFailed)
+            return false
+        }
+        engine?.lose([channel.id])
+        await reloadChannels()
+        if selectedChannel == channel.id {
+            if let next = sidebar.first?.channels.first?.id {
+                await open(next)
+            } else {
+                closeThread()
+                selectedChannel = nil
+            }
+        }
+        return true
+    }
+
+    /// Opens the conversation with these people, which the server gives back if it exists and makes if it does not. The caller is not
+    /// among them unless they are alone (a note to self); there are one to nine others.
+    @discardableResult
+    public func openConversation(with users: [User]) async -> Bool {
+        guard let api, let workspace, let me else { return false }
+        var ids: [Uuid] = []
+        for user in users where !ids.contains(user.id) { ids.append(user.id) }
+        if ids.count > 1 { ids.removeAll { $0 == me.user.id } }
+        guard !ids.isEmpty, ids.count < ContractConstants.conversationPeopleMax else { return false }
+        do {
+            await adopt(
+                try await api.openConversation(
+                    workspaceId: workspace.id.value, body: OpenConversationRequest(userIds: ids)))
+            return true
+        } catch {
+            say(.joinFailed)
+            return false
+        }
+    }
+
+    /// Stars or unstars a channel: painted at once, put back with a word if the server refuses.
+    public func setStarred(_ starred: Bool, _ channel: Channel) async {
+        guard let api else { return }
+        engine?.updateChannel(channel.id) { $0.starred = starred }
+        sync()
+        do {
+            if starred {
+                try await api.starChannel(channelId: channel.id.value)
+            } else {
+                try await api.unstarChannel(channelId: channel.id.value)
+            }
+        } catch {
+            engine?.updateChannel(channel.id) { $0.starred = !starred }
+            sync()
+            say(.starFailed)
+        }
+    }
+
     // MARK: What the person does to a message
 
     private func isMine(_ message: Message) -> Bool {
@@ -856,7 +988,7 @@ public final class AppModel {
         let current = Set(channels.map(\.id))
         engine.lose(Array(held.subtracting(current)))
         engine.setChannels(channels)
-        engine.watch(channels.map(\.id))
+        watchJoined()
         sync()
     }
 

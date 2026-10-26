@@ -213,6 +213,13 @@ public final class Engine {
         options.onChange()
     }
 
+    /// A channel as the person's own action changed it, held until the server's frame says the same.
+    public func updateChannel(_ id: Uuid, _ edit: (inout Channel) -> Void) {
+        guard chat.channels[id] != nil else { return }
+        edit(&chat.channels[id]!)
+        options.onChange()
+    }
+
     public func setState(_ state: ChannelState, for channel: Uuid) {
         chat.channels[channel]?.state = state
         options.onChange()

@@ -6,16 +6,54 @@ import SwiftUI
 struct MainView: View {
     let model: AppModel
     @State private var selection: Uuid?
+    @State private var sheet: ChannelSheet?
+    @State private var leaving: Channel?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                ForEach(Sidebar.sections(Array(model.chat.channels.values))) { section in
+                ForEach(model.sidebar) { section in
                     Section(Words.header(section.kind)) {
-                        ForEach(section.channels, id: \.id) { channel in ChannelRow(channel: channel) }
+                        ForEach(section.channels, id: \.id) { channel in
+                            ChannelRow(channel: channel)
+                                .contextMenu { ChannelMenu(model: model, channel: channel, leaving: $leaving) }
+                        }
                     }
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Menu {
+                    Button("New Channel…", systemImage: "number") { sheet = .newChannel }
+                    Button("Browse Channels…", systemImage: "list.bullet") { sheet = .browse }
+                    Button("New Conversation…", systemImage: "person.2") { sheet = .conversation }
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .help("New channel, browse channels, new conversation")
+            }
+            .sheet(item: $sheet) { sheet in
+                switch sheet {
+                case .newChannel: NewChannelSheet(model: model)
+                case .browse: BrowseChannelsSheet(model: model)
+                case .conversation: NewConversationSheet(model: model)
+                }
+            }
+            .confirmationDialog(
+                "Leave this channel?", isPresented: Binding(get: { leaving != nil }, set: { if !$0 { leaving = nil } }),
+                presenting: leaving
+            ) { channel in
+                Button("Leave", role: .destructive) { Task { await model.leave(channel) } }
+            } message: { channel in
+                Text(
+                    channel.type == .private
+                        ? "You will need an invitation to come back to \(Words.channelLabel(channel))."
+                        : "You can join \(Words.channelLabel(channel)) again from Browse Channels.")
             }
             .navigationTitle(model.workspace?.name ?? "Purlay")
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
@@ -27,7 +65,8 @@ struct MainView: View {
                 }
                 if model.selectedChannel != nil {
                     HStack(spacing: 0) {
-                        ChannelView(model: model)
+                        // Each channel its own scroll view: one that was scrolled far down a long feed keeps its place in a short one, and shows nothing.
+                        ChannelView(model: model).id(model.selectedChannel)
                         if model.thread != nil {
                             Divider()
                             ThreadPanel(model: model)

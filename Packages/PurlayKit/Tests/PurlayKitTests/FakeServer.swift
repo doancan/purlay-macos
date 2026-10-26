@@ -17,6 +17,8 @@ final class FakeServer: HTTPTransport {
         var cookieOnToken = true
         var channelsStatus = 200
         var membersStatus = 200
+        var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
+        var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
         var threads: [String: [Message]] = [:]
         var threadPageSize: Int?
@@ -73,6 +75,31 @@ final class FakeServer: HTTPTransport {
         """
     }
 
+    /// A channel of the fake server: what the list says of it.
+    struct Chan: Sendable {
+        var n: Int
+        var name: String?
+        var type = "public"
+        var topic: String?
+        var joined = true
+        var starred = false
+        var peerName: String?
+    }
+
+    static func json(_ chan: Chan) -> String {
+        let name = chan.name.map { "\"\($0)\"" } ?? "null"
+        let topic = chan.topic.map { "\"\($0)\"" } ?? "null"
+        let peers =
+            chan.peerName.map {
+                #"[{"id":"0199155c-6200-7b7f-8c11-00000000ff01","username":"bob","displayName":"\#($0)","avatarUrl":null}]"#
+            } ?? "[]"
+        return """
+            {"id":"\(channel(chan.n))","workspaceId":"\(workspaceID)","name":\(name),"topic":\(topic),"type":"\(chan.type)","lastMessageAt":null,\
+            "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0}"# : "null"),"notificationLevel":"mentions",\
+            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1}
+            """
+    }
+
     static func channelJSON(_ n: Int, name: String) -> String {
         """
         {"id":"\(channel(n))","workspaceId":"\(workspaceID)","name":"\(name)","topic":null,"type":"public","lastMessageAt":null,\
@@ -122,8 +149,7 @@ final class FakeServer: HTTPTransport {
             return json(snapshot.meStatus, Self.meJSON)
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            return json(
-                snapshot.channelsStatus, "[\(Self.channelJSON(1, name: "api")),\(Self.channelJSON(2, name: "design"))]")
+            return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
         case ("GET", "/api/workspaces/\(Self.workspaceID)/members"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.membersStatus != 200 {
@@ -227,6 +253,63 @@ final class FakeServer: HTTPTransport {
                 adds
                 ? "[{\"emoji\":\"\(emoji.removingPercentEncoding ?? emoji)\",\"userIds\":[\"\(Self.userID)\"]}]" : "[]"
             return json(200, "{\"reactions\":\(set)}")
+        case ("POST", "/api/workspaces/\(Self.workspaceID)/channels"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.channelWriteError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let made = Chan(
+                n: 9, name: body?["name"] as? String ?? "", type: body?["type"] as? String ?? "public",
+                topic: body?["topic"] as? String)
+            state.withLock { $0.chans.append(made) }
+            return json(201, Self.json(made))
+        case ("POST", "/api/workspaces/\(Self.workspaceID)/dms"),
+            ("POST", "/api/workspaces/\(Self.workspaceID)/conversations"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.channelWriteError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let made = Chan(n: 8, name: nil, type: "direct_message", peerName: "Bob")
+            if !snapshot.chans.contains(where: { $0.n == 8 }) { state.withLock { $0.chans.append(made) } }
+            return json(200, Self.json(made))
+        case ("POST", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/join"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.channelWriteError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/channels/".count).dropLast("/join".count))
+            guard var found = snapshot.chans.first(where: { channel($0.n) == id }) else {
+                return json(404, #"{"error":{"code":"CHANNEL_NOT_FOUND","message":"x"}}"#)
+            }
+            found.joined = true
+            state.withLock { state in
+                if let at = state.chans.firstIndex(where: { $0.n == found.n }) { state.chans[at] = found }
+            }
+            return json(200, Self.json(found))
+        case ("POST", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/leave"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.channelWriteError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/channels/".count).dropLast("/leave".count))
+            state.withLock { state in
+                if let at = state.chans.firstIndex(where: { channel($0.n) == id }) { state.chans[at].joined = false }
+            }
+            return HTTPResponse(status: 204)
+        case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/star"),
+            ("DELETE", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/star"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.channelWriteError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/channels/".count).dropLast("/star".count))
+            state.withLock { state in
+                if let at = state.chans.firstIndex(where: { channel($0.n) == id }) {
+                    state.chans[at].starred = request.method == "PUT"
+                }
+            }
+            return HTTPResponse(status: 204)
         case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/read"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/read".count))
