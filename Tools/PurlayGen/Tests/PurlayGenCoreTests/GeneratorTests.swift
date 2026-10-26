@@ -11,7 +11,15 @@ struct GeneratorTests {
     }
 
     private func models(_ schemas: String) throws -> String {
-        try #require(Generator.generate(contract: contract(schemas), source: "test").files["Models.swift"])
+        try #require(
+            Generator.generate(contract: contract(schemas), source: "test", idempotent: []).files["Models.swift"])
+    }
+
+    private func api(endpoints: String, idempotent: Set<String> = []) throws -> String {
+        let data = Data(
+            #"{"schemas":{},"endpoints":[\#(endpoints)],"constants":{},"errorStatus":{},"closeCodes":{}}"#.utf8)
+        return try #require(
+            Generator.generate(contract: data, source: "test", idempotent: idempotent).kitFiles["PurlayAPI.swift"])
     }
 
     @Test("an object becomes a struct that decodes what is required and reads the rest if present")
@@ -163,13 +171,77 @@ struct GeneratorTests {
         let schemas = #"""
             "B":{"type":"string"},"A":{"type":"object","required":["z","a"],"properties":{"z":{"type":"string"},"a":{"type":"string"}}}
             """#
-        let first = try Generator.generate(contract: contract(schemas), source: "test")
-        let second = try Generator.generate(contract: contract(schemas), source: "test")
+        let first = try Generator.generate(contract: contract(schemas), source: "test", idempotent: [])
+        let second = try Generator.generate(contract: contract(schemas), source: "test", idempotent: [])
         #expect(first == second)
         let text = try #require(first.files["Models.swift"])
         // Declarations by name, properties by name: the order of the file never depends on a dictionary.
         let structure = try #require(text.range(of: "public struct A"))
         let alias = try #require(text.range(of: "public typealias B"))
         #expect(structure.lowerBound < alias.lowerBound)
+    }
+
+    // MARK: The typed API
+
+    @Test("a method takes the path parameters, the query and the body a route lists, and answers its schema")
+    func apiMethod() throws {
+        let text = try api(
+            endpoints: #"""
+                {"id":"listThings","method":"GET","path":"/api/boxes/:boxId/things/:thingId","auth":"session","query":{"$ref":"Page"},"responses":{"200":{"$ref":"ThingPage"}}},
+                {"id":"makeThing","method":"POST","path":"/api/things","auth":"session","body":{"$ref":"Make"},"responses":{"201":{"$ref":"Thing"}}},
+                {"id":"dropThing","method":"DELETE","path":"/api/things/:thingId","auth":"session","responses":{"204":null}}
+                """#)
+        #expect(
+            text.contains(
+                "public func listThings(boxId: String, thingId: String, query: Page) async throws -> ThingPage"))
+        #expect(text.contains("path: [\"boxId\": boxId, \"thingId\": thingId], query: query, as: ThingPage.self"))
+        #expect(text.contains("public func makeThing(body: Make) async throws -> Thing"))
+        #expect(text.contains("public func dropThing(thingId: String) async throws {"))
+        #expect(text.contains("try await client.sendEmpty(Endpoints.dropThing, path: [\"thingId\": thingId])"))
+    }
+
+    @Test("a route that carries bytes is named as one and has no method")
+    func apiBytes() throws {
+        let text = try api(
+            endpoints: #"""
+                {"id":"upload","method":"POST","path":"/api/up","auth":"session","body":"octet-stream","responses":{"201":{"$ref":"A"}}},
+                {"id":"fetch","method":"GET","path":"/api/down","auth":"session","responses":{"200":"binary"}}
+                """#)
+        #expect(!text.contains("func upload"))
+        #expect(!text.contains("func fetch"))
+        #expect(text.contains("// Carried as bytes, and not here: upload, fetch"))
+    }
+
+    @Test("a route marked idempotent says so to the client, and one that is not does not")
+    func apiIdempotent() throws {
+        let text = try api(
+            endpoints: #"""
+                {"id":"send","method":"POST","path":"/api/s","auth":"session","body":{"$ref":"B"},"responses":{"201":{"$ref":"A"}}},
+                {"id":"other","method":"POST","path":"/api/o","auth":"session","body":{"$ref":"B"},"responses":{"201":{"$ref":"A"}}}
+                """#,
+            idempotent: ["send"])
+        #expect(text.contains("Endpoints.send, body: body, idempotent: true"))
+        #expect(!text.contains("Endpoints.other, body: body, idempotent"))
+    }
+
+    @Test("a name on the idempotent list that is not a route is refused, so a rename cannot leave it behind")
+    func apiStrayIdempotent() {
+        #expect {
+            _ = try api(endpoints: "", idempotent: ["gone"])
+        } throws: { error in
+            "\(error)".contains("gone")
+        }
+    }
+
+    @Test("answers of different shapes under one route are refused")
+    func apiTwoShapes() {
+        #expect {
+            _ = try api(
+                endpoints:
+                    #"{"id":"x","method":"GET","path":"/x","auth":"none","responses":{"200":{"$ref":"A"},"201":{"$ref":"B"}}}"#
+            )
+        } throws: { error in
+            "\(error)".contains("x")
+        }
     }
 }

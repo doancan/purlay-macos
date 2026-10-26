@@ -2,7 +2,10 @@ import Foundation
 
 /// The generated files, by name.
 public struct GeneratedFiles: Equatable {
+    /// For the contract package.
     public let files: [String: String]
+    /// For the kit: what is built on the contract and needs the client.
+    public let kitFiles: [String: String]
 }
 
 public enum Generator {
@@ -18,7 +21,8 @@ public enum Generator {
         """
     }
 
-    public static func generate(contract: Data, source: String) throws -> GeneratedFiles {
+    public static func generate(contract: Data, source: String, idempotent: Set<String>? = nil) throws -> GeneratedFiles
+    {
         guard let root = try JSONSerialization.jsonObject(with: contract) as? JSON,
             let schemas = root["schemas"] as? JSON
         else { throw GenerationError("contract.json has no schemas") }
@@ -31,11 +35,15 @@ public enum Generator {
         }
         let head = header(source: source)
         let names = declarations.map(\.name) + Resolver.primitives.sorted()
-        return GeneratedFiles(files: [
-            "Models.swift": head + models.text,
-            "Constants.swift": try Tables.constants(root, header: head),
-            "Endpoints.swift": try Tables.endpoints(root, header: head),
-            "Registry.swift": Tables.registry(names: names, header: head),
-        ])
+        return GeneratedFiles(
+            files: [
+                "Models.swift": head + models.text,
+                "Constants.swift": try Tables.constants(root, header: head),
+                "Endpoints.swift": try Tables.endpoints(root, header: head),
+                "Registry.swift": Tables.registry(names: names, header: head),
+            ],
+            kitFiles: [
+                "PurlayAPI.swift": try Tables.api(root, header: head, idempotent: idempotent ?? Tables.idempotent)
+            ])
     }
 }

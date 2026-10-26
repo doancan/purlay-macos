@@ -19,234 +19,351 @@ public struct EndpointSpec: Sendable, Hashable {
 }
 
 public enum Endpoints {
+    public static let getClientInfo = EndpointSpec(
+        id: "getClientInfo", method: "GET", path: "/api/client", auth: .none,
+        query: nil, body: nil,
+        responses: [200: .schema("ClientInfo")])
+
+    public static let nativeAuthorize = EndpointSpec(
+        id: "nativeAuthorize", method: "POST", path: "/api/native/authorize", auth: .session,
+        query: nil, body: .schema("NativeAuthorizeRequest"),
+        responses: [200: .schema("NativeAuthorizeResponse")])
+
+    public static let nativeToken = EndpointSpec(
+        id: "nativeToken", method: "POST", path: "/api/native/token", auth: .none,
+        query: nil, body: .schema("NativeTokenRequest"),
+        responses: [204: .empty])
+
+    public static let logout = EndpointSpec(
+        id: "logout", method: "POST", path: "/auth/logout", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let logoutEverywhere = EndpointSpec(
+        id: "logoutEverywhere", method: "POST", path: "/auth/logout-all", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let getAuthMethods = EndpointSpec(
+        id: "getAuthMethods", method: "GET", path: "/api/auth/methods", auth: .none,
+        query: nil, body: nil,
+        responses: [200: .schema("AuthMethods")])
+
+    public static let getMe = EndpointSpec(
+        id: "getMe", method: "GET", path: "/api/me", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("MeResponse")])
+
+    public static let listWorkspaces = EndpointSpec(
+        id: "listWorkspaces", method: "GET", path: "/api/workspaces", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("MembershipList")])
+
+    public static let getWorkspace = EndpointSpec(
+        id: "getWorkspace", method: "GET", path: "/api/workspaces/:workspaceId", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("Workspace")])
+
+    public static let listWorkspaceMembers = EndpointSpec(
+        id: "listWorkspaceMembers", method: "GET", path: "/api/workspaces/:workspaceId/members", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("WorkspaceMemberList")])
+
+    public static let getPresence = EndpointSpec(
+        id: "getPresence", method: "GET", path: "/api/workspaces/:workspaceId/presence", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("PresenceSnapshot")])
+
+    public static let setDeepWork = EndpointSpec(
+        id: "setDeepWork", method: "PUT", path: "/api/workspaces/:workspaceId/deep-work", auth: .session,
+        query: nil, body: .schema("SetDeepWorkRequest"),
+        responses: [200: .schema("DeepWorkResponse")])
+
+    public static let listChannels = EndpointSpec(
+        id: "listChannels", method: "GET", path: "/api/workspaces/:workspaceId/channels", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("ChannelList")])
+
+    public static let createChannel = EndpointSpec(
+        id: "createChannel", method: "POST", path: "/api/workspaces/:workspaceId/channels", auth: .session,
+        query: nil, body: .schema("CreateChannelRequest"),
+        responses: [201: .schema("Channel")])
+
+    public static let openConversation = EndpointSpec(
+        id: "openConversation", method: "POST", path: "/api/workspaces/:workspaceId/conversations", auth: .session,
+        query: nil, body: .schema("OpenConversationRequest"),
+        responses: [200: .schema("Channel"), 201: .schema("Channel")])
+
+    public static let openDirectMessage = EndpointSpec(
+        id: "openDirectMessage", method: "POST", path: "/api/workspaces/:workspaceId/dms", auth: .session,
+        query: nil, body: .schema("CreateDirectMessageRequest"),
+        responses: [200: .schema("Channel"), 201: .schema("Channel")])
+
+    public static let getChannel = EndpointSpec(
+        id: "getChannel", method: "GET", path: "/api/channels/:channelId", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("Channel")])
+
+    public static let joinChannel = EndpointSpec(
+        id: "joinChannel", method: "POST", path: "/api/channels/:channelId/join", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("Channel")])
+
+    public static let leaveChannel = EndpointSpec(
+        id: "leaveChannel", method: "POST", path: "/api/channels/:channelId/leave", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let listChannelMembers = EndpointSpec(
+        id: "listChannelMembers", method: "GET", path: "/api/channels/:channelId/members", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("ChannelMemberList")])
+
+    public static let addChannelMember = EndpointSpec(
+        id: "addChannelMember", method: "POST", path: "/api/channels/:channelId/members", auth: .session,
+        query: nil, body: .schema("AddChannelMemberRequest"),
+        responses: [204: .empty])
+
+    public static let markChannelRead = EndpointSpec(
+        id: "markChannelRead", method: "PUT", path: "/api/channels/:channelId/read", auth: .session,
+        query: nil, body: .schema("ReadChannelRequest"),
+        responses: [200: .schema("ChannelState")])
+
+    public static let starChannel = EndpointSpec(
+        id: "starChannel", method: "PUT", path: "/api/channels/:channelId/star", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let unstarChannel = EndpointSpec(
+        id: "unstarChannel", method: "DELETE", path: "/api/channels/:channelId/star", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let setNotificationLevel = EndpointSpec(
+        id: "setNotificationLevel", method: "PUT", path: "/api/channels/:channelId/notification-level", auth: .session,
+        query: nil, body: .schema("SetNotificationLevelRequest"),
+        responses: [204: .empty])
+
+    public static let listPins = EndpointSpec(
+        id: "listPins", method: "GET", path: "/api/channels/:channelId/pins", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("PinList")])
+
+    public static let listFiles = EndpointSpec(
+        id: "listFiles", method: "GET", path: "/api/channels/:channelId/files", auth: .session,
+        query: "FileQuery", body: nil,
+        responses: [200: .schema("FilePage")])
+
+    public static let listMessages = EndpointSpec(
+        id: "listMessages", method: "GET", path: "/api/channels/:channelId/messages", auth: .session,
+        query: "PageQuery", body: nil,
+        responses: [200: .schema("MessagePage")])
+
+    public static let sendMessage = EndpointSpec(
+        id: "sendMessage", method: "POST", path: "/api/channels/:channelId/messages", auth: .session,
+        query: nil, body: .schema("SendMessageRequest"),
+        responses: [201: .schema("Message")])
+
+    public static let getMessagesAround = EndpointSpec(
+        id: "getMessagesAround", method: "GET", path: "/api/messages/:messageId/around", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("MessageWindow")])
+
+    public static let editMessage = EndpointSpec(
+        id: "editMessage", method: "PATCH", path: "/api/messages/:messageId", auth: .session,
+        query: nil, body: .schema("EditMessageRequest"),
+        responses: [200: .schema("Message")])
+
+    public static let deleteMessage = EndpointSpec(
+        id: "deleteMessage", method: "DELETE", path: "/api/messages/:messageId", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let listMessageVersions = EndpointSpec(
+        id: "listMessageVersions", method: "GET", path: "/api/messages/:messageId/versions", auth: .session,
+        query: "OlderPageQuery", body: nil,
+        responses: [200: .schema("MessageVersionPage")])
+
+    public static let getThread = EndpointSpec(
+        id: "getThread", method: "GET", path: "/api/messages/:messageId/thread", auth: .session,
+        query: "PageQuery", body: nil,
+        responses: [200: .schema("MessagePage")])
+
+    public static let markThreadRead = EndpointSpec(
+        id: "markThreadRead", method: "PUT", path: "/api/messages/:messageId/thread/read", auth: .session,
+        query: nil, body: .schema("ReadThreadRequest"),
+        responses: [204: .empty])
+
+    public static let resolveThread = EndpointSpec(
+        id: "resolveThread", method: "POST", path: "/api/messages/:messageId/resolve", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("Message")])
+
+    public static let reopenThread = EndpointSpec(
+        id: "reopenThread", method: "DELETE", path: "/api/messages/:messageId/resolve", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("Message")])
+
+    public static let getThreadFollow = EndpointSpec(
+        id: "getThreadFollow", method: "GET", path: "/api/messages/:messageId/follow", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("ThreadFollow")])
+
+    public static let setThreadFollow = EndpointSpec(
+        id: "setThreadFollow", method: "PUT", path: "/api/messages/:messageId/follow", auth: .session,
+        query: nil, body: .schema("SetThreadFollowRequest"),
+        responses: [200: .schema("ThreadFollow")])
+
+    public static let putReaction = EndpointSpec(
+        id: "putReaction", method: "PUT", path: "/api/messages/:messageId/reactions/:emoji", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("ReactionsResponse")])
+
+    public static let deleteReaction = EndpointSpec(
+        id: "deleteReaction", method: "DELETE", path: "/api/messages/:messageId/reactions/:emoji", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("ReactionsResponse")])
+
+    public static let pinMessage = EndpointSpec(
+        id: "pinMessage", method: "PUT", path: "/api/messages/:messageId/pin", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let unpinMessage = EndpointSpec(
+        id: "unpinMessage", method: "DELETE", path: "/api/messages/:messageId/pin", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let saveMessage = EndpointSpec(
+        id: "saveMessage", method: "PUT", path: "/api/messages/:messageId/saved", auth: .session,
+        query: nil, body: .schema("SaveMessageRequest"),
+        responses: [204: .empty])
+
+    public static let unsaveMessage = EndpointSpec(
+        id: "unsaveMessage", method: "DELETE", path: "/api/messages/:messageId/saved", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let listUnresolved = EndpointSpec(
+        id: "listUnresolved", method: "GET", path: "/api/workspaces/:workspaceId/unresolved", auth: .session,
+        query: "UnresolvedQuery", body: nil,
+        responses: [200: .schema("UnresolvedPage")])
+
+    public static let listSaved = EndpointSpec(
+        id: "listSaved", method: "GET", path: "/api/workspaces/:workspaceId/saved", auth: .session,
+        query: "SavedQuery", body: nil,
+        responses: [200: .schema("SavedPage")])
+
+    public static let listSavedIds = EndpointSpec(
+        id: "listSavedIds", method: "GET", path: "/api/workspaces/:workspaceId/saved/ids", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("SavedIds")])
+
+    public static let searchMessages = EndpointSpec(
+        id: "searchMessages", method: "GET", path: "/api/workspaces/:workspaceId/search", auth: .session,
+        query: "SearchQuery", body: nil,
+        responses: [200: .schema("SearchPage")])
+
+    public static let listNotifications = EndpointSpec(
+        id: "listNotifications", method: "GET", path: "/api/notifications", auth: .session,
+        query: "NotificationQuery", body: nil,
+        responses: [200: .schema("NotificationPage")])
+
+    public static let markNotificationsRead = EndpointSpec(
+        id: "markNotificationsRead", method: "PUT", path: "/api/notifications/read", auth: .session,
+        query: nil, body: .schema("ReadNotificationsRequest"),
+        responses: [204: .empty])
+
+    public static let uploadFile = EndpointSpec(
+        id: "uploadFile", method: "POST", path: "/api/workspaces/:workspaceId/uploads", auth: .session,
+        query: "UploadQuery", body: .octetStream,
+        responses: [200: .schema("Attachment"), 201: .schema("Attachment")])
+
+    public static let downloadAttachment = EndpointSpec(
+        id: "downloadAttachment", method: "GET", path: "/api/attachments/:attachmentId", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .binary])
+
+    public static let downloadAttachmentThumbnail = EndpointSpec(
+        id: "downloadAttachmentThumbnail", method: "GET", path: "/api/attachments/:attachmentId/thumbnail", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .binary])
+
+    public static let discardAttachment = EndpointSpec(
+        id: "discardAttachment", method: "DELETE", path: "/api/attachments/:attachmentId", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let fetchExternalImage = EndpointSpec(
+        id: "fetchExternalImage", method: "GET", path: "/api/images", auth: .session,
+        query: "ExternalImageQuery", body: nil,
+        responses: [200: .binary])
+
+    public static let unfurlGitHubLink = EndpointSpec(
+        id: "unfurlGitHubLink", method: "POST", path: "/api/integrations/github/unfurl", auth: .session,
+        query: nil, body: .schema("UnfurlRequest"),
+        responses: [200: .schema("UnfurlResponse")])
+
     public static let all: [EndpointSpec] = [
-        EndpointSpec(
-            id: "getClientInfo", method: "GET", path: "/api/client", auth: .none,
-            query: nil, body: nil,
-            responses: [200: .schema("ClientInfo")]),
-        EndpointSpec(
-            id: "nativeAuthorize", method: "POST", path: "/api/native/authorize", auth: .session,
-            query: nil, body: .schema("NativeAuthorizeRequest"),
-            responses: [200: .schema("NativeAuthorizeResponse")]),
-        EndpointSpec(
-            id: "nativeToken", method: "POST", path: "/api/native/token", auth: .none,
-            query: nil, body: .schema("NativeTokenRequest"),
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "logout", method: "POST", path: "/auth/logout", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "logoutEverywhere", method: "POST", path: "/auth/logout-all", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "getAuthMethods", method: "GET", path: "/api/auth/methods", auth: .none,
-            query: nil, body: nil,
-            responses: [200: .schema("AuthMethods")]),
-        EndpointSpec(
-            id: "getMe", method: "GET", path: "/api/me", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("MeResponse")]),
-        EndpointSpec(
-            id: "listWorkspaces", method: "GET", path: "/api/workspaces", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("MembershipList")]),
-        EndpointSpec(
-            id: "getWorkspace", method: "GET", path: "/api/workspaces/:workspaceId", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("Workspace")]),
-        EndpointSpec(
-            id: "listWorkspaceMembers", method: "GET", path: "/api/workspaces/:workspaceId/members", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("WorkspaceMemberList")]),
-        EndpointSpec(
-            id: "getPresence", method: "GET", path: "/api/workspaces/:workspaceId/presence", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("PresenceSnapshot")]),
-        EndpointSpec(
-            id: "setDeepWork", method: "PUT", path: "/api/workspaces/:workspaceId/deep-work", auth: .session,
-            query: nil, body: .schema("SetDeepWorkRequest"),
-            responses: [200: .schema("DeepWorkResponse")]),
-        EndpointSpec(
-            id: "listChannels", method: "GET", path: "/api/workspaces/:workspaceId/channels", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("ChannelList")]),
-        EndpointSpec(
-            id: "createChannel", method: "POST", path: "/api/workspaces/:workspaceId/channels", auth: .session,
-            query: nil, body: .schema("CreateChannelRequest"),
-            responses: [201: .schema("Channel")]),
-        EndpointSpec(
-            id: "openConversation", method: "POST", path: "/api/workspaces/:workspaceId/conversations", auth: .session,
-            query: nil, body: .schema("OpenConversationRequest"),
-            responses: [200: .schema("Channel"), 201: .schema("Channel")]),
-        EndpointSpec(
-            id: "openDirectMessage", method: "POST", path: "/api/workspaces/:workspaceId/dms", auth: .session,
-            query: nil, body: .schema("CreateDirectMessageRequest"),
-            responses: [200: .schema("Channel"), 201: .schema("Channel")]),
-        EndpointSpec(
-            id: "getChannel", method: "GET", path: "/api/channels/:channelId", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("Channel")]),
-        EndpointSpec(
-            id: "joinChannel", method: "POST", path: "/api/channels/:channelId/join", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("Channel")]),
-        EndpointSpec(
-            id: "leaveChannel", method: "POST", path: "/api/channels/:channelId/leave", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "listChannelMembers", method: "GET", path: "/api/channels/:channelId/members", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("ChannelMemberList")]),
-        EndpointSpec(
-            id: "addChannelMember", method: "POST", path: "/api/channels/:channelId/members", auth: .session,
-            query: nil, body: .schema("AddChannelMemberRequest"),
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "markChannelRead", method: "PUT", path: "/api/channels/:channelId/read", auth: .session,
-            query: nil, body: .schema("ReadChannelRequest"),
-            responses: [200: .schema("ChannelState")]),
-        EndpointSpec(
-            id: "starChannel", method: "PUT", path: "/api/channels/:channelId/star", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "unstarChannel", method: "DELETE", path: "/api/channels/:channelId/star", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "setNotificationLevel", method: "PUT", path: "/api/channels/:channelId/notification-level", auth: .session,
-            query: nil, body: .schema("SetNotificationLevelRequest"),
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "listPins", method: "GET", path: "/api/channels/:channelId/pins", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("PinList")]),
-        EndpointSpec(
-            id: "listFiles", method: "GET", path: "/api/channels/:channelId/files", auth: .session,
-            query: "FileQuery", body: nil,
-            responses: [200: .schema("FilePage")]),
-        EndpointSpec(
-            id: "listMessages", method: "GET", path: "/api/channels/:channelId/messages", auth: .session,
-            query: "PageQuery", body: nil,
-            responses: [200: .schema("MessagePage")]),
-        EndpointSpec(
-            id: "sendMessage", method: "POST", path: "/api/channels/:channelId/messages", auth: .session,
-            query: nil, body: .schema("SendMessageRequest"),
-            responses: [201: .schema("Message")]),
-        EndpointSpec(
-            id: "getMessagesAround", method: "GET", path: "/api/messages/:messageId/around", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("MessageWindow")]),
-        EndpointSpec(
-            id: "editMessage", method: "PATCH", path: "/api/messages/:messageId", auth: .session,
-            query: nil, body: .schema("EditMessageRequest"),
-            responses: [200: .schema("Message")]),
-        EndpointSpec(
-            id: "deleteMessage", method: "DELETE", path: "/api/messages/:messageId", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "listMessageVersions", method: "GET", path: "/api/messages/:messageId/versions", auth: .session,
-            query: "OlderPageQuery", body: nil,
-            responses: [200: .schema("MessageVersionPage")]),
-        EndpointSpec(
-            id: "getThread", method: "GET", path: "/api/messages/:messageId/thread", auth: .session,
-            query: "PageQuery", body: nil,
-            responses: [200: .schema("MessagePage")]),
-        EndpointSpec(
-            id: "markThreadRead", method: "PUT", path: "/api/messages/:messageId/thread/read", auth: .session,
-            query: nil, body: .schema("ReadThreadRequest"),
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "resolveThread", method: "POST", path: "/api/messages/:messageId/resolve", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("Message")]),
-        EndpointSpec(
-            id: "reopenThread", method: "DELETE", path: "/api/messages/:messageId/resolve", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("Message")]),
-        EndpointSpec(
-            id: "getThreadFollow", method: "GET", path: "/api/messages/:messageId/follow", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("ThreadFollow")]),
-        EndpointSpec(
-            id: "setThreadFollow", method: "PUT", path: "/api/messages/:messageId/follow", auth: .session,
-            query: nil, body: .schema("SetThreadFollowRequest"),
-            responses: [200: .schema("ThreadFollow")]),
-        EndpointSpec(
-            id: "putReaction", method: "PUT", path: "/api/messages/:messageId/reactions/:emoji", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("ReactionsResponse")]),
-        EndpointSpec(
-            id: "deleteReaction", method: "DELETE", path: "/api/messages/:messageId/reactions/:emoji", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("ReactionsResponse")]),
-        EndpointSpec(
-            id: "pinMessage", method: "PUT", path: "/api/messages/:messageId/pin", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "unpinMessage", method: "DELETE", path: "/api/messages/:messageId/pin", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "saveMessage", method: "PUT", path: "/api/messages/:messageId/saved", auth: .session,
-            query: nil, body: .schema("SaveMessageRequest"),
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "unsaveMessage", method: "DELETE", path: "/api/messages/:messageId/saved", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "listUnresolved", method: "GET", path: "/api/workspaces/:workspaceId/unresolved", auth: .session,
-            query: "UnresolvedQuery", body: nil,
-            responses: [200: .schema("UnresolvedPage")]),
-        EndpointSpec(
-            id: "listSaved", method: "GET", path: "/api/workspaces/:workspaceId/saved", auth: .session,
-            query: "SavedQuery", body: nil,
-            responses: [200: .schema("SavedPage")]),
-        EndpointSpec(
-            id: "listSavedIds", method: "GET", path: "/api/workspaces/:workspaceId/saved/ids", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .schema("SavedIds")]),
-        EndpointSpec(
-            id: "searchMessages", method: "GET", path: "/api/workspaces/:workspaceId/search", auth: .session,
-            query: "SearchQuery", body: nil,
-            responses: [200: .schema("SearchPage")]),
-        EndpointSpec(
-            id: "listNotifications", method: "GET", path: "/api/notifications", auth: .session,
-            query: "NotificationQuery", body: nil,
-            responses: [200: .schema("NotificationPage")]),
-        EndpointSpec(
-            id: "markNotificationsRead", method: "PUT", path: "/api/notifications/read", auth: .session,
-            query: nil, body: .schema("ReadNotificationsRequest"),
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "uploadFile", method: "POST", path: "/api/workspaces/:workspaceId/uploads", auth: .session,
-            query: "UploadQuery", body: .octetStream,
-            responses: [200: .schema("Attachment"), 201: .schema("Attachment")]),
-        EndpointSpec(
-            id: "downloadAttachment", method: "GET", path: "/api/attachments/:attachmentId", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .binary]),
-        EndpointSpec(
-            id: "downloadAttachmentThumbnail", method: "GET", path: "/api/attachments/:attachmentId/thumbnail", auth: .session,
-            query: nil, body: nil,
-            responses: [200: .binary]),
-        EndpointSpec(
-            id: "discardAttachment", method: "DELETE", path: "/api/attachments/:attachmentId", auth: .session,
-            query: nil, body: nil,
-            responses: [204: .empty]),
-        EndpointSpec(
-            id: "fetchExternalImage", method: "GET", path: "/api/images", auth: .session,
-            query: "ExternalImageQuery", body: nil,
-            responses: [200: .binary]),
-        EndpointSpec(
-            id: "unfurlGitHubLink", method: "POST", path: "/api/integrations/github/unfurl", auth: .session,
-            query: nil, body: .schema("UnfurlRequest"),
-            responses: [200: .schema("UnfurlResponse")]),
+        getClientInfo,
+        nativeAuthorize,
+        nativeToken,
+        logout,
+        logoutEverywhere,
+        getAuthMethods,
+        getMe,
+        listWorkspaces,
+        getWorkspace,
+        listWorkspaceMembers,
+        getPresence,
+        setDeepWork,
+        listChannels,
+        createChannel,
+        openConversation,
+        openDirectMessage,
+        getChannel,
+        joinChannel,
+        leaveChannel,
+        listChannelMembers,
+        addChannelMember,
+        markChannelRead,
+        starChannel,
+        unstarChannel,
+        setNotificationLevel,
+        listPins,
+        listFiles,
+        listMessages,
+        sendMessage,
+        getMessagesAround,
+        editMessage,
+        deleteMessage,
+        listMessageVersions,
+        getThread,
+        markThreadRead,
+        resolveThread,
+        reopenThread,
+        getThreadFollow,
+        setThreadFollow,
+        putReaction,
+        deleteReaction,
+        pinMessage,
+        unpinMessage,
+        saveMessage,
+        unsaveMessage,
+        listUnresolved,
+        listSaved,
+        listSavedIds,
+        searchMessages,
+        listNotifications,
+        markNotificationsRead,
+        uploadFile,
+        downloadAttachment,
+        downloadAttachmentThumbnail,
+        discardAttachment,
+        fetchExternalImage,
+        unfurlGitHubLink,
     ]
+
+    /// The route called this. A name that is not in the table is a defect of the generator, not a runtime case.
+    public static let byID: [String: EndpointSpec] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
 }

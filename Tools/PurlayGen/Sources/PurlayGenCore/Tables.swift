@@ -111,9 +111,9 @@ enum Tables {
             }
 
             public enum Endpoints {
-                public static let all: [EndpointSpec] = [
 
             """
+        var names: [String] = []
         for endpoint in endpoints {
             guard let id = endpoint["id"] as? String, let method = endpoint["method"] as? String,
                 let path = endpoint["path"] as? String, let auth = endpoint["auth"] as? String,
@@ -152,13 +152,19 @@ enum Tables {
                 }
                 results.append("\(status): \(spelled)")
             }
-            out += "        EndpointSpec(\n"
-            out +=
-                "            id: \"\(id)\", method: \"\(method)\", path: \"\(Literal.escaped(path))\", auth: .\(auth),\n"
-            out += "            query: \(query), body: \(body),\n"
-            out += "            responses: [\(results.joined(separator: ", "))]),\n"
+            names.append(Naming.member(id))
+            out += "    public static let \(Naming.member(id)) = EndpointSpec(\n"
+            out += "        id: \"\(id)\", method: \"\(method)\", path: \"\(Literal.escaped(path))\", auth: .\(auth),\n"
+            out += "        query: \(query), body: \(body),\n"
+            out += "        responses: [\(results.joined(separator: ", "))])\n\n"
         }
-        out += "    ]\n}\n"
+        out += "    public static let all: [EndpointSpec] = [\n"
+        for name in names { out += "        \(name),\n" }
+        out += "    ]\n\n"
+        out +=
+            "    /// The route called this. A name that is not in the table is a defect of the generator, not a runtime case.\n"
+        out +=
+            "    public static let byID: [String: EndpointSpec] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })\n}\n"
         return out
     }
 
@@ -176,6 +182,76 @@ enum Tables {
                 "        \"\(name)\": { data in try JSONEncoder().encode(try JSONDecoder().decode(\(name).self, from: data)) },\n"
         }
         out += "    ]\n}\n"
+        return out
+    }
+
+    // MARK: The typed API
+
+    /// Routes whose second try is safe because the request carries its own id (§8.1). The contract does not say so; this
+    /// is the one place the app does. A name that is not in the table is an error, so a rename cannot leave it behind.
+    static let idempotent: Set<String> = ["sendMessage"]
+
+    /// One method per route that takes and answers JSON. Routes that carry bytes are the transfer code's (§8.4).
+    static func api(_ root: JSON, header: String, idempotent: Set<String> = Tables.idempotent) throws -> String {
+        guard let endpoints = root["endpoints"] as? [JSON] else {
+            throw GenerationError("contract.json has no endpoints")
+        }
+        let known = Set(endpoints.compactMap { $0["id"] as? String })
+        if let stray = idempotent.subtracting(known).sorted().first {
+            throw GenerationError("\(stray) is listed as idempotent and is not a route")
+        }
+        var out = header + "import PurlayContract\n\n"
+        out += "/// The server's routes that speak JSON, as methods. What each takes and answers is the contract's.\n"
+        out += "public struct PurlayAPI: Sendable {\n    public let client: APIClient\n\n"
+        out += "    public init(client: APIClient) {\n        self.client = client\n    }\n"
+        var skipped: [String] = []
+        for endpoint in endpoints {
+            guard let id = endpoint["id"] as? String, let method = endpoint["method"] as? String,
+                let path = endpoint["path"] as? String, let responses = endpoint["responses"] as? JSON
+            else { throw GenerationError("an endpoint has no id, method, path or responses") }
+            if (endpoint["body"] as? String) == "octet-stream"
+                || responses.values.contains(where: { ($0 as? String) == "binary" })
+            {
+                skipped.append(id)
+                continue
+            }
+            let parameters = path.split(separator: "/").filter { $0.hasPrefix(":") }.map { String($0.dropFirst()) }
+            var arguments = parameters.map { "\(Naming.member($0)): String" }
+            if let query = (endpoint["query"] as? JSON)?.reference { arguments.append("query: \(query)") }
+            if let body = (endpoint["body"] as? JSON)?.reference { arguments.append("body: \(body)") }
+
+            var results = Set<String>()
+            for case (let status, let value) in responses.sorted(by: { $0.key < $1.key }) where status.hasPrefix("2") {
+                if let schema = (value as? JSON)?.reference { results.insert(schema) } else { results.insert("") }
+            }
+            guard results.count == 1, let result = results.first else {
+                throw GenerationError("\(id): its successful answers are not one shape")
+            }
+            let pathArguments =
+                parameters.isEmpty
+                ? ""
+                : ", path: ["
+                    + parameters.map { "\"\($0)\": \(Emitter.unquoted(Naming.member($0)))" }.joined(separator: ", ")
+                    + "]"
+            let queryArgument = endpoint["query"] == nil ? "" : ", query: query"
+            let bodyArgument = endpoint["body"] == nil ? "" : ", body: body"
+            let idempotentArgument = idempotent.contains(id) ? ", idempotent: true" : ""
+            let call = "Endpoints.\(Naming.member(id))"
+
+            out += "\n    /// `\(method) \(path)`\n"
+            if result.isEmpty {
+                out += "    public func \(Naming.member(id))(\(arguments.joined(separator: ", "))) async throws {\n"
+                out +=
+                    "        try await client.sendEmpty(\(call)\(pathArguments)\(queryArgument)\(bodyArgument)\(idempotentArgument))\n    }\n"
+            } else {
+                out +=
+                    "    public func \(Naming.member(id))(\(arguments.joined(separator: ", "))) async throws -> \(result) {\n"
+                out +=
+                    "        try await client.send(\(call)\(pathArguments)\(queryArgument)\(bodyArgument)\(idempotentArgument), as: \(result).self)\n    }\n"
+            }
+        }
+        out += "}\n"
+        if !skipped.isEmpty { out += "\n// Carried as bytes, and not here: " + skipped.joined(separator: ", ") + "\n" }
         return out
     }
 }

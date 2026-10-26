@@ -9,7 +9,8 @@ struct CommandTests {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("gen-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data(
-            #"{"schemas":{"Id":{"type":"string"}},"endpoints":[],"constants":{},"errorStatus":{},"closeCodes":{}}"#.utf8
+            #"{"schemas":{"Id":{"type":"string"}},"endpoints":[{"id":"sendMessage","method":"POST","path":"/api/m","auth":"session","body":{"$ref":"Id"},"responses":{"201":{"$ref":"Id"}}}],"constants":{},"errorStatus":{},"closeCodes":{}}"#
+                .utf8
         )
         .write(to: directory.appendingPathComponent("contract.json"))
         try Data(#"{"serverVersion":"1.2.3","contractVersion":4}"#.utf8).write(

@@ -14,7 +14,9 @@ let package = Package(
     ],
     targets: [
         .target(name: "PurlayTestSupport", dependencies: ["PurlayKit", "PurlayContract"], swiftSettings: strict),
-        .testTarget(name: "PurlayTestSupportTests", dependencies: ["PurlayTestSupport"], swiftSettings: strict),
+        .testTarget(
+            name: "PurlayTestSupportTests", dependencies: ["PurlayTestSupport", "PurlayKit", "PurlayContract"],
+            swiftSettings: strict),
     ],
     swiftLanguageModes: [.v6]
 )
