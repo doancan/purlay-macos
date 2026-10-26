@@ -34,4 +34,4 @@ that is not yet ported says so.
 | `connection.test.ts` | `ConnectionTests`, `ConnectionNetworkTests`, `ConnectionReplayTests` | ported (every case) |
 | `socket.test.ts` | `Tests/ContractTests` — `LiveSocketTests` | covered against the real server (the transport is `URLSession`'s, and a fake of it would test the fake) |
 | `pending-store.ts` and the send cases of `engine.test.ts` | `OutboxStoreTests`, `SendCoordinatorTests` | ported: a send over the socket, over HTTP, with attachments, across a reconnect, kept across a relaunch, a channel that went away, and an id the server finds too old |
-| `engine.test.ts` | — | with the engine (M2-3 to M2-5) |
+| `engine.test.ts` (frames, replay, refused subscriptions, routing) | `ChatStateTests`, `ChannelWindowTests`, `EngineTests` | ported by behaviour; the cache cases are the window's, since the app holds messages in a `ChannelWindow` and not in a query cache |
