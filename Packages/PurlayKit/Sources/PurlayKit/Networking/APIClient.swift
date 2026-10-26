@@ -10,15 +10,20 @@ public struct APIConfiguration: Sendable {
     /// The cookie's name on the wire: `__Host-` makes a browser refuse to send it anywhere else, which this app does
     /// not need and which does not change what the server expects.
     public var cookieName: String
+    /// Called when a route that needs the session is told there is none (`401`): the session ended or was revoked. The
+    /// error is still thrown; this is how the rest of the app learns of it once, from one place.
+    public var onSessionRejected: @Sendable () async -> Void
 
     public init(
         baseURL: URL, clientHeader: String, cookieName: String = "__Host-purlay_session",
-        sessionCookie: @escaping @Sendable () async -> String?
+        sessionCookie: @escaping @Sendable () async -> String?,
+        onSessionRejected: @escaping @Sendable () async -> Void = {}
     ) {
         self.baseURL = baseURL
         self.clientHeader = clientHeader
         self.cookieName = cookieName
         self.sessionCookie = sessionCookie
+        self.onSessionRejected = onSessionRejected
     }
 }
 
@@ -114,6 +119,7 @@ public final class APIClient: Sendable {
                     attempt += 1
                     continue
                 }
+                if response.status == 401 && endpoint.auth == .session { await configuration.onSessionRejected() }
                 throw APIError.from(response, requestID: requestID)
             } catch let error as TransportError where mayRetry && error.isTransient && attempt < Self.maximumAttempts {
                 try await wait(before: attempt)

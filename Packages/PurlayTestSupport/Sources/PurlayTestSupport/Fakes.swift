@@ -67,3 +67,31 @@ public actor ScriptedAuthenticator: WebAuthenticator {
         }
     }
 }
+
+/// Counts how often the data it stands for was removed, and can look at what the world was like at that moment.
+public final class RecordingWiper: UserDataWiper {
+    private let state = Mutex(0)
+    private let onWipe: @Sendable () async -> Void
+
+    public init(onWipe: @escaping @Sendable () async -> Void = {}) {
+        self.onWipe = onWipe
+    }
+
+    public var wipes: Int { state.withLock { $0 } }
+
+    public func wipe() async {
+        state.withLock { $0 += 1 }
+        await onWipe()
+    }
+}
+
+public final class InMemoryOwnerMemory: OwnerMemory {
+    private let state: Mutex<String?>
+
+    public init(_ owner: String? = nil) {
+        state = Mutex(owner)
+    }
+
+    public func load() -> String? { state.withLock { $0 } }
+    public func save(_ owner: String?) { state.withLock { $0 = owner } }
+}
