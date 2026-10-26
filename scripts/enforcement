@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# The architecture rules a compiler does not state by itself (§5.2). Each one is also run against a copy of the
+# tree with the violation planted, so a rule that stopped looking would be seen here and not discovered in review.
+#
+#   scripts/enforcement            check the tree
+#   scripts/enforcement --demo     plant each violation in a copy and require the check to refuse it
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+check() { # root
+  local root="$1" failed=0
+  # The packages with no UI import neither SwiftUI nor AppKit.
+  for package in PurlayContract PurlayTokens PurlayKit PurlayTestSupport; do
+    if grep -rnE '^\s*(@_exported )?import (SwiftUI|AppKit|UIKit)\b' "$root/Packages/$package/Sources"; then
+      echo "FAIL: $package imports UI" >&2; failed=1
+    fi
+  done
+  # The views open no connection: PurlayUI reaches the network only through PurlayKit's protocols.
+  if grep -rnE '\b(URLSession|URLRequest|NWConnection|URLSessionWebSocketTask)\b' "$root/Packages/PurlayUI/Sources"; then
+    echo "FAIL: PurlayUI touches the network" >&2; failed=1
+  fi
+  # Only the app's own folder for updates may import Sparkle.
+  if grep -rnE '^\s*import Sparkle\b' "$root/App" "$root/Packages" 2>/dev/null | grep -v '/App/Updates/'; then
+    echo "FAIL: Sparkle imported outside App/Updates" >&2; failed=1
+  fi
+  # No third-party dependency beyond the two M-8 allows.
+  if grep -rnE '\.package\(url:' "$root/Packages" "$root/project.yml" 2>/dev/null | grep -vE 'swift-markdown|sparkle-project/Sparkle'; then
+    echo "FAIL: a dependency M-8 does not allow" >&2; failed=1
+  fi
+  # No escape from the compiler's concurrency checking.
+  if grep -rnE '(@unchecked Sendable|nonisolated\(unsafe\))' "$root/Packages" "$root/App" 2>/dev/null | grep -v 'enforcement-allow'; then
+    echo "FAIL: an unchecked concurrency escape" >&2; failed=1
+  fi
+  return $failed
+}
+
+if [ "${1:-}" != "--demo" ]; then
+  check . && echo "enforcement: the tree holds every rule"
+  exit
+fi
+
+fail=0
+plant() { # name, file (relative), line
+  local copy
+  copy="$(mktemp -d)"
+  rsync -a --exclude .build --exclude .swiftpm Packages App project.yml "$copy"/
+  printf '%s\n' "$3" >> "$copy/$2"
+  if check "$copy" >/dev/null 2>&1; then echo "  NOT REFUSED  $1" >&2; fail=1; else echo "  refused      $1"; fi
+  rm -rf "$copy"
+}
+check . >/dev/null
+plant "Kit imports SwiftUI" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "import SwiftUI"
+plant "Contract imports AppKit" Packages/PurlayContract/Sources/PurlayContract/PurlayContract.swift "import AppKit"
+plant "UI opens a session" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let session = URLSession.shared"
+plant "Sparkle in the kit" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "import Sparkle"
+plant "a dependency M-8 does not allow" project.yml "      - url: x # .package(url: \"https://example.test/KeychainAccess\")"
+plant "an unchecked Sendable" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "extension Foo: @unchecked Sendable {}"
+exit $fail

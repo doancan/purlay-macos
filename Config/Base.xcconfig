@@ -1,0 +1,21 @@
+// One home for what every configuration shares. The bundle identifier is a working placeholder until the owner
+// confirms it (a free change until the first notarised release, permanent after: Keychain, Sparkle continuity).
+PRODUCT_BUNDLE_IDENTIFIER = dev.purlay.mac
+PRODUCT_NAME = Purlay
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+MACOSX_DEPLOYMENT_TARGET = 26.0
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+SWIFT_TREAT_WARNINGS_AS_ERRORS = YES
+GCC_TREAT_WARNINGS_AS_ERRORS = YES
+ENABLE_HARDENED_RUNTIME = YES
+ENABLE_USER_SCRIPT_SANDBOXING = YES
+// The scheme the sign-in hands the session back through: fixed by the server (`NATIVE_REDIRECT`).
+PURLAY_URL_SCHEME = purlay
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_PREPROCESS = YES
+PURLAY_PLIST_DEFINITIONS =
+INFOPLIST_PREPROCESSOR_DEFINITIONS = $(PURLAY_PLIST_DEFINITIONS)
+INFOPLIST_FILE = App/Resources/Info.plist
+CODE_SIGN_ENTITLEMENTS = App/Resources/Purlay.entitlements

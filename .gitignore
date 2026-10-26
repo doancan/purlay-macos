@@ -1,0 +1,13 @@
+# Generated, never committed (project.yml is the definition).
+*.xcodeproj/
+*.xcworkspace/
+.build/
+.swiftpm/
+DerivedData/
+build/
+# Fetched, pinned by Contract/contract.lock.
+Contract/bundle/
+# Local, never committed.
+*.local.md
+.DS_Store
+xcuserdata/

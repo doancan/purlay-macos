@@ -1,0 +1,5 @@
+#include "Base.xcconfig"
+// A local server on this machine may be reached over plain HTTP while developing, and only here: the key is
+// written into Info.plist by the preprocessor in this configuration alone.
+PURLAY_PLIST_DEFINITIONS = PURLAY_ALLOWS_LOCAL_NETWORKING=1
+SWIFT_OPTIMIZATION_LEVEL = -Onone

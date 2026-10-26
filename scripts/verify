@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Everything the pipeline checks, in the same order, on this machine. A pass from some other working state is an
+# opinion; this is the evidence.
+#
+#   scripts/verify
+#
+# CI builds with Xcode 26.6 (M-1): set DEVELOPER_DIR to select it. Locally any Xcode with the macOS 26 SDK works.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+
+step "the generated project is not committed"
+if git ls-files --error-unmatch Purlay.xcodeproj >/dev/null 2>&1; then
+  echo "FAIL: Purlay.xcodeproj is tracked; project.yml is the definition" >&2; exit 1
+fi
+
+step "architecture rules, and the demonstration that each one refuses its violation"
+scripts/enforcement
+scripts/enforcement --demo
+
+step "format"
+# Swift sources only; the generated packages are held to the same rule once they exist.
+find App Packages Tools -name '*.swift' -not -path '*/.build/*' -print0 | xargs -0 xcrun swift-format lint --strict --parallel
+
+step "packages: build and test, Swift 6, every warning an error"
+for package in Packages/*/; do
+  echo "--- $package"
+  (cd "$package" && swift test 2>&1 | tail -4)
+  (cd "$package" && swift test 2>&1 | grep -q "Test run with .* passed") || { echo "FAIL: $package" >&2; exit 1; }
+done
+
+step "the app: generate, build Debug and Release"
+xcodegen generate --quiet
+for configuration in Debug Release; do
+  xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration "$configuration" \
+    -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -quiet build
+done
+
+step "App Transport Security stays strict in Release and is relaxed for localhost in Debug only"
+for configuration in Debug Release; do
+  app="$(xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration "$configuration" -showBuildSettings 2>/dev/null \
+    | awk -F' = ' '/ BUILT_PRODUCTS_DIR /{print $2}')/Purlay.app"
+  has=false; plutil -extract NSAppTransportSecurity xml1 -o - "$app/Contents/Info.plist" >/dev/null 2>&1 && has=true
+  case "$configuration:$has" in
+    Debug:true|Release:false) echo "ok  $configuration" ;;
+    *) echo "FAIL: $configuration has ATS exception = $has" >&2; exit 1 ;;
+  esac
+done
+
+step "the sandbox and the entitlements are the allowlist and nothing else"
+entitlements="$(plutil -convert json -o - App/Resources/Purlay.entitlements | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), sort_keys=True, separators=(",", ":")))')"
+[ "$entitlements" = '{"com.apple.security.app-sandbox":true,"com.apple.security.network.client":true}' ] \
+  || { echo "FAIL: entitlements are not the allowlist: $entitlements" >&2; exit 1; }
+echo "ok"
+
+printf '\n\033[1mverify: everything passed\033[0m\n'

@@ -1,0 +1,27 @@
+name: Purlay
+options:
+  bundleIdPrefix: dev.purlay
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+configs:
+  Debug: debug
+  Release: release
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+packages:
+  PurlayContract: { path: Packages/PurlayContract }
+  PurlayTokens: { path: Packages/PurlayTokens }
+  PurlayKit: { path: Packages/PurlayKit }
+  PurlayUI: { path: Packages/PurlayUI }
+targets:
+  Purlay:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: PurlayContract
+      - package: PurlayTokens
+      - package: PurlayKit
+      - package: PurlayUI
