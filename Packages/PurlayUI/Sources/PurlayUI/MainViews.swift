@@ -154,7 +154,7 @@ struct MessageRow: View {
             if message.deletedAt != nil {
                 Text("This message was deleted.").italic().foregroundStyle(.secondary)
             } else {
-                Text(message.content).textSelection(.enabled)
+                MessageBody(text: message.content)
             }
         }
         .padding(.horizontal, 16)
