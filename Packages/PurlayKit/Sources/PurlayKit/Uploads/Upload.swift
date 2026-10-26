@@ -85,6 +85,13 @@ public struct Upload: Identifiable, Equatable, Sendable {
         if case .done(let attachment) = state { return attachment }
         return nil
     }
+
+    public var isUploading: Bool { state == .uploading }
+
+    public var hasFailed: Bool {
+        if case .failed = state { return true }
+        return false
+    }
 }
 
 /// What a file may be before it is sent.

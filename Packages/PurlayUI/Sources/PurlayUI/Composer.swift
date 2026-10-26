@@ -21,6 +21,10 @@ struct ComposerView: View {
         self.placeholder = placeholder
         let state = ComposerState()
         state.text = model.draft(for: channel, parent: parent)
+        // Words a waiting send gave back while no box was showing come first, ahead of what was written since.
+        if let words = model.takeHandedBack(channel: channel, parent: parent) {
+            state.text = state.text.isEmpty ? words : words + "\n\n" + state.text
+        }
         _state = State(initialValue: state)
     }
 
@@ -33,6 +37,11 @@ struct ComposerView: View {
             if !state.suggestions.isEmpty { SuggestionList(state: state) }
             if let notice = state.notice { ComposerNotice(text: notice) { state.notice = nil } }
             UploadChips(model: model, channel: channel, parent: parent)
+            if model.isWaiting(channel: channel, parent: parent) {
+                Label("Goes when the files are up", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             FormatRow(state: state, previewing: $previewing, attach: attach)
             if previewing {
                 MessageBody(text: state.text.isEmpty ? " " : state.text)
@@ -74,6 +83,10 @@ struct ComposerView: View {
         }
         .onAppear { state.togglePreview = { previewing.toggle() } }
         .onChange(of: state.text) { _, text in remember(text) }
+        .onChange(of: model.handedBackCount) {
+            guard let words = model.takeHandedBack(channel: channel, parent: parent) else { return }
+            state.replaceAll?(state.text.isEmpty ? words : words + "\n\n" + state.text)
+        }
         .onDisappear {
             saving?.cancel()
             model.setDraft(state.text, for: channel, parent: parent)

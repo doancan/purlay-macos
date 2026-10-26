@@ -57,6 +57,12 @@ enum Words {
                 localized:
                     "A message holds at most \(ContractConstants.attachmentsPerMessageMax) files. The rest were not added."
             )
+        case .sendHeld(let place):
+            return place.isEmpty
+                ? String(localized: "Your message was not sent: a file did not upload. Your words are back in the box.")
+                : String(
+                    localized:
+                        "Your message to \(place) was not sent: a file did not upload. Your words are back in the box.")
         case .editFailed: return String(localized: "Could not change the message. Check your connection and try again.")
         case .deleteFailed:
             return String(localized: "Could not delete the message. Check your connection and try again.")

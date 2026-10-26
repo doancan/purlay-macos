@@ -186,24 +186,143 @@ struct UploadModelTests {
         #expect(h.last.sent.filter { $0.contains("MESSAGE_SEND") }.count == 1)
     }
 
-    @Test(
-        "nothing goes while a file is still on its way, or while one has failed; it goes when each is done or removed")
-    func held() async throws {
+    @Test("a failed file holds the send until it is retried or removed")
+    func failedHolds() async throws {
         let h = await opened()
-        h.server.edit { $0.uploadDelays["slow.txt"] = 120 }
-        let slow = Task { await h.model.attach([file("slow.txt")], channel: one, parent: nil) }
-        #expect(await eventually { h.model.uploads(channel: one, parent: nil).count == 1 })
-        #expect(!h.model.canSend(text: "hello", channel: one, parent: nil))
-        #expect(!h.model.send("hello"))
-        await slow.value
-        #expect(h.model.canSend(text: "hello", channel: one, parent: nil))
-
         h.server.edit { $0.uploadErrors["bad.png"] = (400, "IMAGE_UNREADABLE", nil) }
         await h.model.attach([file("bad.png")], channel: one, parent: nil)
-        #expect(!h.model.canSend(text: "hello", channel: one, parent: nil), "a failed file holds the send")
-        let bad = try #require(h.model.uploads(channel: one, parent: nil).first { $0.name == "bad.png" })
+        #expect(!h.model.canSend(text: "hello", channel: one, parent: nil))
+        #expect(!h.model.send("hello"))
+        let bad = try #require(h.model.uploads(channel: one, parent: nil).first)
         await h.model.removeUpload(bad.id, channel: one, parent: nil)
         #expect(h.model.canSend(text: "hello", channel: one, parent: nil))
+    }
+
+    // MARK: A send that waits for its files (D-171)
+
+    private func inFlight(_ h: ModelHarness, _ name: String, in channel: Uuid? = nil, parent: Uuid? = nil) async
+        -> Task<Void, Never>
+    {
+        let place = channel ?? one
+        let task = Task { await h.model.attach([file(name)], channel: place, parent: parent) }
+        _ = await eventually { h.model.uploads(channel: place, parent: parent).count == 1 }
+        return task
+    }
+
+    private func messageFrames(_ h: ModelHarness) -> [String] { h.last.sent.filter { $0.contains("MESSAGE_SEND") } }
+
+    @Test("a send with a file still on its way is accepted, waits, and goes once when the file lands")
+    func waits() async throws {
+        let h = await opened()
+        h.server.edit { $0.uploadDelays["slow.txt"] = 150 }
+        let slow = await inFlight(h, "slow.txt")
+        let fileID = try #require(h.model.uploads(channel: one, parent: nil).first).id.value
+        #expect(h.model.canSend(text: "look", channel: one, parent: nil))
+        h.model.setDraft("look", for: one)
+        #expect(h.model.send("look"))
+        #expect(h.model.isWaiting(channel: one, parent: nil))
+        #expect(h.model.draft(for: one) == "", "the words left the box")
+        #expect(h.model.takeHandedBack(channel: one, parent: nil) == nil)
+        #expect(messageFrames(h).isEmpty, "nothing goes before the file is there")
+        #expect(!h.model.canSend(text: "again", channel: one, parent: nil), "one send waits at a time")
+        #expect(!h.model.send("again"))
+
+        await slow.value
+        #expect(await eventually { messageFrames(h).count == 1 })
+        let frame = try #require(messageFrames(h).first)
+        #expect(frame.contains("look"))
+        #expect(frame.contains(fileID), "it carries the file that landed")
+        #expect(!h.model.isWaiting(channel: one, parent: nil))
+        #expect(h.model.uploads(channel: one, parent: nil).isEmpty)
+    }
+
+    @Test("it goes to the place it was made for, even after the person moved to another channel")
+    func goesAfterMoving() async throws {
+        let h = await opened()
+        h.server.edit { $0.uploadDelays["slow.txt"] = 150 }
+        let slow = await inFlight(h, "slow.txt")
+        #expect(h.model.send("for one"))
+        await h.model.open(two)
+        await slow.value
+        #expect(await eventually { messageFrames(h).count == 1 })
+        let frame = try #require(messageFrames(h).first)
+        #expect(frame.contains(channel(1)))
+        #expect(!frame.contains(channel(2)))
+    }
+
+    @Test("a file that fails meanwhile holds the send: the words are back in the box, and a notice says where")
+    func failureHoldsWaitingSend() async throws {
+        let h = await opened()
+        h.server.edit {
+            $0.uploadDelays["bad.png"] = 100
+            $0.uploadErrors["bad.png"] = (400, "IMAGE_UNREADABLE", nil)
+        }
+        let task = await inFlight(h, "bad.png")
+        #expect(h.model.send("with a picture"))
+        await task.value
+        #expect(await eventually { !h.model.isWaiting(channel: one, parent: nil) })
+        #expect(messageFrames(h).isEmpty)
+        #expect(h.model.takeHandedBack(channel: one, parent: nil) == "with a picture")
+        #expect(h.model.takeHandedBack(channel: one, parent: nil) == nil, "handed back once")
+        #expect(h.model.uploads(channel: one, parent: nil).first?.state == .failed(.imageUnreadable))
+        let held = h.model.notices.map(\.kind).contains { if case .sendHeld = $0 { true } else { false } }
+        #expect(held)
+    }
+
+    @Test("taking the waited-for file off hands the words back and sends nothing")
+    func removingWhileWaiting() async throws {
+        let h = await opened()
+        h.server.edit { $0.uploadDelays["slow.txt"] = 150 }
+        let slow = await inFlight(h, "slow.txt")
+        #expect(h.model.send("changed my mind"))
+        let file = try #require(h.model.uploads(channel: one, parent: nil).first)
+        await h.model.removeUpload(file.id, channel: one, parent: nil)
+        await slow.value
+        #expect(!h.model.isWaiting(channel: one, parent: nil))
+        #expect(h.model.takeHandedBack(channel: one, parent: nil) == "changed my mind")
+        #expect(messageFrames(h).isEmpty)
+    }
+
+    @Test("a reply waits the same way, in its own thread, and goes to it")
+    func replyWaits() async throws {
+        let h = await opened()
+        let root = idAt(1_000)
+        h.server.edit {
+            $0.messages[channel(1)] = [makeMessage(root, content: "root")]
+            $0.uploadDelays["slow.txt"] = 120
+        }
+        await h.model.open(one)
+        await h.model.openThread(makeMessage(root, content: "root"))
+        let slow = await inFlight(h, "slow.txt", parent: root)
+        #expect(h.model.sendReply("answer"))
+        #expect(h.model.isWaiting(channel: one, parent: root))
+        #expect(!h.model.isWaiting(channel: one, parent: nil), "the channel's own box is not waiting")
+        await slow.value
+        #expect(await eventually { messageFrames(h).count == 1 })
+        #expect(messageFrames(h).first?.contains(root.value) == true)
+    }
+
+    @Test("signing out lets go of a waiting send and of the files: nothing goes afterwards")
+    func signOutClears() async {
+        let h = await opened()
+        h.server.edit { $0.uploadDelays["slow.txt"] = 120 }
+        let slow = await inFlight(h, "slow.txt")
+        #expect(h.model.send("late"))
+        _ = await h.model.signOut(.thisDevice)
+        await slow.value
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(!h.model.isWaiting(channel: one, parent: nil))
+        #expect(messageFrames(h).isEmpty)
+    }
+
+    @Test("the length limit is asked at once, not after the wait")
+    func lengthAtOnce() async {
+        let h = await opened()
+        h.server.edit { $0.uploadDelays["slow.txt"] = 100 }
+        let slow = await inFlight(h, "slow.txt")
+        #expect(!h.model.send(String(repeating: "x", count: ContractConstants.messageContentMax + 1)))
+        #expect(!h.model.isWaiting(channel: one, parent: nil))
+        await slow.value
     }
 
     @Test("nothing to say and nothing attached is nothing to send")
