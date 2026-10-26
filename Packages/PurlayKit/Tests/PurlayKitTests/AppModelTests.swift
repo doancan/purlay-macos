@@ -46,7 +46,7 @@ struct ScriptedBrowser: WebAuthenticator {
 final class ModelHarness {
     let server = FakeServer()
     let sessions = MemorySessions()
-    let preferences = MemoryPreferences()
+    let preferences: MemoryPreferences
     let owner = MemoryOwnerStore()
     var sockets: [FakeSocket] = []
     var openedWith: [String] = []
@@ -55,7 +55,11 @@ final class ModelHarness {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("model-" + UUID().uuidString)
     private(set) var model: AppModel!
 
-    init(browser: ScriptedBrowser = .approving, allowsLocalHTTP: Bool = true) {
+    init(
+        browser: ScriptedBrowser = .approving, allowsLocalHTTP: Bool = true,
+        preferences: MemoryPreferences = MemoryPreferences()
+    ) {
+        self.preferences = preferences
         let server = server
         let sessions = sessions
         let preferences = preferences
@@ -294,6 +298,21 @@ struct SignedInTests {
         #expect(h.model.window?.ids == [id])
     }
 
+    @Test(
+        "the real server echoes a message before it acknowledges it: the row is still one, and the pending one is gone")
+    func echoBeforeAcknowledgement() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        #expect(h.model.send("hello"))
+        let id = h.model.selectedPending.first?.id ?? idAt(0)
+        h.last.handlers.message(Wire.created(channel(1), id))
+        #expect(h.model.selectedPending.isEmpty, "the echo retires the pending row")
+        #expect(h.model.window?.ids == [id])
+        h.last.handlers.message(#"{"event":"ACK","ts":1,"data":{"id":"\#(id.value)"}}"#)
+        #expect(h.model.selectedPending.isEmpty)
+        #expect(h.model.window?.ids == [id])
+    }
+
     @Test("nothing is sent that is only space, or that the server would refuse for its length")
     func refusesBeforeSending() async {
         let h = ModelHarness()
@@ -341,6 +360,109 @@ struct SignedInTests {
             return
         }
         #expect(h.sockets.count == 1)
+    }
+}
+
+@MainActor
+@Suite("drafts")
+struct DraftModelTests {
+    @Test("what is half written in one channel is there when the person comes back, and is not in another")
+    func perChannel() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        let first = Uuid(channel(1))!
+        let second = Uuid(channel(2))!
+        await h.model.open(first)
+        h.model.setDraft("half a thought", for: first)
+        await h.model.open(second)
+        #expect(h.model.draft(for: second) == "")
+        #expect(h.model.draft(for: first) == "half a thought")
+    }
+
+    @Test("a draft survives a relaunch: a new model on the same preferences finds it")
+    func relaunch() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        let first = Uuid(channel(1))!
+        h.model.setDraft("kept", for: first)
+        let again = ModelHarness(preferences: h.preferences)
+        await again.signedIn()
+        #expect(again.model.draft(for: first) == "kept")
+    }
+
+    @Test("sending what was written clears the draft, and a send that was refused keeps it")
+    func sending() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        let first = Uuid(channel(1))!
+        await h.model.open(first)
+        h.model.setDraft("hello", for: first)
+        #expect(h.model.send("hello"))
+        #expect(h.model.draft(for: first) == "")
+        h.model.setDraft("   ", for: first)
+        #expect(!h.model.send("   "))
+        #expect(h.model.draft(for: first) == "   ")
+    }
+
+    @Test("signed out, there is nobody whose draft it could be")
+    func signedOut() {
+        let h = ModelHarness()
+        #expect(h.model.draft(for: Uuid(channel(1))!) == "")
+        h.model.setDraft("lost", for: Uuid(channel(1))!)
+        #expect(h.preferences.string(for: "purlay.draft..\(channel(1))") == nil)
+    }
+}
+
+@MainActor
+@Suite("who can be mentioned")
+struct MentionPeopleModelTests {
+    private func person(_ n: Int, _ username: String) -> User {
+        User(
+            avatarUrl: nil, displayName: username.capitalized, id: Uuid("00000000-0000-4000-8000-00000000009\(n)")!,
+            username: username)
+    }
+
+    private var ada: User {
+        FakeServer.decoded(
+            User.self, #"{"id":"\#(FakeServer.userID)","username":"ada","displayName":"Ada","avatarUrl":null}"#)
+    }
+
+    @Test("the people of the workspace are known once signed in, and a public channel offers them but not the writer")
+    func publicChannel() async {
+        let h = ModelHarness()
+        h.server.edit {
+            $0.workspaceMembers = [
+                FakeServer.member(ada), FakeServer.member(person(1, "bob")), FakeServer.member(person(2, "cem")),
+            ]
+        }
+        await h.signedIn()
+        #expect(h.model.mentionCandidates.map(\.username) == ["bob", "cem"])
+    }
+
+    @Test("signing out forgets them: the next person to sign in is not offered this workspace's people")
+    func forgotten() async {
+        let h = ModelHarness()
+        h.server.edit { $0.workspaceMembers = [FakeServer.member(person(1, "bob"))] }
+        await h.signedIn()
+        #expect(!h.model.mentionCandidates.isEmpty)
+        _ = await h.model.signOut(.thisDevice)
+        #expect(h.model.mentionCandidates.isEmpty)
+        #expect(h.model.workspacePeople.isEmpty)
+    }
+
+    @Test("a failed read of the people offers nobody and does not stop the app, and the next ask reads again")
+    func failure() async {
+        let h = ModelHarness()
+        h.server.edit {
+            $0.membersStatus = 500
+            $0.workspaceMembers = [FakeServer.member(person(1, "bob"))]
+        }
+        await h.signedIn()
+        #expect(h.model.mentionCandidates.isEmpty)
+        #expect(h.model.phase == .ready)
+        h.server.edit { $0.membersStatus = 200 }
+        await h.model.refreshPeople()
+        #expect(h.model.mentionCandidates.map(\.username) == ["bob"])
     }
 }
 

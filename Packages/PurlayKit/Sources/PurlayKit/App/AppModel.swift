@@ -327,6 +327,7 @@ public final class AppModel {
             engine.watch(channels.map(\.id))
             engine.start()
             sync()
+            await refreshPeople()
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
                 Uuid.init)
             let first =
@@ -418,6 +419,8 @@ public final class AppModel {
         engine = nil
         api = nil
         me = nil
+        workspacePeople = []
+        channelPeople = [:]
         workspace = nil
         selectedChannel = nil
         chat = ChatState()
@@ -480,12 +483,57 @@ public final class AppModel {
         }
     }
 
+    // MARK: People
+
+    /// The people of the workspace, and the members of the private channels that were opened: who an `@` could reach.
+    private(set) var workspacePeople: [User] = []
+    private var channelPeople: [Uuid: [User]] = [:]
+
+    /// Who a mention written in the open channel would reach, and nobody while that is not known.
+    public var mentionCandidates: [User] {
+        guard let channelID = selectedChannel, let me else { return [] }
+        return MentionCandidates.people(
+            in: chat.channels[channelID], workspace: workspacePeople, inChannel: channelPeople[channelID],
+            selfID: me.user.id)
+    }
+
+    /// Reads the people again: after a failure, or when an `@` finds them missing. Never an error on the screen: a list that is not
+    /// there offers nobody, and the next `@` asks again.
+    public func refreshPeople() async {
+        guard let api, let workspace else { return }
+        if let members = try? await api.listWorkspaceMembers(workspaceId: workspace.id.value) {
+            workspacePeople = members.map(\.user)
+        }
+        if let channelID = selectedChannel, chat.channels[channelID]?.type == .private,
+            let members = try? await api.listChannelMembers(channelId: channelID.value)
+        {
+            channelPeople[channelID] = members.map(\.user)
+        }
+    }
+
+    // MARK: Drafts
+
+    /// What was half written for a channel, from this person's own entries; empty when nobody is signed in.
+    public func draft(for channel: Uuid) -> String {
+        drafts?.read(channel: channel, parent: nil) ?? ""
+    }
+
+    /// Remembers what is half written for a channel, so a switch, a quit or a crash does not lose it.
+    public func setDraft(_ text: String, for channel: Uuid) {
+        drafts?.write(text, channel: channel, parent: nil)
+    }
+
+    private var drafts: Drafts? {
+        me.map { Drafts(store: environment.preferences, user: $0.user.id) }
+    }
+
     // MARK: What the person does
 
     /// Opens a channel: the window of messages it already holds is shown at once, and the newest page is read.
     public func open(_ channelID: Uuid) async {
         selectedChannel = channelID
         if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
+        if chat.channels[channelID]?.type == .private, channelPeople[channelID] == nil { await refreshPeople() }
         guard let api, let engine else { return }
         do {
             let page = try await api.listMessages(
@@ -527,6 +575,7 @@ public final class AppModel {
             return false
         }
         engine.send(Outgoing(channelID: channelID, content: words))
+        setDraft("", for: channelID)
         return true
     }
 

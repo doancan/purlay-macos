@@ -110,7 +110,7 @@ struct ChannelView: View {
                                 pending: pending, retry: { model.retry(pending.id) },
                                 discard: { model.discard(pending.id) }
                             )
-                            .id(pending.id)
+                            .id("pending-" + pending.id.value)
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
@@ -127,7 +127,9 @@ struct ChannelView: View {
                 .onChange(of: model.selectedPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
             }
             Divider()
-            ComposerView(send: { model.send($0) }, placeholder: placeholder)
+            if let channelID = model.selectedChannel {
+                ComposerView(model: model, channel: channelID, placeholder: placeholder).id(channelID)
+            }
         }
     }
 
@@ -205,34 +207,5 @@ struct PendingRow: View {
             return String(localized: "Join this channel to write in it.")
         default: return String(localized: "Not sent.")
         }
-    }
-}
-
-struct ComposerView: View {
-    let send: (String) -> Bool
-    let placeholder: String
-    @State private var text = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField(placeholder, text: $text, axis: .vertical)
-                .lineLimit(1...8)
-                .textFieldStyle(.plain)
-                .focused($focused)
-                .onSubmit(submit)
-                .padding(8)
-            Button(action: submit) { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-                .buttonStyle(.borderless)
-                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel("Send")
-        }
-        .padding(8)
-        .background(.bar)
-        .onAppear { focused = true }
-    }
-
-    private func submit() {
-        if send(text) { text = "" }
     }
 }

@@ -16,6 +16,9 @@ final class FakeServer: HTTPTransport {
         var token = String(repeating: "5", count: 64)
         var cookieOnToken = true
         var channelsStatus = 200
+        var membersStatus = 200
+        var workspaceMembers: [WorkspaceMember] = []
+        var channelMembers: [String: [User]] = [:]
         var messages: [String: [Message]] = [:]
         var logoutStatus = 204
         var online = true
@@ -30,6 +33,25 @@ final class FakeServer: HTTPTransport {
     static let sessionValue = "session-value"
 
     var requests: [HTTPRequest] { state.withLock { $0.requests } }
+    static func encoded<T: Encodable>(_ value: T) -> String {
+        (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+    }
+
+    static func decoded<T: Decodable>(_ type: T.Type, _ json: String) -> T {
+        // A fixture that is not valid is a mistake in the test, and says so at once.
+        do { return try JSONDecoder().decode(T.self, from: Data(json.utf8)) } catch {
+            preconditionFailure("fixture: \(error)")
+        }
+    }
+
+    /// A member of the workspace, as the server lists them.
+    static func member(_ user: User) -> WorkspaceMember {
+        decoded(
+            WorkspaceMember.self,
+            #"{"joinedAt":"2026-10-09T12:00:00.000Z","profile":{"title":null,"timeZone":null,"status":null},"role":"member","user":"#
+                + encoded(user) + "}")
+    }
+
     func edit(_ change: (inout State) -> Void) { state.withLock { change(&$0) } }
 
     static func clientInfo(minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390")
@@ -93,6 +115,22 @@ final class FakeServer: HTTPTransport {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(
                 snapshot.channelsStatus, "[\(Self.channelJSON(1, name: "api")),\(Self.channelJSON(2, name: "design"))]")
+        case ("GET", "/api/workspaces/\(Self.workspaceID)/members"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.membersStatus != 200 {
+                return json(snapshot.membersStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            return json(200, Self.encoded(snapshot.workspaceMembers))
+        case ("GET", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/members"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.membersStatus != 200 {
+                return json(snapshot.membersStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/channels/".count).dropLast("/members".count))
+            let joined = Self.decoded(Timestamp.self, #""2026-10-09T12:00:00.000Z""#)
+            return json(
+                200, Self.encoded((snapshot.channelMembers[id] ?? []).map { ChannelMember(joinedAt: joined, user: $0) })
+            )
         case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/read"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/read".count))
