@@ -26,7 +26,13 @@ struct MainView: View {
                     NoticeBanner(notice: notice) { model.dismiss(notice) }
                 }
                 if model.selectedChannel != nil {
-                    ChannelView(model: model)
+                    HStack(spacing: 0) {
+                        ChannelView(model: model)
+                        if model.thread != nil {
+                            Divider()
+                            ThreadPanel(model: model)
+                        }
+                    }
                 } else {
                     ContentUnavailableView(
                         "No channel", systemImage: "number", description: Text("Pick a channel to start."))

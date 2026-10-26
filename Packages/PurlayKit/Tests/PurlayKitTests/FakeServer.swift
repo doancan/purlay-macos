@@ -18,6 +18,13 @@ final class FakeServer: HTTPTransport {
         var channelsStatus = 200
         var membersStatus = 200
         var mutationStatus = 200
+        var threads: [String: [Message]] = [:]
+        var threadPageSize: Int?
+        var threadStatus = 200
+        var threadDelays: [String: Int] = [:]
+        var threadReads: [(root: String, read: String)] = []
+        var follows: [String: Bool] = [:]
+        var followStatus = 200
         var workspaceMembers: [WorkspaceMember] = []
         var channelMembers: [String: [User]] = [:]
         var messages: [String: [Message]] = [:]
@@ -34,6 +41,7 @@ final class FakeServer: HTTPTransport {
     static let sessionValue = "session-value"
 
     var requests: [HTTPRequest] { state.withLock { $0.requests } }
+    var threadReadsSeen: [(root: String, read: String)] { state.withLock { $0.threadReads } }
     static func encoded<T: Encodable>(_ value: T) -> String {
         (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
     }
@@ -132,6 +140,62 @@ final class FakeServer: HTTPTransport {
             return json(
                 200, Self.encoded((snapshot.channelMembers[id] ?? []).map { ChannelMember(joinedAt: joined, user: $0) })
             )
+        case ("GET", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/thread"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/thread".count))
+            if let wait = snapshot.threadDelays[id] { try? await Task.sleep(for: .milliseconds(wait)) }
+            if snapshot.threadStatus != 200 {
+                return json(snapshot.threadStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            var items = snapshot.threads[id] ?? []
+            let after = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems?.first {
+                $0.name == "after"
+            }?.value
+            if let after { items = items.filter { $0.id.value > after } }
+            let size = snapshot.threadPageSize ?? 100
+            let page = Array(items.prefix(size))
+            let next = items.count > size ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+            return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next)}")
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/thread/read"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/thread/read".count))
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            state.withLock { $0.threadReads.append((id, body?["lastReadMessageId"] as? String ?? "")) }
+            return HTTPResponse(status: 204)
+        case ("GET", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/follow"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.followStatus != 200 {
+                return json(snapshot.followStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/follow".count))
+            return json(200, "{\"following\":\(snapshot.follows[id] ?? false)}")
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/follow"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/follow".count))
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let following = body?["following"] as? Bool ?? false
+            state.withLock { $0.follows[id] = following }
+            return json(200, "{\"following\":\(following)}")
+        case ("POST", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/resolve"),
+            ("DELETE", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/resolve"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/resolve".count))
+            guard var root = snapshot.messages.values.joined().first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"NOT_FOUND","message":"x"}}"#)
+            }
+            let resolved = request.method == "POST"
+            let who = #"{"id":"\#(Self.userID)","username":"ada","displayName":"Ada","avatarUrl":null}"#
+            root.thread = Self.decoded(
+                ThreadSummary.self,
+                "{\"lastReplyAt\":null,\"replyCount\":\(snapshot.threads[id]?.count ?? 0),\"resolvedAt\":\(resolved ? "\"2026-10-09T14:00:00.000Z\"" : "null"),\"resolvedBy\":\(resolved ? who : "null")}"
+            )
+            return json(200, Self.encoded(root))
         case ("PATCH", _) where path.hasPrefix("/api/messages/"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count))

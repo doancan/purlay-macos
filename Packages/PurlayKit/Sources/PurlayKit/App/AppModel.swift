@@ -20,6 +20,9 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case storageProblem
         case originMismatch
         case sendTooLong
+        case threadFailed
+        case resolveFailed
+        case followFailed
         case editFailed
         case deleteFailed
         case reactionFailed
@@ -112,8 +115,9 @@ public final class AppModel {
         selectedChannel.flatMap { chat.windows[$0] }
     }
 
+    /// What was sent to the open channel and is not yet known to have arrived. A reply is the thread's, not the feed's.
     public var selectedPending: [PendingMessage] {
-        pending.filter { $0.channelID == selectedChannel }
+        pending.filter { $0.channelID == selectedChannel && $0.parentID == nil }
     }
 
     // MARK: Notices
@@ -387,7 +391,7 @@ public final class AppModel {
                 onRefused: { [weak self] status in self?.upgradeRefused(status) },
                 onLost: { [weak self] count in self?.say(.unsentLost(count)) },
                 onStorageProblem: { [weak self] _ in self?.say(.storageProblem) },
-                onChange: { [weak self] in self?.sync() }))
+                onChange: { [weak self] in self?.sync() }, onReply: { [weak self] reply in self?.receiveReply(reply) }))
     }
 
     private struct EmptyOutbox: OutboxStore {
@@ -417,6 +421,8 @@ public final class AppModel {
         cookieCache = nil
         markedRead = [:]
         marking = []
+        closeThread()
+        threadMarked = [:]
         readRetryAfter = [:]
         engine?.stop()
         engine = nil
@@ -449,6 +455,7 @@ public final class AppModel {
         isActive = active
         readRetryAfter = [:]
         markReadIfSeen()
+        markThreadReadIfSeen()
     }
 
     /// The person is at the end of the messages, or has scrolled up.
@@ -514,16 +521,181 @@ public final class AppModel {
         }
     }
 
+    // MARK: Threads
+
+    /// Whether the person is told of new replies to the open thread, and whether that is known yet.
+    public enum FollowState: Equatable, Sendable {
+        case reading
+        case known(Bool)
+        case failed
+    }
+
+    /// The open thread: one at a time, in the panel beside the channel it is in.
+    public private(set) var thread: ThreadWindow?
+    public private(set) var threadFollow: FollowState = .reading
+    private var threadRootCopy: Message?
+    private var threadGeneration = 0
+    private var threadMarked: [Uuid: Uuid] = [:]
+    /// A thread of more replies than this many pages is read to here, and its newest replies arrive live.
+    private static let threadPagesMax = 50
+
+    /// The root of the open thread as the feed holds it now, so a resolution or an edit is seen; the one it was opened with if the feed
+    /// has moved on from it.
+    public var threadRoot: Message? {
+        guard let thread else { return nil }
+        return chat.windows[thread.channel]?.messages.first { $0.id == thread.root } ?? threadRootCopy
+    }
+
+    public var threadPending: [PendingMessage] {
+        guard let thread else { return [] }
+        return pending.filter { $0.parentID == thread.root }
+    }
+
+    /// Opens a thread in the panel, or reads the open one again. The answer of a thread that was left for another is not used.
+    public func openThread(_ root: Message) async {
+        guard let api else { return }
+        threadGeneration += 1
+        let generation = threadGeneration
+        if thread?.root != root.id {
+            thread = ThreadWindow(root: root.id, channel: root.channelId)
+            threadFollow = .reading
+        }
+        threadRootCopy = root
+        let size = ContractConstants.pageLimit.default
+        do {
+            var page = try await api.getThread(messageId: root.id.value, query: PageQuery(limit: size))
+            guard generation == threadGeneration else { return }
+            var replies = page.data
+            var next = page.nextCursor
+            var pages = 1
+            while let cursor = next, pages < Self.threadPagesMax {
+                page = try await api.getThread(messageId: root.id.value, query: PageQuery(after: cursor, limit: size))
+                guard generation == threadGeneration else { return }
+                replies += page.data
+                next = page.nextCursor
+                pages += 1
+            }
+            thread?.load(replies, next: next)
+            markThreadReadIfSeen()
+        } catch {
+            guard generation == threadGeneration else { return }
+            say(.threadFailed)
+        }
+        if case .known = threadFollow { return }
+        await readFollow(root.id, generation: generation)
+    }
+
+    public func closeThread() {
+        threadGeneration += 1
+        thread = nil
+        threadRootCopy = nil
+        threadFollow = .reading
+    }
+
+    private func readFollow(_ root: Uuid, generation: Int) async {
+        guard let api else { return }
+        do {
+            let answer = try await api.getThreadFollow(messageId: root.value)
+            guard generation == threadGeneration else { return }
+            threadFollow = .known(answer.following)
+        } catch {
+            guard generation == threadGeneration else { return }
+            threadFollow = .failed
+        }
+    }
+
+    private func reloadThread() async {
+        if let root = threadRoot { await openThread(root) }
+    }
+
+    /// A reply arrived: the open thread, if it is that one, adds it.
+    private func receiveReply(_ reply: Message) {
+        guard thread?.receive(reply) == true else { return }
+        markThreadReadIfSeen()
+    }
+
+    /// Answers the open thread. Nothing is sent that the server would refuse for its length, and nothing with no thread to answer.
+    @discardableResult
+    public func sendReply(_ text: String) -> Bool {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let thread, let engine, !words.isEmpty else { return false }
+        guard words.count <= ContractConstants.messageContentMax else {
+            say(.sendTooLong)
+            return false
+        }
+        engine.send(Outgoing(channelID: thread.channel, content: words, parentID: thread.root))
+        setDraft("", for: thread.channel, parent: thread.root)
+        return true
+    }
+
+    /// The newest reply seen is told to the server, once: only while the window is in front, and not again until there is a newer one.
+    private func markThreadReadIfSeen() {
+        guard isActive, let api, let thread, thread.isLoaded, let newest = thread.replies.last?.id,
+            threadMarked[thread.root] != newest
+        else { return }
+        let root = thread.root
+        let before = threadMarked[root]
+        threadMarked[root] = newest
+        Task { @MainActor in
+            do {
+                try await api.markThreadRead(messageId: root.value, body: ReadThreadRequest(lastReadMessageId: newest))
+            } catch {
+                if threadMarked[root] == newest { threadMarked[root] = before }
+            }
+        }
+    }
+
+    @discardableResult
+    public func resolveThread() async -> Bool { await changeResolution(resolved: true) }
+
+    @discardableResult
+    public func reopenThread() async -> Bool { await changeResolution(resolved: false) }
+
+    private func changeResolution(resolved: Bool) async -> Bool {
+        guard let api, let thread else { return false }
+        do {
+            let updated =
+                resolved
+                ? try await api.resolveThread(messageId: thread.root.value)
+                : try await api.reopenThread(messageId: thread.root.value)
+            engine?.revise(thread.root, in: thread.channel) { $0.thread = updated.thread }
+            threadRootCopy?.thread = updated.thread
+            sync()
+            return true
+        } catch {
+            say(.resolveFailed)
+            return false
+        }
+    }
+
+    /// Follows or lets go of the open thread: painted at once, put back with a word if the server refuses.
+    public func setFollowing(_ following: Bool) async {
+        guard let api, let thread else { return }
+        let generation = threadGeneration
+        let before = threadFollow
+        if case .known = before { threadFollow = .known(following) }
+        do {
+            let answer = try await api.setThreadFollow(
+                messageId: thread.root.value, body: SetThreadFollowRequest(following: following))
+            guard generation == threadGeneration else { return }
+            threadFollow = .known(answer.following)
+        } catch {
+            guard generation == threadGeneration else { return }
+            threadFollow = before
+            say(.followFailed)
+        }
+    }
+
     // MARK: Drafts
 
     /// What was half written for a channel, from this person's own entries; empty when nobody is signed in.
-    public func draft(for channel: Uuid) -> String {
-        drafts?.read(channel: channel, parent: nil) ?? ""
+    public func draft(for channel: Uuid, parent: Uuid? = nil) -> String {
+        drafts?.read(channel: channel, parent: parent) ?? ""
     }
 
     /// Remembers what is half written for a channel, so a switch, a quit or a crash does not lose it.
-    public func setDraft(_ text: String, for channel: Uuid) {
-        drafts?.write(text, channel: channel, parent: nil)
+    public func setDraft(_ text: String, for channel: Uuid, parent: Uuid? = nil) {
+        drafts?.write(text, channel: channel, parent: parent)
     }
 
     private var drafts: Drafts? {
@@ -603,6 +775,7 @@ public final class AppModel {
 
     /// Opens a channel: the window of messages it already holds is shown at once, and the newest page is read.
     public func open(_ channelID: Uuid) async {
+        if thread?.channel != channelID { closeThread() }
         selectedChannel = channelID
         if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
         if chat.channels[channelID]?.type == .private, channelPeople[channelID] == nil { await refreshPeople() }
@@ -667,6 +840,10 @@ public final class AppModel {
             Task { await self.open(channel) }
         case .memberships:
             Task { await self.reloadMe() }
+        case .thread(let root) where root == thread?.root:
+            Task { await self.reloadThread() }
+        case .threads where thread != nil:
+            Task { await self.reloadThread() }
         default:
             break
         }

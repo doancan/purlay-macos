@@ -111,8 +111,9 @@ public struct ChatState: Sendable, Equatable {
         case .reactionsUpdated(let updated):
             let data = updated.data
             guard isNewest("reactions", data.messageId, updated.version) else { return [] }
-            windows[data.channelId]?.update(data.messageId) { $0.reactions = data.reactions }
-            return []
+            let held = windows[data.channelId]?.update(data.messageId) { $0.reactions = data.reactions } ?? false
+            // Not a row of the feed: a reply, whose thread panel, if it is open, reads again.
+            return held ? [] : [.refresh(.threads)]
 
         case .threadUpdated(let updated):
             let data = updated.data

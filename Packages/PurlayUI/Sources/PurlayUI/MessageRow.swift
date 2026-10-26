@@ -6,6 +6,8 @@ import SwiftUI
 struct MessageRow: View {
     let message: Message
     let model: AppModel
+    /// Drawn in the thread panel: a reply has no thread of its own, and the root's affordance is the panel's heading.
+    var inThread = false
     @State private var editing = false
     @State private var confirmingDelete = false
     @State private var hovering = false
@@ -31,6 +33,9 @@ struct MessageRow: View {
                 MessageBody(text: message.content)
             }
             if !deleted && !message.reactions.isEmpty { ReactionRow(message: message, model: model) }
+            if !inThread && message.parentId == nil, let summary = message.thread, summary.replyCount > 0 {
+                ThreadAffordance(message: message, summary: summary, model: model)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
@@ -39,7 +44,9 @@ struct MessageRow: View {
         .overlay(alignment: .topTrailing) {
             if (hovering || picking) && !deleted && !editing {
                 ActionBar(
-                    message: message, model: model, mine: mine, picking: $picking, edit: { editing = true },
+                    message: message, model: model, mine: mine, canReply: !inThread && message.parentId == nil,
+                    picking: $picking,
+                    edit: { editing = true },
                     delete: { confirmingDelete = true }
                 )
                 .padding(.trailing, 12)
@@ -120,6 +127,7 @@ private struct ActionBar: View {
     let message: Message
     let model: AppModel
     let mine: Bool
+    let canReply: Bool
     @Binding var picking: Bool
     let edit: () -> Void
     let delete: () -> Void
@@ -145,6 +153,15 @@ private struct ActionBar: View {
                     }
                 }
                 .padding(8)
+            }
+            if canReply {
+                Button {
+                    Task { await model.openThread(message) }
+                } label: {
+                    Image(systemName: "bubble.left").frame(width: 24, height: 22)
+                }
+                .help("Reply in thread")
+                .accessibilityLabel("Reply in thread")
             }
             if mine {
                 Button(action: edit) { Image(systemName: "pencil").frame(width: 24, height: 22) }
@@ -189,6 +206,45 @@ private struct ReactionRow: View {
                 .accessibilityAddTraits(mine ? .isSelected : [])
             }
         }
+        .padding(.top, 2)
+    }
+}
+
+/// Under a root that has replies: where its thread stands, and the way into it.
+private struct ThreadAffordance: View {
+    let message: Message
+    let summary: ThreadSummary
+    let model: AppModel
+
+    private var open: Bool { model.thread?.root == message.id }
+
+    var body: some View {
+        Button {
+            Task { await model.openThread(message) }
+        } label: {
+            HStack(spacing: 6) {
+                if let resolvedBy = summary.resolvedBy, summary.resolvedAt != nil {
+                    Label("Resolved by \(resolvedBy.displayName)", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Label("Open", systemImage: "circle")
+                }
+                Text("·")
+                Text("\(summary.replyCount) replies")
+                if let last = summary.lastReplyAt {
+                    Text("·")
+                    Text(last.date, style: .relative)
+                }
+                Text(open ? "Thread open" : "Show thread").foregroundStyle(Color.accentColor).fontWeight(
+                    open ? .semibold : .regular)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(open ? Color.accentColor.opacity(0.15) : .clear, in: Capsule())
+        }
+        .buttonStyle(.plain)
         .padding(.top, 2)
     }
 }

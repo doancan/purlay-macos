@@ -7,17 +7,20 @@ import SwiftUI
 struct ComposerView: View {
     let model: AppModel
     let channel: Uuid
+    /// The root this answers, or nil for the channel's own box: a reply keeps its draft apart from the channel's.
+    var parent: Uuid?
     let placeholder: String
     @State private var state: ComposerState
     @State private var previewing = false
     @State private var saving: Task<Void, Never>?
 
-    init(model: AppModel, channel: Uuid, placeholder: String) {
+    init(model: AppModel, channel: Uuid, parent: Uuid? = nil, placeholder: String) {
         self.model = model
         self.channel = channel
+        self.parent = parent
         self.placeholder = placeholder
         let state = ComposerState()
-        state.text = model.draft(for: channel)
+        state.text = model.draft(for: channel, parent: parent)
         _state = State(initialValue: state)
     }
 
@@ -61,7 +64,7 @@ struct ComposerView: View {
         .onChange(of: state.text) { _, text in remember(text) }
         .onDisappear {
             saving?.cancel()
-            model.setDraft(state.text, for: channel)
+            model.setDraft(state.text, for: channel, parent: parent)
         }
     }
 
@@ -70,7 +73,7 @@ struct ComposerView: View {
         saving?.cancel()
         saving = Task {
             try? await Task.sleep(for: .milliseconds(400))
-            if !Task.isCancelled { model.setDraft(text, for: channel) }
+            if !Task.isCancelled { model.setDraft(text, for: channel, parent: parent) }
         }
     }
 
@@ -80,7 +83,7 @@ struct ComposerView: View {
                 "\(name) would reach everybody, and Purlay does not send to everybody. Mention people by name."
             return
         }
-        guard model.send(state.text) else { return }
+        guard parent == nil ? model.send(state.text) : model.sendReply(state.text) else { return }
         saving?.cancel()
         state.notice = nil
         state.replaceAll?("")

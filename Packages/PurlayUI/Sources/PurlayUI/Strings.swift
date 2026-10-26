@@ -37,6 +37,9 @@ enum Words {
         case .originMismatch:
             return String(localized: "The server refused this app's connection. Check the server's address.")
         case .sendTooLong: return String(localized: "That message is too long to send.")
+        case .threadFailed: return String(localized: "Could not load the thread. Check your connection and try again.")
+        case .resolveFailed: return String(localized: "Could not change whether this thread is resolved. Try again.")
+        case .followFailed: return String(localized: "Could not change whether you follow this thread. Try again.")
         case .editFailed: return String(localized: "Could not change the message. Check your connection and try again.")
         case .deleteFailed:
             return String(localized: "Could not delete the message. Check your connection and try again.")

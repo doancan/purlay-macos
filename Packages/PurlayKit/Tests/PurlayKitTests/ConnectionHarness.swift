@@ -205,6 +205,15 @@ enum Wire {
         """
     }
 
+    /// A reply to a root: the frame the server sends for a message that has a parent.
+    static func reply(_ channelID: String, _ id: Uuid, to parent: Uuid, content: String = "a reply") -> String {
+        """
+        {"event":"MESSAGE_CREATED","ts":\(epochMs),"data":{"id":"\(id.value)","channelId":"\(channelID)","sender":null,"githubEvent":null,\
+        "content":"\(content)","editedAt":null,"deletedAt":null,"createdAt":"2026-10-09T12:00:00.000Z","parentId":"\(parent.value)","thread":null,\
+        "reactions":[],"mentions":[],"attachments":[]}}
+        """
+    }
+
     static func pong(_ refID: String?, ts: Int = epochMs) -> String {
         let ref = refID.map { #","refId":"\#($0)""# } ?? ""
         return #"{"event":"PONG","data":{},"ts":\#(ts)\#(ref)}"#

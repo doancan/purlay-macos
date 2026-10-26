@@ -44,6 +44,8 @@ public final class Engine {
         public var onStorageProblem: (String) -> Void
         /// Something the screen shows has changed: the state, the pending sends, the connection, what is degraded.
         public var onChange: () -> Void
+        /// A reply arrived, live or from the HTTP door: it is not a row of the feed, and the thread panel, if it is that thread's, adds it.
+        public var onReply: (Message) -> Void
 
         public init(
             url: URL, openSocket: @escaping OpenSocket, schedule: @escaping Schedule, random: @escaping () -> Double,
@@ -55,7 +57,8 @@ public final class Engine {
             refresh: @escaping (Refresh) -> Void,
             onSessionEnded: @escaping (SessionEndedFrame.Payload.Reason) -> Void = { _ in },
             onRefused: @escaping (Int) -> Void = { _ in }, onLost: @escaping (Int) -> Void = { _ in },
-            onStorageProblem: @escaping (String) -> Void = { _ in }, onChange: @escaping () -> Void = {}
+            onStorageProblem: @escaping (String) -> Void = { _ in }, onChange: @escaping () -> Void = {},
+            onReply: @escaping (Message) -> Void = { _ in }
         ) {
             self.url = url
             self.openSocket = openSocket
@@ -74,6 +77,7 @@ public final class Engine {
             self.onLost = onLost
             self.onStorageProblem = onStorageProblem
             self.onChange = onChange
+            self.onReply = onReply
         }
     }
 
@@ -274,7 +278,7 @@ public final class Engine {
                 degraded[channel] = nil
             }
         case .dropUnsent(let channels): sends.dropUnsent(channels: channels)
-        case .reply: break
+        case .reply(let message): options.onReply(message)
         case .endTyping(let channel, let user, let afterMs):
             let key = "\(channel.value):\(user.value)"
             typingEnds[key]?()
@@ -289,7 +293,10 @@ public final class Engine {
 
     /// A message the server has, from the HTTP door: taught as a live one.
     private func delivered(_ message: Message) {
-        guard message.parentId == nil else { return }
+        guard message.parentId == nil else {
+            options.onReply(message)
+            return
+        }
         chat.windows[message.channelId]?.receive(message)
     }
 
