@@ -17,6 +17,10 @@ final class FakeServer: HTTPTransport {
         var cookieOnToken = true
         var channelsStatus = 200
         var membersStatus = 200
+        var saved: [String: String] = [:]
+        var saveError: (status: Int, code: String)?
+        var pins: [String: [String]] = [:]
+        var pinError: (status: Int, code: String)?
         var searchStatus = 200
         var searchPageSize: Int?
         var searchDelays: [String: Int] = [:]
@@ -284,6 +288,73 @@ final class FakeServer: HTTPTransport {
             let until = body?["active"] as? Bool == true ? (body?["until"] as? String) : nil
             state.withLock { $0.deepWorkUntil = until }
             return json(200, "{\"until\":\(until.map { "\"\($0)\"" } ?? "null")}")
+        case ("GET", "/api/workspaces/\(Self.workspaceID)/saved/ids"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let all = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
+            let items = snapshot.saved.compactMap { entry -> String? in
+                guard let found = all.first(where: { $0.id.value == entry.key }) else { return nil }
+                return
+                    "{\"channelId\":\"\(found.channelId.value)\",\"messageId\":\"\(found.id.value)\",\"state\":\"\(entry.value)\"}"
+            }
+            return json(200, "[\(items.joined(separator: ","))]")
+        case ("GET", "/api/workspaces/\(Self.workspaceID)/saved"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let wanted =
+                URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems?.first {
+                    $0.name == "state"
+                }?.value ?? "in_progress"
+            let all = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
+            let items = snapshot.saved.filter { $0.value == wanted }.compactMap { entry -> String? in
+                guard let found = all.first(where: { $0.id.value == entry.key }) else { return nil }
+                return
+                    "{\"id\":\"\(found.id.value)\",\"message\":\(Self.encoded(found)),\"savedAt\":\"2026-10-09T12:00:00.000Z\",\"state\":\"\(wanted)\"}"
+            }
+            return json(200, "{\"data\":[\(items.joined(separator: ","))],\"nextCursor\":null}")
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/saved"),
+            ("DELETE", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/saved"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.saveError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/saved".count))
+            state.withLock { state in
+                if request.method == "PUT" {
+                    if state.saved[id] == nil { state.saved[id] = "in_progress" }
+                } else {
+                    state.saved[id] = nil
+                }
+            }
+            return HTTPResponse(status: 204)
+        case ("GET", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/pins"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/channels/".count).dropLast("/pins".count))
+            let all = Array(snapshot.messages.values.joined())
+            let pinned = (snapshot.pins[id] ?? []).compactMap { pin in all.first { $0.id.value == pin } }
+            let items = pinned.map {
+                "{\"message\":\(Self.encoded($0)),\"pinnedAt\":\"2026-10-09T12:00:00.000Z\",\"pinnedBy\":null}"
+            }
+            return json(200, "[\(items.joined(separator: ","))]")
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/pin"),
+            ("DELETE", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/pin"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if let failure = snapshot.pinError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/pin".count))
+            let all = Array(snapshot.messages.values.joined())
+            guard let message = all.first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            state.withLock { state in
+                var list = state.pins[message.channelId.value] ?? []
+                if request.method == "PUT" {
+                    if !list.contains(id) { list.append(id) }
+                } else {
+                    list.removeAll { $0 == id }
+                }
+                state.pins[message.channelId.value] = list
+            }
+            return HTTPResponse(status: 204)
         case ("PATCH", _) where path.hasPrefix("/api/messages/"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count))

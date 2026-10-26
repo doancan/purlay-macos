@@ -43,6 +43,12 @@ struct MainView: View {
             .sheet(isPresented: Binding(get: { model.searchOpen }, set: { model.searchOpen = $0 })) {
                 SearchSheet(model: model)
             }
+            .sheet(isPresented: Binding(get: { model.pinsOpen }, set: { model.pinsOpen = $0 })) {
+                PinsSheet(model: model)
+            }
+            .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
+                SavedSheet(model: model)
+            }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
                 case .newChannel: NewChannelSheet(model: model)
@@ -88,7 +94,17 @@ struct MainView: View {
         }
         .toolbar {
             ToolbarItem {
+                Button {
+                    model.pinsOpen = true
+                } label: {
+                    Label("Pinned", systemImage: "pin")
+                }
+                .disabled(model.selectedChannel == nil)
+                .help("Pinned messages of this channel")
+            }
+            ToolbarItem {
                 Menu {
+                    Button("Saved Messages…") { model.savedOpen = true }
                     DeepWorkItems(model: model)
                     Divider()
                     Button("Sign out") { Task { await model.signOut(.thisDevice) } }

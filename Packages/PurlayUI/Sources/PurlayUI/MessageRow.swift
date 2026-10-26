@@ -10,11 +10,11 @@ struct MessageRow: View {
     var inThread = false
     /// The message a search went to: marked for a moment, so the eye finds it.
     var highlighted = false
-    @State private var editing = false
     @State private var confirmingDelete = false
     @State private var hovering = false
     @State private var picking = false
 
+    private var editing: Bool { model.editing == message.id }
     private var deleted: Bool { message.deletedAt != nil }
     private var mine: Bool { message.sender?.id == model.me?.user.id }
 
@@ -26,11 +26,17 @@ struct MessageRow: View {
                 if message.editedAt != nil && !deleted {
                     Text("edited").font(.caption).foregroundStyle(.secondary)
                 }
+                if model.isPinned(message) {
+                    Image(systemName: "pin.fill").font(.caption).foregroundStyle(.orange).accessibilityLabel("Pinned")
+                }
+                if model.isSaved(message) {
+                    Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.tint).accessibilityLabel("Saved")
+                }
             }
             if deleted {
                 Text("This message was deleted.").italic().foregroundStyle(.secondary)
             } else if editing {
-                EditBox(message: message, model: model) { editing = false }
+                EditBox(message: message, model: model) { model.endEdit() }
             } else {
                 MessageBody(text: message.content)
             }
@@ -51,7 +57,7 @@ struct MessageRow: View {
                 ActionBar(
                     message: message, model: model, mine: mine, canReply: !inThread && message.parentId == nil,
                     picking: $picking,
-                    edit: { editing = true },
+                    edit: { model.beginEdit(message.id) },
                     delete: { confirmingDelete = true }
                 )
                 .padding(.trailing, 12)
@@ -62,8 +68,14 @@ struct MessageRow: View {
         .contextMenu {
             if !deleted {
                 Button("Copy Text") { copy(message.content) }
+                Button(model.isSaved(message) ? "Remove from Saved" : "Save") {
+                    Task { await model.setSaved(!model.isSaved(message), message) }
+                }
+                Button(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel") {
+                    Task { await model.setPinned(!model.isPinned(message), message) }
+                }
                 if mine {
-                    Button("Edit") { editing = true }
+                    Button("Edit") { model.beginEdit(message.id) }
                     Button("Delete…", role: .destructive) { confirmingDelete = true }
                 }
             }
@@ -168,6 +180,20 @@ private struct ActionBar: View {
                 .help("Reply in thread")
                 .accessibilityLabel("Reply in thread")
             }
+            Button {
+                Task { await model.setSaved(!model.isSaved(message), message) }
+            } label: {
+                Image(systemName: model.isSaved(message) ? "bookmark.fill" : "bookmark").frame(width: 24, height: 22)
+            }
+            .help(model.isSaved(message) ? "Remove from Saved" : "Save")
+            .accessibilityLabel(model.isSaved(message) ? "Remove from Saved" : "Save")
+            Button {
+                Task { await model.setPinned(!model.isPinned(message), message) }
+            } label: {
+                Image(systemName: model.isPinned(message) ? "pin.fill" : "pin").frame(width: 24, height: 22)
+            }
+            .help(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel")
+            .accessibilityLabel(model.isPinned(message) ? "Unpin" : "Pin")
             if mine {
                 Button(action: edit) { Image(systemName: "pencil").frame(width: 24, height: 22) }
                     .help("Edit")

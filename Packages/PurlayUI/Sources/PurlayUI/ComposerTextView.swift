@@ -36,6 +36,8 @@ struct ComposerTextView: NSViewRepresentable {
     var onCancel: (() -> Void)?
     /// Takes the keyboard when it appears: an edit is opened to be typed in.
     var takesFocus = false
+    /// ↑ in an empty box: change the last thing said.
+    var onEditLast: (() -> Void)?
 
     private static let maxRows: CGFloat = 12
 
@@ -199,6 +201,13 @@ struct ComposerTextView: NSViewRepresentable {
                     return true
                 default: break
                 }
+            }
+            // An arrow key carries the function and numeric-pad flags with it: they are not a modifier the person pressed.
+            if event.keyCode == 126, flags.subtracting([.function, .numericPad]).isEmpty, state.text.isEmpty,
+                state.suggestions.isEmpty, let editLast = parent.onEditLast
+            {
+                editLast()
+                return true
             }
             if event.keyCode == 53, flags.isEmpty, let cancel = parent.onCancel {
                 cancel()

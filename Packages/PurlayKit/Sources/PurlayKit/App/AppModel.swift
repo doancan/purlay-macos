@@ -20,6 +20,10 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case storageProblem
         case originMismatch
         case sendTooLong
+        case saveFailed
+        case savedFull
+        case pinFailed
+        case pinsFull
         case deepWorkFailed
         case joinFailed
         case leaveFailed
@@ -347,6 +351,7 @@ public final class AppModel {
             engine.start()
             sync()
             await refreshPeople()
+            await reloadSaved()
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
                 Uuid.init)
             let first =
@@ -443,6 +448,10 @@ public final class AppModel {
         me = nil
         clearSearch()
         focus = nil
+        editing = nil
+        savedIDs = [:]
+        savedItems = []
+        pins = [:]
         // After the engine is gone: stopping it says it changed, and that would count what is no longer anybody's.
         attention = Attention()
         deepWorkTimer?()
@@ -724,11 +733,127 @@ public final class AppModel {
         me.map { Drafts(store: environment.preferences, user: $0.user.id) }
     }
 
+    // MARK: Saved, pinned, and the last message
+
+    /// What the person saved, by message, and in which state.
+    public private(set) var savedIDs: [Uuid: SavedState] = [:]
+    /// The pins of each channel that was opened, newest first as the server gives them.
+    private var pins: [Uuid: [PinnedMessage]] = [:]
+    public private(set) var savedItems: [SavedItem] = []
+    /// The message whose words are being changed, if any: one at a time.
+    public private(set) var editing: Uuid?
+
+    public func isSaved(_ message: Message) -> Bool { savedIDs[message.id] != nil }
+    public var pinnedMessages: [PinnedMessage] { selectedChannel.flatMap { pins[$0] } ?? [] }
+    public func isPinned(_ message: Message) -> Bool {
+        pins[message.channelId]?.contains { $0.message.id == message.id } ?? false
+    }
+
+    private func reloadSaved() async {
+        guard let api, let workspace else { return }
+        if let ids = try? await api.listSavedIds(workspaceId: workspace.id.value) {
+            savedIDs = Dictionary(ids.map { ($0.messageId, $0.state) }, uniquingKeysWith: { _, last in last })
+        }
+    }
+
+    private func reloadPins(_ channel: Uuid) async {
+        guard let api else { return }
+        if let list = try? await api.listPins(channelId: channel.value) { pins[channel] = list }
+    }
+
+    /// Saves a message for the person, or lets the save go: painted at once, put back with a word if the server refuses. A deleted message
+    /// is not saved, though a save of one can be let go.
+    public func setSaved(_ saved: Bool, _ message: Message) async {
+        guard let api else { return }
+        if saved && message.deletedAt != nil { return }
+        let before = savedIDs[message.id]
+        savedIDs[message.id] = saved ? (before ?? .inProgress) : nil
+        do {
+            if saved {
+                try await api.saveMessage(messageId: message.id.value, body: SaveMessageRequest())
+            } else {
+                try await api.unsaveMessage(messageId: message.id.value)
+            }
+        } catch {
+            savedIDs[message.id] = before
+            if let api = error as? APIError, api.code == .savedLimit { say(.savedFull) } else { say(.saveFailed) }
+        }
+    }
+
+    /// The saved messages in one state, newest first.
+    public func loadSaved(_ state: SavedState) async {
+        guard let api, let workspace else { return }
+        do {
+            savedItems = try await api.listSaved(
+                workspaceId: workspace.id.value,
+                query: SavedQuery(limit: ContractConstants.pageLimit.default, state: state)
+            ).data
+        } catch {
+            say(.loadFailed)
+        }
+    }
+
+    public func removeSaved(_ item: SavedItem) async {
+        await setSaved(false, item.message)
+        if savedIDs[item.message.id] == nil { savedItems.removeAll { $0.id == item.id } }
+    }
+
+    /// Pins a message for its channel, or lets the pin go: painted at once, put back with a word if the server refuses. A deleted message
+    /// is not pinned.
+    public func setPinned(_ pinned: Bool, _ message: Message) async {
+        guard let api, let me else { return }
+        if pinned && message.deletedAt != nil { return }
+        let channel = message.channelId
+        let before = pins[channel] ?? []
+        if pinned {
+            if !isPinned(message) {
+                pins[channel] =
+                    [
+                        PinnedMessage(
+                            message: message, pinnedAt: Timestamp(environment.clock()),
+                            pinnedBy: User(
+                                avatarUrl: me.user.avatarUrl, displayName: me.user.displayName, id: me.user.id,
+                                username: me.user.username))
+                    ] + before
+            }
+        } else {
+            pins[channel] = before.filter { $0.message.id != message.id }
+        }
+        do {
+            if pinned {
+                try await api.pinMessage(messageId: message.id.value)
+            } else {
+                try await api.unpinMessage(messageId: message.id.value)
+            }
+        } catch {
+            pins[channel] = before
+            if let api = error as? APIError, api.code == .pinsLimit { say(.pinsFull) } else { say(.pinFailed) }
+        }
+    }
+
+    /// Opens the box on the newest message of the person's own that is there to change: the way up from an empty composer goes.
+    /// Not somebody else's, not a deleted one, not a reply.
+    @discardableResult
+    public func editLastMessage() -> Bool {
+        guard let window, let me,
+            let last = window.messages.last(where: {
+                $0.sender?.id == me.user.id && $0.deletedAt == nil && $0.parentId == nil
+            })
+        else { return false }
+        editing = last.id
+        return true
+    }
+
+    public func beginEdit(_ message: Uuid) { editing = message }
+    public func endEdit() { editing = nil }
+
     // MARK: What is on show
 
     /// The palette (`⌘K`) and the search sheet are open. A command of the menu asks for them; the window shows them.
     public var paletteOpen = false
     public var searchOpen = false
+    public var pinsOpen = false
+    public var savedOpen = false
 
     /// Opens the palette, or closes it when it was open.
     public func togglePalette() { paletteOpen.toggle() }
@@ -1146,6 +1271,7 @@ public final class AppModel {
     public func open(_ channelID: Uuid) async {
         if thread?.channel != channelID { closeThread() }
         focus = nil
+        editing = nil
         selectedChannel = channelID
         if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
         if chat.channels[channelID]?.type == .private, channelPeople[channelID] == nil { await refreshPeople() }
@@ -1158,6 +1284,7 @@ public final class AppModel {
             engine.load(window, for: channelID)
             if let newest = page.data.map(\.id).max() { engine.observe(channel: channelID, message: newest) }
             sync()
+            await reloadPins(channelID)
         } catch {
             say(.loadFailed)
         }
@@ -1210,6 +1337,10 @@ public final class AppModel {
             Task { await self.open(channel) }
         case .memberships:
             Task { await self.reloadMe() }
+        case .saved(let id) where id == workspace?.id:
+            Task { await self.reloadSaved() }
+        case .pins(let channel) where channel == selectedChannel:
+            Task { await self.reloadPins(channel) }
         case .thread(let root) where root == thread?.root:
             Task { await self.reloadThread() }
         case .threads where thread != nil:

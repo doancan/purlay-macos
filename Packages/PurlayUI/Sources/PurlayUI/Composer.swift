@@ -41,7 +41,8 @@ struct ComposerView: View {
             HStack(alignment: .bottom, spacing: 8) {
                 ComposerTextView(
                     state: state, placeholder: placeholder, candidates: { model.mentionCandidates }, onSend: send,
-                    onPeopleMissing: { Task { await model.refreshPeople() } })
+                    onPeopleMissing: { Task { await model.refreshPeople() } },
+                    onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil)
                 VStack(alignment: .trailing, spacing: 4) {
                     if let left = ComposerText.unitsLeft(state.text) {
                         Text(left, format: .number)
