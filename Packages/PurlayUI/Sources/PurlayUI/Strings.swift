@@ -63,6 +63,10 @@ enum Words {
                 : String(
                     localized:
                         "Your message to \(place) was not sent: a file did not upload. Your words are back in the box.")
+        case .loginItemFailed:
+            return String(
+                localized:
+                    "Could not change whether Purlay opens at login. Check System Settings > General > Login Items.")
         case .readFailed: return String(localized: "Could not mark that as read. Check your connection and try again.")
         case .editFailed: return String(localized: "Could not change the message. Check your connection and try again.")
         case .deleteFailed:

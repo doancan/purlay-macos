@@ -49,6 +49,7 @@ struct PurlayApp: App {
             }
             CommandGroup(replacing: .help) {
                 Button("Keyboard Shortcuts") { model.shortcutsOpen = true }.keyboardShortcut("/")
+                Button("Copy Diagnostics") { DiagnosticsPasteboard.copy(model) }
             }
             CommandMenu("Deep Work") {
                 Button(model.deepWorkEnds == nil ? "Start Deep Work for an Hour" : "End Deep Work") {

@@ -40,6 +40,33 @@ public struct SilentAttention: AttentionPresenter {
     public func retract(_ ids: [String]) {}
 }
 
+/// Where the system stands on opening the app at login.
+public enum LoginItemStatus: Sendable, Equatable {
+    case off, on
+    /// Registered, and the person has still to approve it in System Settings.
+    case requiresApproval
+    /// A build the system does not list as a login item.
+    case unavailable
+}
+
+/// Opening at login, as the system keeps it: the app asks and shows the answer.
+@MainActor
+public protocol LoginItemControl {
+    var status: LoginItemStatus { get }
+    func set(_ on: Bool) throws
+    /// The place in System Settings where a login item is approved.
+    func openSystemSettings()
+}
+
+/// For where there is no login item: a test that does not look, and a build the system does not list.
+@MainActor
+public struct NoLoginItem: LoginItemControl {
+    public init() {}
+    public var status: LoginItemStatus { .unavailable }
+    public func set(_ on: Bool) throws {}
+    public func openSystemSettings() {}
+}
+
 /// Everything the app's model reaches the outside world through, so a test replaces each: the network, the keychain, the browser, the
 /// files, the socket, the clock and the timers.
 @MainActor
@@ -62,6 +89,7 @@ public struct AppEnvironment {
     public var owner: any OwnerMemory
     public var sleep: @Sendable (Duration) async throws -> Void
     public var attention: any AttentionPresenter
+    public var loginItem: any LoginItemControl
 
     public init(
         transport: any HTTPTransport, sessions: any SessionStore, preferences: any PreferenceStore,
@@ -72,8 +100,10 @@ public struct AppEnvironment {
         clock: @escaping @Sendable () -> Date = Date.init,
         owner: any OwnerMemory,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        attention: any AttentionPresenter = SilentAttention()
+        attention: any AttentionPresenter = SilentAttention(),
+        loginItem: any LoginItemControl = NoLoginItem()
     ) {
+        self.loginItem = loginItem
         self.transport = transport
         self.sessions = sessions
         self.preferences = preferences

@@ -22,6 +22,7 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case sendTooLong
         case tooManyFiles
         case readFailed
+        case loginItemFailed
         /// A send that waited for its files was held: a file failed. The words are back in the box of the place named.
         case sendHeld(String)
         case saveFailed
@@ -116,6 +117,7 @@ public final class AppModel {
     public init(_ environment: AppEnvironment) {
         self.environment = environment
         uploadIDs = MessageIDGenerator(now: environment.clock)
+        launchAtLogin = environment.loginItem.status
     }
 
     // MARK: What a view reads
@@ -325,7 +327,8 @@ public final class AppModel {
         let client = APIClient(
             configuration: APIConfiguration(
                 baseURL: server.origin, clientHeader: ClientHeader.value(appVersion: environment.appVersion),
-                sessionCookie: { await manager.cookie }, onSessionRejected: { await manager.sessionEndedByServer() }),
+                sessionCookie: { await manager.cookie }, onSessionRejected: { await manager.sessionEndedByServer() },
+                onProblem: { [weak self] problem in await self?.recordProblem(problem) }),
             transport: environment.transport, sleep: environment.sleep)
         let api = PurlayAPI(client: client)
         self.api = api
@@ -460,6 +463,7 @@ public final class AppModel {
         waitingSends = [:]
         handedBack = [:]
         keyboardRow = nil
+        problems = ProblemLog()
         clearInbox()
         uploadBytes = [:]
         attachmentCache = [:]
@@ -637,6 +641,54 @@ public final class AppModel {
         thread = nil
         threadRootCopy = nil
         threadFollow = .reading
+    }
+
+    // MARK: Opening at login
+
+    /// What the system holds, not what was asked of it.
+    public private(set) var launchAtLogin: LoginItemStatus = .unavailable
+
+    public func refreshLoginItem() {
+        launchAtLogin = environment.loginItem.status
+    }
+
+    public func setLaunchAtLogin(_ on: Bool) {
+        do {
+            try environment.loginItem.set(on)
+        } catch {
+            say(.loginItemFailed)
+        }
+        refreshLoginItem()
+    }
+
+    public func openLoginItemSettings() {
+        environment.loginItem.openSystemSettings()
+    }
+
+    // MARK: Diagnostics
+
+    @ObservationIgnored private var problems = ProblemLog()
+
+    fileprivate func recordProblem(_ problem: ProblemRecord) {
+        problems.record(problem)
+    }
+
+    /// What "Copy diagnostics" puts on the pasteboard: versions, the connection and the last problems by code. No content, no address.
+    public func diagnostics(system: String) -> String {
+        Diagnostics.report(
+            appVersion: "\(environment.appVersion)", system: system, serverVersion: serverInfo?.server.version,
+            contractVersion: serverInfo?.contractVersion, connection: Self.describe(connection),
+            problems: problems.entries)
+    }
+
+    private static func describe(_ status: Connection.Status) -> String {
+        switch status {
+        case .idle: return "idle"
+        case .connecting: return "connecting"
+        case .open: return "open"
+        case .waiting: return "waiting"
+        case .ended: return "ended"
+        }
     }
 
     // MARK: The inbox

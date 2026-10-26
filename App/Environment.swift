@@ -49,7 +49,7 @@ enum RealEnvironment {
                 }
                 return { task.cancel() }
             },
-            owner: DefaultsOwner(), attention: attention)
+            owner: DefaultsOwner(), attention: attention, loginItem: SystemLoginItem())
     }
 
     #if DEBUG

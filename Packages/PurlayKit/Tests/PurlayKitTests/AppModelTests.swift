@@ -55,8 +55,29 @@ final class RecordingAttention: AttentionPresenter {
 }
 
 @MainActor
+final class FakeLoginItem: LoginItemControl {
+    struct Refused: Error {}
+    var current: LoginItemStatus = .off
+    var refuses = false
+    /// What registering does here: the system may want the person's approval first.
+    var needsApproval = false
+    private(set) var settingsOpened = 0
+    private(set) var calls: [Bool] = []
+    var status: LoginItemStatus { current }
+
+    func set(_ on: Bool) throws {
+        calls.append(on)
+        if refuses { throw Refused() }
+        current = on ? (needsApproval ? .requiresApproval : .on) : .off
+    }
+
+    func openSystemSettings() { settingsOpened += 1 }
+}
+
+@MainActor
 final class ModelHarness {
     let server = FakeServer()
+    let loginItem = FakeLoginItem()
     let sessions = MemorySessions()
     let preferences: MemoryPreferences
     let owner = MemoryOwnerStore()
@@ -79,6 +100,7 @@ final class ModelHarness {
         let owner = owner
         let attention = attention
         let directory = directory
+        let loginItem = loginItem
         model = AppModel(
             AppEnvironment(
                 transport: server, sessions: sessions, preferences: preferences, authenticator: browser,
@@ -98,7 +120,7 @@ final class ModelHarness {
                     return { flag.live = false }
                 },
                 random: { 0 }, clock: { Date(timeIntervalSince1970: Double(epochMs) / 1_000) }, owner: owner,
-                sleep: { _ in }, attention: attention))
+                sleep: { _ in }, attention: attention, loginItem: loginItem))
     }
 
     func settle() async {

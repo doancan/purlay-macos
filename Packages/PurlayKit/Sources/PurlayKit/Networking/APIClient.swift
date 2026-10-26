@@ -13,12 +13,17 @@ public struct APIConfiguration: Sendable {
     /// Called when a route that needs the session is told there is none (`401`): the session ended or was revoked. The
     /// error is still thrown; this is how the rest of the app learns of it once, from one place.
     public var onSessionRejected: @Sendable () async -> Void
+    /// Told of each request that finally failed (not each try of a read that was tried again), by route id, never by address, so the
+    /// app can offer an operator what to look for in the server's log.
+    public var onProblem: @Sendable (ProblemRecord) async -> Void
 
     public init(
         baseURL: URL, clientHeader: String, cookieName: String = "__Host-purlay_session",
         sessionCookie: @escaping @Sendable () async -> String?,
-        onSessionRejected: @escaping @Sendable () async -> Void = {}
+        onSessionRejected: @escaping @Sendable () async -> Void = {},
+        onProblem: @escaping @Sendable (ProblemRecord) async -> Void = { _ in }
     ) {
+        self.onProblem = onProblem
         self.baseURL = baseURL
         self.clientHeader = clientHeader
         self.cookieName = cookieName
@@ -116,6 +121,48 @@ public final class APIClient: Sendable {
         body: (any Encodable & Sendable)?, bytes: Data? = nil, idempotent: Bool
     ) async throws -> HTTPResponse {
         let requestID = makeRequestID()
+        do {
+            return try await attempts(
+                endpoint, path: path, query: query, body: body, bytes: bytes, idempotent: idempotent,
+                requestID: requestID)
+        } catch {
+            if let problem = Self.problem(error, endpoint: endpoint.id, requestID: requestID) {
+                await configuration.onProblem(problem)
+            }
+            throw error
+        }
+    }
+
+    /// What a failure is, for the log: nothing for a request the caller gave up on.
+    static func problem(_ error: any Error, endpoint: String, requestID: String) -> ProblemRecord? {
+        let now = Date()
+        if let error = error as? APIError {
+            return ProblemRecord(
+                at: now, endpoint: endpoint, status: error.status, code: error.code.rawValue,
+                requestID: error.requestID ?? requestID)
+        }
+        guard let error = error as? TransportError else { return nil }
+        let (kind, status): (String, Int?) =
+            switch error {
+            case .cancelled: ("", nil)
+            case .offline: ("offline", nil)
+            case .timedOut: ("timedOut", nil)
+            case .secureConnectionFailed: ("secureConnectionFailed", nil)
+            case .connection: ("connection", nil)
+            case .invalidResponse: ("invalidResponse", nil)
+            case .contractViolation(_, let status): ("contractViolation", status)
+            case .noSession: ("noSession", nil)
+            case .malformedRequest: ("malformedRequest", nil)
+            }
+        if kind.isEmpty { return nil }
+        return ProblemRecord(
+            at: now, endpoint: endpoint, status: status, code: "transport.\(kind)", requestID: requestID)
+    }
+
+    private func attempts(
+        _ endpoint: EndpointSpec, path: [String: String], query: (any Encodable & Sendable)?,
+        body: (any Encodable & Sendable)?, bytes: Data?, idempotent: Bool, requestID: String
+    ) async throws -> HTTPResponse {
         let request = try await build(
             endpoint, path: path, query: query, body: body, bytes: bytes, requestID: requestID)
         let mayRetry = endpoint.method == "GET" || idempotent
