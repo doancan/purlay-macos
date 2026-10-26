@@ -53,6 +53,7 @@ struct ComposerView: View {
                 ComposerTextView(
                     state: state, placeholder: placeholder, candidates: { model.mentionCandidates }, onSend: send,
                     onPeopleMissing: { Task { await model.refreshPeople() } },
+                    onCancel: { model.dismissTopmost() },
                     onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil, onFiles: { files in add(files) })
                 VStack(alignment: .trailing, spacing: 4) {
                     if let left = ComposerText.unitsLeft(state.text) {

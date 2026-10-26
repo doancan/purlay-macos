@@ -31,6 +31,23 @@ struct PurlayApp: App {
                 Button("Jump to…") { model.togglePalette() }.keyboardShortcut("k")
                 Button("Search Messages…") { model.openSearch() }.keyboardShortcut("f", modifiers: [.command, .shift])
             }
+            CommandMenu("Go") {
+                Button("Previous Channel") { Task { await model.goToChannel(.previous) } }
+                    .keyboardShortcut(.upArrow, modifiers: .option)
+                Button("Next Channel") { Task { await model.goToChannel(.next) } }
+                    .keyboardShortcut(.downArrow, modifiers: .option)
+                Divider()
+                Button("Previous Unread Channel") { Task { await model.goToUnread(.previous) } }
+                    .keyboardShortcut(.upArrow, modifiers: [.option, .shift])
+                Button("Next Unread Channel") { Task { await model.goToUnread(.next) } }
+                    .keyboardShortcut(.downArrow, modifiers: [.option, .shift])
+                Divider()
+                Button("Pinned Messages…") { model.pinsOpen = true }
+                Button("Saved Messages…") { model.savedOpen = true }
+            }
+            CommandGroup(replacing: .help) {
+                Button("Keyboard Shortcuts") { model.shortcutsOpen = true }.keyboardShortcut("/")
+            }
             CommandMenu("Deep Work") {
                 Button(model.deepWorkEnds == nil ? "Start Deep Work for an Hour" : "End Deep Work") {
                     Task { await model.toggleDeepWork() }

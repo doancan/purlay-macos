@@ -49,6 +49,9 @@ struct MainView: View {
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
             }
+            .sheet(isPresented: Binding(get: { model.shortcutsOpen }, set: { model.shortcutsOpen = $0 })) {
+                ShortcutsSheet()
+            }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
                 case .newChannel: NewChannelSheet(model: model)

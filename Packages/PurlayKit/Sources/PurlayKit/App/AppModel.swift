@@ -636,6 +636,35 @@ public final class AppModel {
         threadFollow = .reading
     }
 
+    // MARK: The keyboard's moves
+
+    /// Opens the channel one step along the sidebar, wrapping at either end (⌥↑ ⌥↓).
+    public func goToChannel(_ direction: Navigation.Direction) async {
+        guard let next = Navigation.step(sidebar, from: selectedChannel, direction) else { return }
+        await open(next)
+    }
+
+    /// Opens the next channel with something to read (⌥⇧↑ ⌥⇧↓); where there is none, nothing moves.
+    public func goToUnread(_ direction: Navigation.Direction) async {
+        guard let next = Navigation.unread(sidebar, from: selectedChannel, direction) else { return }
+        await open(next)
+    }
+
+    /// Escape: closes the topmost thing the model holds, a message being edited before the thread beside the channel. Whether it closed
+    /// anything, so a key with nothing to close is left to whoever else wants it.
+    @discardableResult
+    public func dismissTopmost() -> Bool {
+        if editing != nil {
+            endEdit()
+            return true
+        }
+        if thread != nil {
+            closeThread()
+            return true
+        }
+        return false
+    }
+
     private func readFollow(_ root: Uuid, generation: Int) async {
         guard let api else { return }
         do {
@@ -1067,6 +1096,7 @@ public final class AppModel {
     public var searchOpen = false
     public var pinsOpen = false
     public var savedOpen = false
+    public var shortcutsOpen = false
 
     /// Opens the palette, or closes it when it was open.
     public func togglePalette() { paletteOpen.toggle() }
