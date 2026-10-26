@@ -20,6 +20,9 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case storageProblem
         case originMismatch
         case sendTooLong
+        case editFailed
+        case deleteFailed
+        case reactionFailed
         case loadFailed
     }
 
@@ -525,6 +528,75 @@ public final class AppModel {
 
     private var drafts: Drafts? {
         me.map { Drafts(store: environment.preferences, user: $0.user.id) }
+    }
+
+    // MARK: What the person does to a message
+
+    private func isMine(_ message: Message) -> Bool {
+        message.sender?.id == me?.user.id
+    }
+
+    /// Changes the words of one of the person's own messages. Nothing is asked that the server would refuse: somebody else's message, a
+    /// deleted one, no words, too many, or the same ones. What the server answers is what the row says; a refusal is said and changes nothing.
+    @discardableResult
+    public func edit(_ message: Message, to text: String) async -> Bool {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let api, isMine(message), message.deletedAt == nil, !words.isEmpty, words != message.content else {
+            return false
+        }
+        guard words.count <= ContractConstants.messageContentMax else {
+            say(.sendTooLong)
+            return false
+        }
+        do {
+            let revised = try await api.editMessage(
+                messageId: message.id.value, body: EditMessageRequest(content: words))
+            engine?.revise(message.id, in: message.channelId) {
+                $0.content = revised.content
+                $0.editedAt = revised.editedAt
+                $0.mentions = revised.mentions
+            }
+            sync()
+            return true
+        } catch {
+            say(.editFailed)
+            return false
+        }
+    }
+
+    /// Takes back one of the person's own messages. The row changes when the server's own frame says so, which is the one place that
+    /// knows when it happened.
+    @discardableResult
+    public func delete(_ message: Message) async -> Bool {
+        guard let api, isMine(message), message.deletedAt == nil else { return false }
+        do {
+            try await api.deleteMessage(messageId: message.id.value)
+            return true
+        } catch {
+            say(.deleteFailed)
+            return false
+        }
+    }
+
+    /// An emoji is longer than a word is not: past this it is text, and no reaction.
+    static let emojiLengthMax = 32
+
+    /// Adds the person's reaction, or takes it back when it is already theirs.
+    public func toggleReaction(_ emoji: String, on message: Message) async {
+        guard let api, let me, message.deletedAt == nil, !emoji.isEmpty, emoji.utf16.count <= Self.emojiLengthMax,
+            !emoji.contains(where: { $0.isNewline })
+        else { return }
+        let mine = message.reactions.first { $0.emoji == emoji }?.userIds.contains(me.user.id) ?? false
+        do {
+            let answer =
+                mine
+                ? try await api.deleteReaction(messageId: message.id.value, emoji: emoji)
+                : try await api.putReaction(messageId: message.id.value, emoji: emoji)
+            engine?.revise(message.id, in: message.channelId) { $0.reactions = answer.reactions }
+            sync()
+        } catch {
+            say(.reactionFailed)
+        }
     }
 
     // MARK: What the person does

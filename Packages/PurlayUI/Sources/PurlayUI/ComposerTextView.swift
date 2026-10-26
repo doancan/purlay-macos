@@ -32,6 +32,10 @@ struct ComposerTextView: NSViewRepresentable {
     let candidates: () -> [User]
     let onSend: () -> Void
     let onPeopleMissing: () -> Void
+    /// Escape with no list of people open: leave what is being written (an edit gives up; the composer has nothing to cancel).
+    var onCancel: (() -> Void)?
+    /// Takes the keyboard when it appears: an edit is opened to be typed in.
+    var takesFocus = false
 
     private static let maxRows: CGFloat = 12
 
@@ -68,6 +72,13 @@ struct ComposerTextView: NSViewRepresentable {
         context.coordinator.view = view
         context.coordinator.attach(to: state)
         view.string = state.text
+        if takesFocus {
+            DispatchQueue.main.async { [weak view] in
+                guard let view else { return }
+                view.window?.makeFirstResponder(view)
+                view.setSelectedRange(NSRange(location: (view.string as NSString).length, length: 0))
+            }
+        }
         return scroll
     }
 
@@ -188,6 +199,10 @@ struct ComposerTextView: NSViewRepresentable {
                     return true
                 default: break
                 }
+            }
+            if event.keyCode == 53, flags.isEmpty, let cancel = parent.onCancel {
+                cancel()
+                return true
             }
             if isReturn {
                 if flags.contains(.shift) {

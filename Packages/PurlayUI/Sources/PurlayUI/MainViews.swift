@@ -93,7 +93,7 @@ struct ChannelView: View {
                         }
                         if let window = model.window {
                             ForEach(window.messages, id: \.id) { message in
-                                MessageRow(message: message).id(message.id)
+                                MessageRow(message: message, model: model).id(message.id)
                             }
                             if window.isEmpty && model.selectedPending.isEmpty {
                                 ContentUnavailableView(
@@ -138,31 +138,6 @@ struct ChannelView: View {
             String(localized: "Message \(Words.channelLabel($0))")
         }
             ?? String(localized: "Message")
-    }
-}
-
-struct MessageRow: View {
-    let message: Message
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(message.sender?.displayName ?? String(localized: "Purlay")).font(.headline)
-                Text(message.createdAt.date, style: .time).font(.caption).foregroundStyle(.secondary)
-                if message.editedAt != nil && message.deletedAt == nil {
-                    Text("edited").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            if message.deletedAt != nil {
-                Text("This message was deleted.").italic().foregroundStyle(.secondary)
-            } else {
-                MessageBody(text: message.content)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 }
 

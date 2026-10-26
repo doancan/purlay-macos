@@ -202,6 +202,13 @@ public final class Engine {
     }
 
     /// What the server says a channel's read state is now, from the answer to marking it read.
+    /// A message as the server answered an edit or a reaction: what it says now, put into the window that holds it. A frame for the same
+    /// change may follow, and says the same thing.
+    public func revise(_ id: Uuid, in channel: Uuid, _ edit: (inout Message) -> Void) {
+        _ = chat.windows[channel]?.update(id, edit)
+        options.onChange()
+    }
+
     public func setState(_ state: ChannelState, for channel: Uuid) {
         chat.channels[channel]?.state = state
         options.onChange()

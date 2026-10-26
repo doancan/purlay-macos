@@ -17,6 +17,7 @@ final class FakeServer: HTTPTransport {
         var cookieOnToken = true
         var channelsStatus = 200
         var membersStatus = 200
+        var mutationStatus = 200
         var workspaceMembers: [WorkspaceMember] = []
         var channelMembers: [String: [User]] = [:]
         var messages: [String: [Message]] = [:]
@@ -131,6 +132,37 @@ final class FakeServer: HTTPTransport {
             return json(
                 200, Self.encoded((snapshot.channelMembers[id] ?? []).map { ChannelMember(joinedAt: joined, user: $0) })
             )
+        case ("PATCH", _) where path.hasPrefix("/api/messages/"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/messages/".count))
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let content = body?["content"] as? String ?? ""
+            guard var message = snapshot.messages.values.joined().first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"NOT_FOUND","message":"x"}}"#)
+            }
+            message.content = content
+            message.editedAt = Self.decoded(Timestamp.self, #""2026-10-09T13:00:00.000Z""#)
+            return json(200, Self.encoded(message))
+        case ("DELETE", _) where path.hasPrefix("/api/messages/") && !path.contains("/reactions/"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            return HTTPResponse(status: 204)
+        case ("PUT", _) where path.contains("/reactions/"), ("DELETE", _) where path.contains("/reactions/"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let emoji = String(path.split(separator: "/").last ?? "")
+            let adds = request.method == "PUT"
+            let set =
+                adds
+                ? "[{\"emoji\":\"\(emoji.removingPercentEncoding ?? emoji)\",\"userIds\":[\"\(Self.userID)\"]}]" : "[]"
+            return json(200, "{\"reactions\":\(set)}")
         case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/read"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/read".count))
