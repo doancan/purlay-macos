@@ -74,6 +74,14 @@ public final class APIClient: Sendable {
         _ = try await exchange(endpoint, path: path, query: query, body: body, idempotent: idempotent)
     }
 
+    /// A route whose answer is wanted whole, headers included: the sign-in's session arrives as a header.
+    public func sendForResponse(
+        _ endpoint: EndpointSpec, path: [String: String] = [:], query: (any Encodable & Sendable)? = nil,
+        body: (any Encodable & Sendable)? = nil
+    ) async throws -> HTTPResponse {
+        try await exchange(endpoint, path: path, query: query, body: body, idempotent: false)
+    }
+
     /// A route that answers with bytes, which are not read.
     public func sendForData(
         _ endpoint: EndpointSpec, path: [String: String] = [:], query: (any Encodable & Sendable)? = nil
