@@ -154,8 +154,8 @@ struct ChannelActionTests {
     func leavesLast() async throws {
         let h = await signedIn()
         for n in [1, 2] {
-            let channel = try #require(h.model.channels.first { $0.id == Uuid(channel(n))! })
-            _ = await h.model.leave(channel)
+            let leavingChannel = try #require(h.model.channels.first { $0.id == Uuid(channel(n))! })
+            _ = await h.model.leave(leavingChannel)
         }
         #expect(h.model.selectedChannel == nil)
         #expect(h.model.sidebar.isEmpty)
