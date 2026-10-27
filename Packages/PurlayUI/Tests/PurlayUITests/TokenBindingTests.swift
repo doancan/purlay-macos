@@ -14,17 +14,17 @@ struct TokenBindingTests {
     func swiftUI() {
         var environment = EnvironmentValues()
         environment.colorScheme = .light
-        #expect(Palette.ink.style.resolve(in: environment) == Palette.ink.light.resolved)
+        #expect(Colors.ink.style.resolve(in: environment) == Colors.ink.light.resolved)
         environment.colorScheme = .dark
-        #expect(Palette.ink.style.resolve(in: environment) == Palette.ink.dark.resolved)
+        #expect(Colors.ink.style.resolve(in: environment) == Colors.ink.dark.resolved)
     }
 
     @Test("a colour follows the appearance AppKit draws it in", arguments: [NSAppearance.Name.aqua, .darkAqua])
     func appKit(name: NSAppearance.Name) throws {
-        let expected = name == .darkAqua ? Palette.ink.dark : Palette.ink.light
+        let expected = name == .darkAqua ? Colors.ink.dark : Colors.ink.light
         let appearance = try #require(NSAppearance(named: name))
         var drawn: NSColor?
-        appearance.performAsCurrentDrawingAppearance { drawn = Palette.ink.nsColor.usingColorSpace(.sRGB) }
+        appearance.performAsCurrentDrawingAppearance { drawn = Colors.ink.nsColor.usingColorSpace(.sRGB) }
         let colour = try #require(drawn)
         #expect(abs(colour.redComponent - expected.red) < 0.002)
         #expect(abs(colour.greenComponent - expected.green) < 0.002)

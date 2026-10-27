@@ -69,3 +69,30 @@ struct NavigationModelTests {
         #expect(!h.model.dismissTopmost(), "nothing left: the key is not taken")
     }
 }
+
+/// The browser's addresses for what stays in the browser: the server's own origin, the workspace's slug, the web's routes.
+@MainActor
+@Suite("pages in the browser")
+struct WebPageTests {
+    @Test("before signing in there is no address to give")
+    func none() {
+        let h = ModelHarness()
+        #expect(h.model.webURL(.profile) == nil)
+    }
+
+    @Test("settings pages, a channel and a message are where the web routes them")
+    func pages() async throws {
+        let h = ModelHarness()
+        await h.signedIn()
+        let slug = try #require(h.model.workspace?.slug)
+        let base = try #require(h.model.webURL(.profile)?.absoluteString)
+        #expect(base.hasSuffix("/w/\(slug)/settings/profile"))
+        #expect(h.model.webURL(.invitations)?.path == "/w/\(slug)/settings/invitations")
+        #expect(h.model.webURL(.members)?.path == "/w/\(slug)/settings/members")
+        let one = Uuid(channel(1))!
+        #expect(h.model.webURL(.channel(one))?.path == "/w/\(slug)/c/\(one.value)")
+        let link = try #require(h.model.webURL(.message(idAt(5), in: one)))
+        #expect(link.path == "/w/\(slug)/c/\(one.value)")
+        #expect(link.query == "message=\(idAt(5).value)")
+    }
+}

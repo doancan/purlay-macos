@@ -26,3 +26,21 @@ extension AppModel {
         }
     }
 }
+
+extension AppModel {
+    /// Whether a person is here, as the server last said; nobody is, until it says so.
+    public func isOnline(_ user: Uuid) -> Bool { chat.presence[user]?.online ?? false }
+}
+
+extension AppModel {
+    /// Who is typing in a channel, by name, in the order they began; someone the app has no name for yet is left out rather
+    /// than shown as an id.
+    public func typingNames(in channel: Uuid) -> [String] {
+        let typists = chat.typing[channel] ?? []
+        guard !typists.isEmpty else { return [] }
+        let peers = chat.channels[channel]?.peers ?? []
+        return typists.compactMap { typist in
+            (workspacePeople.first { $0.id == typist.user } ?? peers.first { $0.id == typist.user })?.displayName
+        }
+    }
+}

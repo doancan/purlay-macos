@@ -4,7 +4,7 @@
 
 import Foundation
 /// The colour tokens, one per name in `tokens.json`, each with its value in every theme.
-public enum Palette {
+public enum Colors {
     /// Pencerenin en dış zemini: giriş ve karşılama ekranlarının arka planı. Gezinme artık nav-* tonundadır (v10).
     public static let surface000 = TokenColor(
         name: "surface-000",

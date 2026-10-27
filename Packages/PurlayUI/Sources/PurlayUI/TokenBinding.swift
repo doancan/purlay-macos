@@ -6,7 +6,7 @@ import SwiftUI
 // view elsewhere names tokens and never a colour or a number of its own; the source scan in scripts/enforcement allows the
 // literals this file needs and refuses them everywhere else.
 
-/// A colour token as SwiftUI draws it: `.foregroundStyle(Palette.ink.style)` takes the light value in light and the dark
+/// A colour token as SwiftUI draws it: `.foregroundStyle(Colors.ink.style)` takes the light value in light and the dark
 /// value in dark. A wrapper rather than a conformance of `TokenColor`, which is another module's type.
 public struct TokenStyle: ShapeStyle {
     public let token: TokenColor

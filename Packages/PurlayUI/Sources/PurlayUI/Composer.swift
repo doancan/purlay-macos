@@ -1,5 +1,6 @@
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// Where a message is written: a row for every construct the renderer draws, the box, and under it what is left before the limit and
@@ -10,15 +11,20 @@ struct ComposerView: View {
     /// The root this answers, or nil for the channel's own box: a reply keeps its draft apart from the channel's.
     var parent: Uuid?
     let placeholder: String
+    /// In the thread panel: a little shorter, and the hint line left out.
+    var compact = false
     @State private var state: ComposerState
+    /// The formatting row, shown or hidden as the person last left it: out of the way until wanted.
+    @AppStorage("composer.formatting") private var formatting = true
     @State private var previewing = false
     @State private var saving: Task<Void, Never>?
 
-    init(model: AppModel, channel: Uuid, parent: Uuid? = nil, placeholder: String) {
+    init(model: AppModel, channel: Uuid, parent: Uuid? = nil, placeholder: String, compact: Bool = false) {
         self.model = model
         self.channel = channel
         self.parent = parent
         self.placeholder = placeholder
+        self.compact = compact
         let state = ComposerState()
         state.text = model.draft(for: channel, parent: parent)
         _state = State(initialValue: state)
@@ -29,49 +35,24 @@ struct ComposerView: View {
     private var over: Bool { ComposerText.unitsOver(state.text) > 0 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.space2) {
             if !state.suggestions.isEmpty { SuggestionList(state: state) }
             if let notice = state.notice { ComposerNotice(text: notice) { state.notice = nil } }
+            TypingLine(model: model, channel: channel)
             UploadChips(model: model, channel: channel, parent: parent)
             if model.isWaiting(channel: channel, parent: parent) {
                 Label("Goes when the files are up", systemImage: "clock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .typeStyle(Typography.caption)
+                    .foregroundStyle(Colors.inkMuted.style)
             }
-            FormatRow(state: state, previewing: $previewing, attach: attach)
-            if previewing {
-                MessageBody(text: state.text.isEmpty ? " " : state.text)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-            }
-            HStack(alignment: .bottom, spacing: 8) {
-                ComposerTextView(
-                    state: state, placeholder: placeholder, candidates: { model.mentionCandidates }, onSend: send,
-                    onPeopleMissing: { Task { await model.refreshPeople() } },
-                    onCancel: { model.dismissTopmost() },
-                    onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil, onFiles: { files in add(files) })
-                VStack(alignment: .trailing, spacing: 4) {
-                    if let left = ComposerText.unitsLeft(state.text) {
-                        Text(left, format: .number)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(left < 0 ? Color.red : .secondary)
-                            .accessibilityLabel(
-                                left < 0 ? Text("\(-left) characters over the limit") : Text("\(left) characters left"))
-                    }
-                    Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-                        .buttonStyle(.borderless)
-                        .disabled(!canSend || over)
-                        .accessibilityLabel("Send")
-                        .help("Send  ↩")
-                }
-            }
+            card
+            if !compact { hints }
         }
-        .padding(8)
-        .background(.bar)
-        .overlay {
-            if dropping { RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2).padding(2) }
-        }
+        .padding(.horizontal, Spacing.space4)
+        .padding(.top, Spacing.space2)
+        .padding(.bottom, Spacing.space3)
+        .frame(maxWidth: compact ? .infinity : Size.sizeFeedMax)
+        .frame(maxWidth: .infinity)
         .dropDestination(for: URL.self) { urls, _ in
             Task { add(await PickedFiles.read(urls.filter(\.isFileURL))) }
             return !urls.isEmpty
@@ -96,6 +77,103 @@ struct ComposerView: View {
             saving?.cancel()
             model.setDraft(state.text, for: channel, parent: parent)
         }
+    }
+
+    /// The box: what is written (or its preview), then a row of what can be done to it and Send. Opaque, so the feed that
+    /// scrolls under it is softened by the scroll edge and never read through it; its edge is the accent while it has the keyboard.
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if formatting {
+                FormatRow(state: state, previewing: $previewing)
+                    .padding(.horizontal, Spacing.space2)
+                    .padding(.top, Spacing.space1 + Stroke.strokeFocus)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            if previewing {
+                MessageBody(text: state.text.isEmpty ? " " : state.text)
+                    .padding(.horizontal, Spacing.space3)
+                    .padding(.vertical, Spacing.space2)
+                    .frame(maxWidth: .infinity, minHeight: Typography.body.lineHeightPoints * 2, alignment: .topLeading)
+            } else {
+                ComposerTextView(
+                    state: state, placeholder: placeholder, candidates: { model.mentionCandidates }, onSend: send,
+                    onPeopleMissing: { Task { await model.refreshPeople() } },
+                    onCancel: { model.dismissTopmost() },
+                    onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil, onFiles: { files in add(files) },
+                    minRows: compact ? 2 : 3
+                )
+                .padding(.horizontal, Spacing.space2)
+            }
+            actions
+        }
+        .background(Colors.surface100.style, in: .rect(cornerRadius: Radius.radius2xl))
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.radius2xl)
+                .strokeBorder(
+                    dropping || state.isFocused ? Colors.focusRing.style : Colors.borderSubtle.style,
+                    lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline)
+        }
+        .tokenShadow(Shadows.shadowRaised)
+        .animation(Motion.easingStandard.animation(Motion.durationHover), value: state.isFocused)
+        .animation(Motion.easingStandard.animation(Motion.durationOverlay), value: formatting)
+    }
+
+    private var actions: some View {
+        HStack(spacing: Spacing.space1) {
+            Button(action: attach) {
+                Image(systemName: "plus").frame(width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
+            }
+            .help("Attach files")
+            .accessibilityLabel("Attach files")
+            Button {
+                state.insertMarkdown?(.mention)
+            } label: {
+                Image(systemName: "at").frame(width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
+            }
+            .help("Mention someone")
+            .accessibilityLabel("Mention someone")
+            Toggle(isOn: $formatting) {
+                Image(systemName: "textformat").frame(width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
+            }
+            .toggleStyle(.button)
+            .help(formatting ? "Hide formatting" : "Show formatting")
+            .accessibilityLabel("Formatting")
+            Spacer(minLength: Spacing.space2)
+            if let left = ComposerText.unitsLeft(state.text) {
+                Text(left, format: .number)
+                    .typeStyle(Typography.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(left < 0 ? Colors.dangerText.style : Colors.inkSubtle.style)
+                    .accessibilityLabel(
+                        left < 0 ? Text("\(-left) characters over the limit") : Text("\(left) characters left"))
+            }
+            Button(action: send) {
+                Image(systemName: "arrow.up")
+                    .fontWeight(.semibold)
+                    .frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
+            }
+            .buttonStyle(.glassProminent)
+            .buttonBorderShape(.circle)
+            .disabled(!canSend || over)
+            .accessibilityLabel("Send")
+            .help("Send  ↩")
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(Colors.inkMuted.style)
+        .padding(.horizontal, Spacing.space2)
+        .padding(.bottom, Spacing.space2)
+    }
+
+    private var hints: some View {
+        HStack(spacing: Spacing.space1) {
+            Text("**Return** to send")
+            Text("·")
+            Text("**Shift-Return** for a new line")
+        }
+        .typeStyle(Typography.caption)
+        .foregroundStyle(Colors.inkSubtle.style)
+        .padding(.horizontal, Spacing.space2)
+        .accessibilityHidden(true)
     }
 
     /// Writes the draft a moment after the last key, not at every one.
@@ -131,7 +209,6 @@ struct ComposerView: View {
 private struct FormatRow: View {
     let state: ComposerState
     @Binding var previewing: Bool
-    let attach: () -> Void
 
     var body: some View {
         HStack(spacing: 2) {
@@ -140,17 +217,11 @@ private struct FormatRow: View {
             button("strikethrough", "Strikethrough  ⇧⌘X", .strike)
             button("chevron.left.forwardslash.chevron.right", "Code  ⌘E", .inlineCode)
             button("link", "Link  ⇧⌘U", .link)
-            Divider().frame(height: 14).padding(.horizontal, 4)
+            Divider().frame(height: Size.sizeIconMd).padding(.horizontal, Spacing.space1)
             button("list.bullet", "Bulleted list  ⇧⌘8", .bullets)
             button("list.number", "Numbered list  ⇧⌘7", .numbers)
             button("text.quote", "Quote  ⇧⌘9", .quote)
             button("curlybraces", "Code block", .code)
-            Divider().frame(height: 14).padding(.horizontal, 4)
-            button("at", "Mention", .mention)
-            Button(action: attach) { Image(systemName: "paperclip").frame(width: 22, height: 20) }
-                .buttonStyle(.borderless)
-                .help("Attach files")
-                .accessibilityLabel("Attach files")
             Spacer()
             Toggle(isOn: $previewing) { Image(systemName: "eye") }
                 .toggleStyle(.button)
@@ -166,7 +237,7 @@ private struct FormatRow: View {
         Button {
             state.insertMarkdown?(kind)
         } label: {
-            Image(systemName: symbol).frame(width: 22, height: 20)
+            Image(systemName: symbol).frame(width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
         }
         .buttonStyle(.borderless)
         .help(help)
@@ -184,25 +255,28 @@ private struct SuggestionList: View {
                 Button {
                     state.choose?(person)
                 } label: {
-                    HStack {
-                        Text(person.displayName)
-                        Text("@\(person.username)").foregroundStyle(.secondary)
+                    HStack(spacing: Spacing.space2) {
+                        Avatar(user: person, size: Size.sizeAvatarSm)
+                        Text(person.displayName).foregroundStyle(Colors.ink.style)
+                        Text("@\(person.username)").foregroundStyle(Colors.inkMuted.style)
                         Spacer()
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-                    .background(
-                        index == state.highlighted ? Color.accentColor.opacity(0.25) : .clear,
-                        in: RoundedRectangle(cornerRadius: 6))
+                    .typeStyle(Typography.body)
+                    .padding(.horizontal, Spacing.space2)
+                    .padding(.vertical, Spacing.space1)
+                    .contentShape(.rect)
+                    .background {
+                        if index == state.highlighted {
+                            RoundedRectangle(cornerRadius: Radius.radiusMd).fill(Colors.accentSubtle.style)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(index == state.highlighted ? .isSelected : [])
             }
         }
-        .padding(4)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
+        .padding(Spacing.space1)
+        .glassEffect(.regular, in: .rect(cornerRadius: Radius.radiusXl))
     }
 }
 

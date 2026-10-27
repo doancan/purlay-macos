@@ -1,5 +1,6 @@
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// A thread, beside the channel it is in (`UX.md` §4.2): its root and where it stands, its replies, and a box to answer in. One thread at
@@ -31,7 +32,7 @@ struct ThreadPanel: View {
                             }
                             ForEach(model.threadPending) { pending in
                                 PendingRow(
-                                    pending: pending, retry: { model.retry(pending.id) },
+                                    pending: pending, me: model.me?.user, retry: { model.retry(pending.id) },
                                     discard: { model.discard(pending.id) }
                                 )
                                 .id("pending-" + pending.id.value)
@@ -51,15 +52,18 @@ struct ThreadPanel: View {
                     }
                     .onChange(of: thread.replies.last?.id) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
                     .onChange(of: model.threadPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
+                    .hoverScroller()
+                    .scrollEdgeEffectStyle(.soft, for: .bottom)
+                    .safeAreaBar(edge: .bottom) {
+                        ComposerView(
+                            model: model, channel: thread.channel, parent: thread.root,
+                            placeholder: String(localized: "Reply…"), compact: true
+                        )
+                        .id(thread.root)
+                    }
                 }
-                Divider()
-                ComposerView(
-                    model: model, channel: thread.channel, parent: thread.root, placeholder: String(localized: "Reply…")
-                )
-                .id(thread.root)
             }
-            .frame(width: 440)
-            .background(.background)
+            .background(Colors.surface100.style)
             .onExitCommand { model.closeThread() }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Thread")
@@ -73,7 +77,10 @@ private struct Header: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("Thread · \(channelName)").font(.headline).lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Thread").typeStyle(Typography.heading).foregroundStyle(Colors.ink.style)
+                Text(channelName).typeStyle(Typography.caption).foregroundStyle(Colors.inkMuted.style).lineLimit(1)
+            }
             Spacer()
             followButton
             Button {
@@ -85,8 +92,8 @@ private struct Header: View {
             .help("Close  ⎋")
             .accessibilityLabel("Close thread")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, Spacing.space4)
+        .padding(.vertical, Spacing.space2)
     }
 
     private var channelName: String {
@@ -136,15 +143,18 @@ private struct Status: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 if resolved, let by = root.thread?.resolvedBy {
-                    Label("Resolved by \(by.displayName)", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    Label("Resolved by \(by.displayName)", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(Colors.successText.style)
                 } else {
                     Label("Open", systemImage: "circle")
                 }
                 Spacer()
-                Button(resolved ? "Reopen" : "Resolve") {
+                Button(resolved ? "Reopen" : "Resolve", systemImage: resolved ? "arrow.uturn.backward" : "checkmark") {
                     Task { _ = resolved ? await model.reopenThread() : await model.resolveThread() }
                 }
+                .buttonStyle(.glass)
                 .controlSize(.small)
+                .keyboardShortcut("r", modifiers: [.command, .shift])
             }
             .font(.callout)
             HStack {

@@ -98,7 +98,7 @@ public enum TokenGenerator {
 
     static func emitColours(_ colours: [Colour]) -> String {
         var out = "/// The colour tokens, one per name in `tokens.json`, each with its value in every theme.\n"
-        out += "public enum Palette {\n"
+        out += "public enum Colors {\n"
         for colour in colours {
             out += "    /// \(oneLine(colour.usage))\n"
             out += "    public static let \(identifier(colour.name)) = TokenColor(\n"
@@ -263,7 +263,7 @@ public enum TokenGenerator {
             }
             guard let minimum = pair["minimum"] as? Double else { throw GenerationError("a pair has no minimum") }
             out +=
-                "        ContrastPair(foreground: Palette.\(identifier(foreground)), background: Palette.\(identifier(background)), "
+                "        ContrastPair(foreground: Colors.\(identifier(foreground)), background: Colors.\(identifier(background)), "
             out += "minimum: \(format(minimum)), why: \(quoted(pair["why"] as? String ?? ""))),\n"
         }
         out += "    ]\n}\n"

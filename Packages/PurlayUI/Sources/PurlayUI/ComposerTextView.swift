@@ -1,6 +1,7 @@
 import AppKit
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// What the composer's text view and the views around it share: what is typed, what is being mentioned, and the two things the
@@ -21,6 +22,8 @@ final class ComposerState {
     var replaceAll: ((String) -> Void)?
     /// Set by the composer view: shows or hides the preview, as its button does.
     var togglePreview: (() -> Void)?
+    /// The box has the keyboard: the composer draws its edge in the accent while it does.
+    var isFocused = false
 }
 
 /// The box a message is written in (`UX.md` §5): plain text, GFM, no editor. Enter sends, Shift+Enter is a line break that carries a
@@ -40,6 +43,9 @@ struct ComposerTextView: NSViewRepresentable {
     var onEditLast: (() -> Void)?
     /// A file or a picture was pasted: it is attached, not typed.
     var onFiles: ((PickedFiles.Batch) -> Void)?
+
+    /// The fewest lines the box is tall, empty: room to see what is being written without it growing at the first line.
+    var minRows: CGFloat = 1
 
     private static let maxRows: CGFloat = 12
 
@@ -63,9 +69,14 @@ struct ComposerTextView: NSViewRepresentable {
         view.isAutomaticSpellingCorrectionEnabled = false
         view.isAutomaticLinkDetectionEnabled = false
         view.drawsBackground = false
-        view.font = .preferredFont(forTextStyle: .body)
-        view.textColor = .labelColor
-        view.textContainerInset = NSSize(width: 4, height: 6)
+        view.font = Typography.body.nsFont
+        view.textColor = Colors.ink.nsColor
+        view.insertionPointColor = Colors.accent.nsColor
+        view.textContainerInset = NSSize(width: Spacing.space1, height: Spacing.space2)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = Typography.body.lineSpacing
+        view.defaultParagraphStyle = paragraph
+        view.typingAttributes[.paragraphStyle] = paragraph
         view.isVerticallyResizable = true
         view.isHorizontallyResizable = false
         view.autoresizingMask = [.width]
@@ -99,17 +110,19 @@ struct ComposerTextView: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView scroll: NSScrollView, context: Context) -> CGSize? {
         guard let view = context.coordinator.view else { return nil }
         let width = proposal.width ?? 400
-        let font = view.font ?? .preferredFont(forTextStyle: .body)
+        let font = view.font ?? Typography.body.nsFont
         let inner = max(
             width - 2 * view.textContainerInset.width - 2 * (view.textContainer?.lineFragmentPadding ?? 5), 10)
         let measured = (state.text.isEmpty ? " " : state.text + "\u{200B}") as NSString
         let text = measured.boundingRect(
             with: NSSize(width: inner, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: font])
-        let line = font.boundingRectForFont.height
-        let content = ceil(text.height) + 2 * view.textContainerInset.height
-        return CGSize(width: width, height: min(max(content, line + 12), line * Self.maxRows + 12))
+            attributes: [.font: font, .paragraphStyle: view.defaultParagraphStyle ?? .default])
+        let line = Typography.body.lineHeightPoints
+        let inset = 2 * view.textContainerInset.height
+        let content = ceil(text.height) + inset
+        return CGSize(
+            width: width, height: min(max(content, line * minRows + inset), line * Self.maxRows + inset))
     }
 
     // MARK: The coordinator
@@ -339,6 +352,18 @@ struct ComposerTextView: NSViewRepresentable {
 /// The text view: it hands the keys the composer owns to its coordinator first, draws its placeholder, and pastes plain text.
 final class KeyedTextView: NSTextView {
     weak var coordinator: ComposerTextView.Coordinator?
+
+    override func becomeFirstResponder() -> Bool {
+        let took = super.becomeFirstResponder()
+        if took { coordinator?.parent.state.isFocused = true }
+        return took
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let gave = super.resignFirstResponder()
+        if gave { coordinator?.parent.state.isFocused = false }
+        return gave
+    }
     var placeholder = ""
 
     override func keyDown(with event: NSEvent) {

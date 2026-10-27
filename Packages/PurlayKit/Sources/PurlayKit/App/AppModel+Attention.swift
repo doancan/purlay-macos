@@ -90,3 +90,8 @@ extension AppModel {
         }
     }
 }
+
+extension AppModel {
+    /// What the Dock badge says, for the sidebar's Inbox row: the mentions waiting, and none while Deep Work lasts.
+    public var attentionCount: Int { lastBadge ?? 0 }
+}

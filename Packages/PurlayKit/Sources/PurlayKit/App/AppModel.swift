@@ -98,7 +98,7 @@ public final class AppModel {
     public private(set) var degraded: [Uuid: DegradedReason] = [:]
 
     let environment: AppEnvironment
-    private var origin: ServerAddress?
+    var origin: ServerAddress?
     private var manager: SessionManager?
     var engine: Engine?
     var api: PurlayAPI?
