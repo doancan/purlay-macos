@@ -236,8 +236,6 @@ private struct EditBox: View {
     }
 }
 
-private let quickEmoji = ["👍", "👎", "❤️", "😄", "🎉", "🚀", "👀", "🙏"]
-
 private struct ActionBar: View {
     let message: Message
     let model: AppModel
@@ -257,17 +255,15 @@ private struct ActionBar: View {
             .help("Add reaction")
             .accessibilityLabel("Add reaction")
             .popover(isPresented: $picking, arrowEdge: .bottom) {
-                HStack {
-                    ForEach(quickEmoji, id: \.self) { emoji in
-                        Button(emoji) {
-                            picking = false
-                            Task { await model.toggleReaction(emoji, on: message) }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.title2)
-                    }
+                ReactionEmojiPicker(
+                    selected: Set(
+                        message.reactions.filter { reaction in
+                            reaction.userIds.contains { $0 == model.me?.user.id }
+                        }.map(\.emoji))
+                ) { emoji in
+                    picking = false
+                    Task { await model.toggleReaction(emoji, on: message) }
                 }
-                .padding(8)
             }
             if canReply {
                 Button {

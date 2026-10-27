@@ -69,7 +69,7 @@ jobs:
           [[ -n "$identity" ]]
           echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
           rm "$RUNNER_TEMP/certificate.p12"
-      - name: Build universal signed app
+      - name: Build signed Apple Silicon app
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         shell: bash
@@ -78,13 +78,11 @@ jobs:
           xcodegen generate
           xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Release \
             -destination 'generic/platform=macOS' -derivedDataPath build \
-            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             OTHER_CODE_SIGN_FLAGS='--timestamp' build
           codesign --verify --deep --strict --verbose=2 build/Build/Products/Release/Purlay.app
-          for architecture in arm64 x86_64; do
-            lipo -verify_arch "$architecture" build/Build/Products/Release/Purlay.app/Contents/MacOS/Purlay
-          done
+          [[ "$(lipo -archs build/Build/Products/Release/Purlay.app/Contents/MacOS/Purlay)" == arm64 ]]
       - name: Notarize and staple
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -105,7 +103,7 @@ jobs:
           xcrun stapler validate "$app"
           spctl --assess --type execute --verbose=2 "$app"
           mkdir -p dist
-          ditto -c -k --keepParent "$app" "dist/Purlay-$VERSION-macOS-universal.zip"
+          ditto -c -k --keepParent "$app" "dist/Purlay-$VERSION-macOS-arm64.zip"
           cd dist
           shasum -a 256 *.zip > SHA256SUMS
       - name: Publish GitHub release
@@ -113,7 +111,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
             --verify-tag --title "Purlay $VERSION" \
-            --notes $'Native Purlay client for macOS 26 and later.\n\nUniversal build for Apple Silicon and Intel Macs, signed with Developer ID and notarized by Apple.\n\nDownload and extract the ZIP, then move Purlay.app to Applications. Connect to your Purlay server on first launch.\n\nIncludes threads, inbox, saved messages, drafts, channel members, and file browsing. SHA256SUMS contains the download checksum.'
+            --notes $'Native Purlay client for macOS 26 and later.\n\nApple Silicon (arm64) build, signed with Developer ID and notarized by Apple.\n\nDownload and extract the ZIP, then move Purlay.app to Applications. Connect to your Purlay server on first launch.\n\nIncludes threads, inbox, saved messages, drafts, channel members, and file browsing. SHA256SUMS contains the download checksum.'
       - name: Remove signing material
         if: always()
         shell: bash
