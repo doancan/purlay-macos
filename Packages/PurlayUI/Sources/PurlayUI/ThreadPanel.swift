@@ -52,7 +52,7 @@ struct ThreadPanel: View {
                     }
                     .onChange(of: thread.replies.last?.id) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
                     .onChange(of: model.threadPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
-                    .hoverScroller()
+                    .scrollIndicators(.automatic)
                     .scrollEdgeEffectStyle(.soft, for: .bottom)
                     .safeAreaBar(edge: .bottom) {
                         ComposerView(

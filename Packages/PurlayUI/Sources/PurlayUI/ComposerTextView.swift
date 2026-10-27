@@ -108,8 +108,10 @@ struct ComposerTextView: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let view = context.coordinator.view else { return }
-        view.placeholder = placeholder
-        view.setAccessibilityLabel(placeholder)
+        if view.placeholder != placeholder {
+            view.placeholder = placeholder
+            view.setAccessibilityLabel(placeholder)
+        }
         // Only what changed from outside: typing already put the text in the state.
         if view.string != state.text && !view.hasMarkedText() { context.coordinator.set(state.text) }
     }
@@ -119,6 +121,9 @@ struct ComposerTextView: NSViewRepresentable {
         guard let view = context.coordinator.view else { return nil }
         let width = proposal.width ?? 400
         let font = view.font ?? Typography.body.nsFont
+        let key = MeasurementKey(
+            text: state.text, width: width, minRows: minRows, font: font.fontName, size: font.pointSize)
+        if context.coordinator.measurementKey == key, let size = context.coordinator.measuredSize { return size }
         let inner = max(
             width - 2 * view.textContainerInset.width - 2 * (view.textContainer?.lineFragmentPadding ?? 5), 10)
         let measured = (state.text.isEmpty ? " " : state.text + "\u{200B}") as NSString
@@ -129,14 +134,27 @@ struct ComposerTextView: NSViewRepresentable {
         let line = Typography.body.lineHeightPoints
         let inset = 2 * view.textContainerInset.height
         let content = ceil(text.height) + inset
-        return CGSize(
+        let result = CGSize(
             width: width, height: min(max(content, line * minRows + inset), line * Self.maxRows + inset))
+        context.coordinator.measurementKey = key
+        context.coordinator.measuredSize = result
+        return result
     }
 
     // MARK: The coordinator
 
+    struct MeasurementKey: Equatable {
+        let text: String
+        let width: CGFloat
+        let minRows: CGFloat
+        let font: String
+        let size: CGFloat
+    }
+
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
+        var measurementKey: MeasurementKey?
+        var measuredSize: CGSize?
         var parent: ComposerTextView
         weak var view: KeyedTextView?
         private var pendingRefresh = false

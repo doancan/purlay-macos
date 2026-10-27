@@ -104,7 +104,7 @@ struct InboxPage: View {
             .frame(maxWidth: Size.sizeFeedMax)
             .frame(maxWidth: .infinity)
         }
-        .hoverScroller()
+        .scrollIndicators(.automatic)
     }
 }
 

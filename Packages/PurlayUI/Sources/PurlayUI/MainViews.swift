@@ -309,6 +309,7 @@ struct ChannelView: View {
     @FocusState private var feedFocused: Bool
 
     var body: some View {
+        let keyboardFocus = model.keyboardFocus
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -330,7 +331,7 @@ struct ChannelView: View {
                             case .message(let message, let continuation):
                                 MessageRow(
                                     message: message, model: model, continuation: continuation,
-                                    highlighted: marked == message.id, keyboard: model.keyboardFocus == message.id
+                                    highlighted: marked == message.id, keyboard: keyboardFocus == message.id
                                 )
                                 .id(message.id)
                             }
@@ -353,7 +354,7 @@ struct ChannelView: View {
             }
             .defaultScrollAnchor(.bottom)
             .defaultScrollAnchor(.top, for: .alignment)
-            .hoverScroller()
+            .scrollIndicators(.automatic)
             .scrollEdgeEffectStyle(.soft, for: .all)
             .focusable()
             .focused($feedFocused)
