@@ -202,6 +202,21 @@ final class FakeServer: HTTPTransport {
             return json(
                 200, Self.encoded((snapshot.channelMembers[id] ?? []).map { ChannelMember(joinedAt: joined, user: $0) })
             )
+        case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/notification-level"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/channels/".count).dropLast("/notification-level".count))
+            let body = request.body.flatMap { try? JSONDecoder().decode(SetNotificationLevelRequest.self, from: $0) }
+            if let body {
+                state.withLock { held in
+                    if let index = held.chans.firstIndex(where: { channel($0.n) == id }) {
+                        held.chans[index].level = body.level.rawValue
+                    }
+                }
+            }
+            return HTTPResponse(status: 204)
         case ("GET", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/thread"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count).dropLast("/thread".count))

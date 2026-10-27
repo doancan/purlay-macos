@@ -207,6 +207,10 @@ public final class AppModel {
     public var pinsOpen = false
     public var savedOpen = false
     public var shortcutsOpen = false
+    public var draftsOpen = false
+    public private(set) var draftRevision = 0
+
+    func draftDidChange() { draftRevision &+= 1 }
 
     // MARK: Search
 

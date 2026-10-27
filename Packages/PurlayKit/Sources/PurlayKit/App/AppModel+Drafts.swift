@@ -6,12 +6,15 @@ extension AppModel {
 
     /// What was half written for a channel, from this person's own entries; empty when nobody is signed in.
     public func draft(for channel: Uuid, parent: Uuid? = nil) -> String {
-        drafts?.read(channel: channel, parent: parent) ?? ""
+        _ = draftRevision
+        return drafts?.read(channel: channel, parent: parent) ?? ""
     }
 
     /// Remembers what is half written for a channel, so a switch, a quit or a crash does not lose it.
     public func setDraft(_ text: String, for channel: Uuid, parent: Uuid? = nil) {
+        guard draft(for: channel, parent: parent) != text else { return }
         drafts?.write(text, channel: channel, parent: parent)
+        draftDidChange()
     }
 
     private var drafts: Drafts? {
