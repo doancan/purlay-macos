@@ -26,6 +26,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         /// A send that waited for its files was held: a file failed. The words are back in the box of the place named.
         case sendHeld(String)
         case saveFailed
+        /// A received file could not be written where the person chose.
+        case fileNotWritten
         case savedFull
         case pinFailed
         case pinsFull
@@ -149,6 +151,11 @@ public final class AppModel {
     private func say(_ kind: Notice.Kind) {
         noticeCounter += 1
         notices.append(Notice(id: noticeCounter, kind: kind))
+    }
+
+    /// The screen writes a saved file itself (the panel is its); what it could not write is said like every other refusal.
+    public func fileNotWritten() {
+        say(.fileNotWritten)
     }
 
     public func dismiss(_ notice: Notice) {

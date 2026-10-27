@@ -86,4 +86,23 @@ struct UploadRulesTests {
             #expect(!failure.canRetry, "\(failure)")
         }
     }
+
+    @Test(
+        "a received file's name never names a place, hides the file, or hides its kind",
+        arguments: [
+            ("../../Library/LaunchAgents/x.plist", "x.plist"), ("/etc/passwd", "passwd"), ("a\\..\\b.txt", "b.txt"),
+            ("..", "file"), (".", "file"), ("", "file"), ("/", "file"), (".zshrc", "zshrc"), ("...hidden", "hidden"),
+            ("report\u{202e}fdp.exe", "reportfdp.exe"), ("a\u{200b}b.txt", "ab.txt"), ("a\nb.txt", "ab.txt"),
+            ("x:y.txt", "xy.txt"), ("  rapor.pdf  ", "rapor.pdf"), ("Doğancan'ın raporu.pdf", "Doğancan'ın raporu.pdf"),
+        ])
+    func savingName(raw: String, expected: String) {
+        #expect(UploadRules.savingName(raw) == expected)
+    }
+
+    @Test("a received name is cut to length like a sent one, its extension kept")
+    func savingNameLength() {
+        let saved = UploadRules.savingName(String(repeating: "a", count: 500) + ".pdf")
+        #expect(saved.utf8.count <= UploadRules.nameBytesMax)
+        #expect(saved.hasSuffix(".pdf"))
+    }
 }

@@ -209,9 +209,13 @@ enum FileSaving {
             return
         }
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = attachment.fileName
+        panel.nameFieldStringValue = UploadRules.savingName(attachment.fileName)
         panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? data.write(to: url, options: .atomic)
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            model.fileNotWritten()
+        }
     }
 }

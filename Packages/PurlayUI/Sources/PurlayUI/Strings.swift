@@ -47,6 +47,8 @@ enum Words {
         case .starFailed: return String(localized: "Could not change the star. Try again.")
         case .deepWorkFailed: return String(localized: "Could not change Deep Work. Try again.")
         case .saveFailed: return String(localized: "Could not change the save. Try again.")
+        case .fileNotWritten:
+            return String(localized: "Could not save the file there. Choose another place and try again.")
         case .savedFull:
             return String(localized: "You have saved as many messages as Purlay keeps. Let some go to save more.")
         case .pinFailed: return String(localized: "Could not change the pin. Try again.")

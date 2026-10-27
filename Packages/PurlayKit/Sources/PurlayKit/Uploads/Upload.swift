@@ -122,4 +122,21 @@ public enum UploadRules {
         }
         return stem + suffix
     }
+
+    /// The name a received file is offered under when saved. It is the sender's, so it may name a place: only its last
+    /// component is kept, and nothing in it can hide the file, hide its kind (a directional override turns `gpj.exe` into
+    /// what reads as `exe.jpg`) or break a line.
+    public static func savingName(_ raw: String) -> String {
+        let last = raw.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? ""
+        var name = String(String.UnicodeScalarView(last.unicodeScalars.filter { !isHidden($0) && $0 != ":" }))
+        name = name.trimmingCharacters(in: .whitespaces)
+        while name.hasPrefix(".") { name.removeFirst() }
+        return self.name(name)
+    }
+
+    private static func isHidden(_ scalar: Unicode.Scalar) -> Bool {
+        let value = scalar.value
+        return value <= 0x1f || (0x7f...0x9f).contains(value) || (0x200b...0x200f).contains(value)
+            || (0x2028...0x202e).contains(value) || (0x2066...0x2069).contains(value) || value == 0xfeff
+    }
 }

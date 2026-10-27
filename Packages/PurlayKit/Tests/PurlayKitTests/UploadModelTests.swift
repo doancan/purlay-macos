@@ -418,6 +418,13 @@ struct UploadModelTests {
         _ = await h.model.attachmentData(ids[ids.count - 1], thumbnail: false)
         #expect(h.server.requests.count == before, "the newest is still kept")
     }
+
+    @Test("a file the screen could not write is said, as every refusal is")
+    func notWritten() async {
+        let h = await opened()
+        h.model.fileNotWritten()
+        #expect(h.model.notices.map(\.kind) == [.fileNotWritten])
+    }
 }
 
 extension Upload.State {
