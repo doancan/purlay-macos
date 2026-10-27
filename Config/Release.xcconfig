@@ -1,3 +1,5 @@
 #include "Base.xcconfig"
 // App Transport Security stays strict: no exception of any kind.
 SWIFT_OPTIMIZATION_LEVEL = -O
+// No debugger may attach to what is shipped (notarisation refuses it too); Xcode adds the key to an ad hoc build unasked.
+CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO

@@ -50,7 +50,7 @@ step "the app: generate, build Debug and Release"
 xcodegen generate --quiet
 for configuration in Debug Release; do
   xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration "$configuration" \
-    -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -quiet build
+    -destination 'platform=macOS' -quiet build
 done
 
 step "App Transport Security stays strict in Release and is relaxed for localhost in Debug only"
@@ -65,9 +65,23 @@ for configuration in Debug Release; do
 done
 
 step "the sandbox and the entitlements are the allowlist and nothing else"
-entitlements="$(plutil -convert json -o - App/Resources/Purlay.entitlements | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), sort_keys=True, separators=(",", ":")))')"
-[ "$entitlements" = '{"com.apple.security.app-sandbox":true,"com.apple.security.network.client":true}' ] \
-  || { echo "FAIL: entitlements are not the allowlist: $entitlements" >&2; exit 1; }
-echo "ok"
+canonical() { python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), sort_keys=True, separators=(",", ":")))'; }
+allowlist='{"com.apple.security.app-sandbox":true,"com.apple.security.files.user-selected.read-write":true,"com.apple.security.network.client":true}'
+entitlements="$(plutil -convert json -o - App/Resources/Purlay.entitlements | canonical)"
+[ "$entitlements" = "$allowlist" ] || { echo "FAIL: entitlements are not the allowlist: $entitlements" >&2; exit 1; }
+echo "ok  declared"
+# Declared is not enough: what the built app is signed with is what the sandbox reads. Debug adds the debugger's key alone.
+for configuration in Debug Release; do
+  app="$(xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration "$configuration" -showBuildSettings 2>/dev/null \
+    | awk -F' = ' '/ BUILT_PRODUCTS_DIR /{print $2}')/Purlay.app"
+  signed="$(codesign -d --entitlements - --xml "$app" 2>/dev/null | plutil -convert json -o - - | python3 -c '
+import json, sys
+held = json.load(sys.stdin)
+if sys.argv[1] == "Debug":
+    held.pop("com.apple.security.get-task-allow", None)
+print(json.dumps(held, sort_keys=True, separators=(",", ":")))' "$configuration")"
+  [ "$signed" = "$allowlist" ] || { echo "FAIL: $configuration is signed with $signed" >&2; exit 1; }
+  echo "ok  $configuration signed"
+done
 
 printf '\n\033[1mverify: everything passed\033[0m\n'

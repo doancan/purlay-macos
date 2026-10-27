@@ -19,3 +19,8 @@ PURLAY_PLIST_DEFINITIONS =
 INFOPLIST_PREPROCESSOR_DEFINITIONS = $(PURLAY_PLIST_DEFINITIONS)
 INFOPLIST_FILE = App/Resources/Info.plist
 CODE_SIGN_ENTITLEMENTS = App/Resources/Purlay.entitlements
+// Signed ad hoc, so every build carries its entitlements and runs in the sandbox as a released one does: an unsigned
+// build runs outside it, and what the sandbox refuses is never seen. The Developer ID replaces this at M6-1.
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_STYLE = Manual
+DEVELOPMENT_TEAM =
