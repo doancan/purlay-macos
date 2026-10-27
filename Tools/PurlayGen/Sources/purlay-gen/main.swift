@@ -1,7 +1,7 @@
 import Foundation
 import PurlayGenCore
 
-// purlay-gen --bundle DIR --out DIR [--kit-out DIR] [--check]
+// purlay-gen --bundle DIR --out DIR [--kit-out DIR] [--tokens-out DIR] [--check]
 //
 // Reads the pinned contract bundle and writes the Swift the packages are made of. `--check` writes nothing: it fails
 // when what is on disk is not exactly what would be written, in either direction.
@@ -18,7 +18,9 @@ guard let bundle = option("--bundle"), let out = option("--out") else {
 }
 
 do {
-    exit(try Command.run(bundle: bundle, out: out, kitOut: option("--kit-out"), check: check))
+    exit(
+        try Command.run(
+            bundle: bundle, out: out, kitOut: option("--kit-out"), tokensOut: option("--tokens-out"), check: check))
 } catch {
     FileHandle.standardError.write(Data("purlay-gen: \(error)\n".utf8))
     exit(1)

@@ -3,7 +3,9 @@ import Foundation
 /// The command line's work, kept here so a test can run it.
 public enum Command {
     /// Exit status: 0 when written (or when `check` found the output current), 1 otherwise.
-    public static func run(bundle: String, out: String, kitOut: String? = nil, check: Bool) throws -> Int32 {
+    public static func run(
+        bundle: String, out: String, kitOut: String? = nil, tokensOut: String? = nil, check: Bool
+    ) throws -> Int32 {
         let manager = FileManager.default
         guard let contract = manager.contents(atPath: bundle + "/contract.json") else {
             throw GenerationError("\(bundle)/contract.json cannot be read: run scripts/contract first")
@@ -14,6 +16,14 @@ public enum Command {
 
         var targets: [(directory: String, files: [String: String])] = [(out, generated.files)]
         if let kitOut { targets.append((kitOut, generated.kitFiles)) }
+        if let tokensOut {
+            guard let tokens = manager.contents(atPath: bundle + "/tokens.json"),
+                let pairs = manager.contents(atPath: bundle + "/pairs.json")
+            else {
+                throw GenerationError("\(bundle)/tokens.json or pairs.json cannot be read: run scripts/contract first")
+            }
+            targets.append((tokensOut, try TokenGenerator.generate(tokens: tokens, pairs: pairs, source: source)))
+        }
 
         if check {
             var problems: [String] = []
