@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Check release version
         shell: bash
         run: |
@@ -26,7 +26,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
       - name: Install XcodeGen
         run: brew install xcodegen
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: 1.4.3
       - name: Prepare pinned contract
