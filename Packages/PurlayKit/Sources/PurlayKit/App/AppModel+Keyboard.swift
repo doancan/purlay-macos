@@ -7,13 +7,13 @@ extension AppModel {
     /// Opens the channel one step along the sidebar, wrapping at either end (⌥↑ ⌥↓).
     public func goToChannel(_ direction: Navigation.Direction) async {
         guard let next = Navigation.step(sidebar, from: selectedChannel, direction) else { return }
-        await open(next)
+        await showChannel(next)
     }
 
     /// Opens the next channel with something to read (⌥⇧↑ ⌥⇧↓); where there is none, nothing moves.
     public func goToUnread(_ direction: Navigation.Direction) async {
         guard let next = Navigation.unread(sidebar, from: selectedChannel, direction) else { return }
-        await open(next)
+        await showChannel(next)
     }
 
     public enum RowMove: Sendable {

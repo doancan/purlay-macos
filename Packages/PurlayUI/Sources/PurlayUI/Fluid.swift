@@ -155,3 +155,45 @@ private struct TypingDots: View {
         return -CGFloat(max(0, sin(phase))) * Stroke.strokeFocus * 1.5
     }
 }
+
+extension View {
+    /// A panel over the window, as Spotlight floats over the desktop: it is dismissed by a click anywhere outside it or by
+    /// Escape, never only by a button; the window behind is dimmed a little so the eye goes to the panel.
+    func floatingPanel<Panel: View>(isPresented: Binding<Bool>, @ViewBuilder panel: @escaping () -> Panel) -> some View
+    {
+        modifier(FloatingPanel(isPresented: isPresented, panel: panel))
+    }
+}
+
+private struct FloatingPanel<Panel: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    let panel: () -> Panel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isPresented {
+                    ZStack(alignment: .top) {
+                        Rectangle()
+                            .fill(Colors.scrim.style)
+                            .opacity(0.5)
+                            .ignoresSafeArea()
+                            .contentShape(.rect)
+                            .onTapGesture { isPresented = false }
+                            .accessibilityLabel(Text("Close"))
+                            .accessibilityAddTraits(.isButton)
+                            .transition(.opacity)
+                        panel()
+                            .glassEffect(.regular, in: .rect(cornerRadius: Radius.radius2xl))
+                            .tokenShadow(Shadows.shadowFloat)
+                            .padding(.top, Size.sizeHeader * 2)
+                            .onExitCommand { isPresented = false }
+                            .transition(.scale(scale: 0.97, anchor: .top).combined(with: .opacity))
+                            .accessibilityAddTraits(.isModal)
+                    }
+                }
+            }
+            .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay), value: isPresented)
+    }
+}

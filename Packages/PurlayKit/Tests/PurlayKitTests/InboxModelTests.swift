@@ -197,3 +197,38 @@ struct InboxModelTests {
         #expect(!h.model.inboxOpen)
     }
 }
+
+/// The inbox as a page in the window: it gives way to a channel the person picks, and to nothing else.
+@MainActor
+@Suite("the inbox page")
+struct InboxPageTests {
+    @Test("picking a channel leaves the inbox for it")
+    func pickingLeaves() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        await h.model.openInbox()
+        #expect(h.model.inboxOpen)
+        await h.model.showChannel(Uuid(channel(1))!)
+        #expect(!h.model.inboxOpen)
+        #expect(h.model.selectedChannel == Uuid(channel(1)))
+    }
+
+    @Test("a re-read of the open channel, as a frame asks, does not take the person out of the inbox")
+    func rereadStays() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        let open = h.model.selectedChannel
+        await h.model.openInbox()
+        if let open { await h.model.open(open) }
+        #expect(h.model.inboxOpen)
+    }
+
+    @Test("stepping to the next channel from the keyboard leaves the inbox too")
+    func steppingLeaves() async {
+        let h = ModelHarness()
+        await h.signedIn()
+        await h.model.openInbox()
+        await h.model.goToChannel(.next)
+        #expect(!h.model.inboxOpen)
+    }
+}

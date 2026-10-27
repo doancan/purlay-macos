@@ -154,7 +154,7 @@ struct ComposerView: View {
             }
             .buttonStyle(.glassProminent)
             .buttonBorderShape(.circle)
-            .disabled(!canSend || over)
+            .disabled(!canSend || over || state.isRewriting)
             .accessibilityLabel("Send")
             .help("Send  ↩")
         }
@@ -194,6 +194,8 @@ struct ComposerView: View {
     }
 
     private func send() {
+        // A rewrite in progress is not the message yet: Return belongs to Writing Tools until it ends.
+        guard !state.isRewriting else { return }
         if let name = ComposerText.broadcastMention(state.text) {
             state.notice =
                 "\(name) would reach everybody, and Purlay does not send to everybody. Mention people by name."

@@ -91,6 +91,7 @@ extension AppModel {
             let around = try await api.getMessagesAround(messageId: message.id.value)
             let channelID = around.target.channelId
             if thread?.channel != channelID { closeThread() }
+            inboxOpen = false
             selectedChannel = channelID
             if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
             var window = ChannelWindow()

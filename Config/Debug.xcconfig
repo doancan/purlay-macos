@@ -3,3 +3,6 @@
 // written into Info.plist by the preprocessor in this configuration alone.
 PURLAY_PLIST_DEFINITIONS = PURLAY_ALLOWS_LOCAL_NETWORKING=1
 SWIFT_OPTIMIZATION_LEVEL = -Onone
+// One binary, one signature: the separate debug dylib (for previews, unused here) would be loaded under library validation
+// and refused whenever its signature and the app's differ.
+ENABLE_DEBUG_DYLIB = NO

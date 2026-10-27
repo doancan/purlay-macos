@@ -26,3 +26,5 @@ CODE_SIGN_STYLE = Manual
 DEVELOPMENT_TEAM =
 // The icon, made from Design/purlay-logo.png by scripts/icon.
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+// A signing identity of this Mac, when scripts/dev-signing made one; absent on CI and other Macs.
+#include? "Local.xcconfig"

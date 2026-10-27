@@ -73,6 +73,13 @@ extension AppModel {
 
     // MARK: What the person does
 
+    /// The person chose a channel: whatever page was in its place (the inbox) gives way to it. A re-read the server asks for
+    /// goes through `open` and leaves the page where it is.
+    public func showChannel(_ channelID: Uuid) async {
+        inboxOpen = false
+        await open(channelID)
+    }
+
     /// Opens a channel: the window of messages it already holds is shown at once, and the newest page is read.
     public func open(_ channelID: Uuid) async {
         // Read again for a new frame is the same channel: the keyboard stays where it was.

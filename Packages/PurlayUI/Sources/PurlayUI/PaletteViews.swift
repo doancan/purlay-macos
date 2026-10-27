@@ -1,12 +1,14 @@
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// `⌘K`: the way to anywhere. Type a name and Return; the arrows move; Escape closes. Whatever was typed, the last row searches messages for
 /// it, so a query never ends in nothing (D-157).
 struct PaletteSheet: View {
     let model: AppModel
-    @Environment(\.dismiss) private var dismiss
+
+    private func dismiss() { model.paletteOpen = false }
     @State private var query = ""
     @State private var selected = 0
     @FocusState private var focused: Bool
@@ -19,15 +21,18 @@ struct PaletteSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Jump to a channel or a person, or search", text: $query)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .padding(14)
-                .focused($focused)
-                .onSubmit(choose)
-                .onKeyPress(.upArrow) { move(-1) }
-                .onKeyPress(.downArrow) { move(1) }
-                .onChange(of: query) { _, _ in selected = 0 }
+            HStack(spacing: Spacing.space3) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Colors.inkMuted.style).imageScale(.large)
+                TextField("Jump to a channel or a person, or search", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(Typography.title.font.weight(.regular))
+            }
+            .padding(Spacing.space4)
+            .focused($focused)
+            .onSubmit(choose)
+            .onKeyPress(.upArrow) { move(-1) }
+            .onKeyPress(.downArrow) { move(1) }
+            .onChange(of: query) { _, _ in selected = 0 }
             Divider()
             let rows = entries
             if rows.isEmpty {
@@ -53,11 +58,12 @@ struct PaletteSheet: View {
                         .buttonStyle(.plain)
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     .onChange(of: selected) { _, at in if rows.indices.contains(at) { proxy.scrollTo(rows[at].id) } }
                 }
             }
         }
-        .frame(width: 560, height: 420)
+        .frame(width: Size.sizePalette, height: Size.sizePaletteList + Size.sizeHeader * 1.5)
         // Focus is taken once the sheet is on screen: asked for as it appears, it is not given.
         .task {
             try? await Task.sleep(for: .milliseconds(80))
@@ -86,10 +92,10 @@ struct PaletteSheet: View {
                 if let channel = model.chat.channels[id], channel.state == nil {
                     await model.join(channel)
                 } else {
-                    await model.open(id)
+                    await model.showChannel(id)
                 }
             }
-        case .conversation(let id): Task { await model.open(id) }
+        case .conversation(let id): Task { await model.showChannel(id) }
         case .person(let user): Task { await model.openConversation(with: [user]) }
         case .search(let words): model.openSearch(words)
         }
@@ -129,7 +135,8 @@ private struct PaletteRow: View {
 /// What was found: the words as typed, newest first, a page at a time; choosing one goes to it, in its channel, with the feed read around it.
 struct SearchSheet: View {
     let model: AppModel
-    @Environment(\.dismiss) private var dismiss
+
+    private func dismiss() { model.searchOpen = false }
     @State private var query = ""
     @State private var pending: Task<Void, Never>?
     @FocusState private var focused: Bool
@@ -143,13 +150,12 @@ struct SearchSheet: View {
                     .font(.title3)
                     .focused($focused)
                     .onSubmit(run)
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
             }
             Divider()
             content
         }
-        .padding(16)
-        .frame(width: 640, height: 480)
+        .padding(Spacing.space4)
+        .frame(width: Size.sizeDialogLg, height: Size.sizePaletteList + Size.sizeHeader * 2)
         .task {
             query = model.searchQuery
             try? await Task.sleep(for: .milliseconds(80))
@@ -213,6 +219,7 @@ struct SearchSheet: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
     }
 }

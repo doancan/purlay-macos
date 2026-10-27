@@ -24,6 +24,8 @@ final class ComposerState {
     var togglePreview: (() -> Void)?
     /// The box has the keyboard: the composer draws its edge in the accent while it does.
     var isFocused = false
+    /// Writing Tools is rewriting or composing in the box: what is there is not final, so it is not sent.
+    var isRewriting = false
 }
 
 /// The box a message is written in (`UX.md` §5): plain text, GFM, no editor. Enter sends, Shift+Enter is a line break that carries a
@@ -68,6 +70,11 @@ struct ComposerTextView: NSViewRepresentable {
         view.isAutomaticTextReplacementEnabled = false
         view.isAutomaticSpellingCorrectionEnabled = false
         view.isAutomaticLinkDetectionEnabled = false
+        // Writing Tools works in the box itself: a proofread, a rewrite or a composed text replaces what is selected (or the
+        // whole box) in place, with the system's Replace and Revert, and lands in the message to be sent. Plain text only:
+        // the box holds markdown, not styled text.
+        view.writingToolsBehavior = .complete
+        view.allowedWritingToolsResultOptions = [.plainText]
         view.drawsBackground = false
         view.font = Typography.body.nsFont
         view.textColor = Colors.ink.nsColor
@@ -154,6 +161,17 @@ struct ComposerTextView: NSViewRepresentable {
 
         func textDidChange(_ notification: Foundation.Notification) { changed() }
         func textViewDidChangeSelection(_ notification: Foundation.Notification) { updateMention() }
+
+        func textViewWritingToolsWillBegin(_ textView: NSTextView) {
+            parent.state.isRewriting = true
+            parent.state.suggestions = []
+        }
+
+        func textViewWritingToolsDidEnd(_ textView: NSTextView) {
+            parent.state.isRewriting = false
+            // What Writing Tools left is the message now, whether or not each of its edits was reported as a change.
+            changed()
+        }
 
         private func changed() {
             guard let view else { return }

@@ -6,9 +6,15 @@ import SwiftUI
 /// The sidebar (§12.3): the workspace and what it holds for the person, then where they can go (Inbox, Saved, Search), then
 /// Starred, Channels and Conversations, and at the foot who they are. It is the system's sidebar, so it is glass by itself;
 /// nothing here paints a background over it (§12.2 rule 4).
+/// What the sidebar has chosen: the inbox page, or a channel.
+enum SidebarSelection: Hashable {
+    case inbox
+    case channel(Uuid)
+}
+
 struct SidebarView: View {
     let model: AppModel
-    @Binding var selection: Uuid?
+    @Binding var selection: SidebarSelection?
     @Binding var sheet: ChannelSheet?
     @Binding var leaving: Channel?
     /// Which sections are folded away, kept with the window across launches.
@@ -19,10 +25,12 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                DestinationRow(title: "Inbox", systemImage: "tray", count: model.attentionCount) {
-                    Task { await model.openInbox() }
+                HStack {
+                    Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
+                    Spacer(minLength: Spacing.space2)
+                    if model.attentionCount > 0 { CountBadge(count: model.attentionCount) }
                 }
-                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .tag(SidebarSelection.inbox)
                 DestinationRow(title: "Saved", systemImage: "bookmark") { model.savedOpen = true }
                 DestinationRow(title: "Search", systemImage: "magnifyingglass", hint: "⌘K") { model.paletteOpen = true }
             }
@@ -30,7 +38,7 @@ struct SidebarView: View {
                 Section(isExpanded: expanded(section.id)) {
                     ForEach(section.channels, id: \.id) { channel in
                         SidebarChannelRow(model: model, channel: channel, quiet: quiet)
-                            .tag(channel.id)
+                            .tag(SidebarSelection.channel(channel.id))
                             .contextMenu { ChannelMenu(model: model, channel: channel, leaving: $leaving) }
                     }
                 } header: {

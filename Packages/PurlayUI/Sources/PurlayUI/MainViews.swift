@@ -7,7 +7,7 @@ import SwiftUI
 /// toolbar and the inspector are the system's, so they are Liquid Glass by themselves; the content draws token colours.
 struct MainView: View {
     let model: AppModel
-    @State private var selection: Uuid?
+    @State private var selection: SidebarSelection?
     @State private var sheet: ChannelSheet?
     @State private var leaving: Channel?
     @Environment(\.scenePhase) private var scenePhase
@@ -23,20 +23,35 @@ struct MainView: View {
                         .inspectorColumnWidth(min: 320, ideal: Size.sizeThread, max: 560)
                 }
         }
+        // The window's own background is a material, so the sidebar's glass shows the desktop through it (as Finder's does);
+        // the content column draws its opaque token surface over it and reads as a page.
+        .containerBackground(.ultraThinMaterial, for: .window)
         .modifier(MainSheets(model: model, sheet: $sheet, leaving: $leaving))
-        .onAppear { selection = model.selectedChannel }
+        .onAppear { selection = shown }
         // Only what is in front of the person is read (D-143).
         .onChange(of: scenePhase, initial: true) { _, phase in model.setActive(phase == .active) }
         .onChange(of: selection) { _, new in
-            guard let new, new != model.selectedChannel else { return }
-            Task { await model.open(new) }
+            guard let new, new != shown else { return }
+            switch new {
+            case .inbox: Task { await model.openInbox() }
+            case .channel(let id): Task { await model.showChannel(id) }
+            }
         }
-        .onChange(of: model.selectedChannel) { _, new in if new != selection { selection = new } }
+        // The model moves too (a notice clicked, a search result opened): the sidebar follows it.
+        .onChange(of: shown) { _, new in if new != selection { selection = new } }
+    }
+
+    /// What the window shows, as the sidebar would name it.
+    private var shown: SidebarSelection? {
+        if model.inboxOpen { return .inbox }
+        return model.selectedChannel.map(SidebarSelection.channel)
     }
 
     @ViewBuilder private var detail: some View {
         Group {
-            if let id = model.selectedChannel, let channel = model.chat.channels[id] {
+            if model.inboxOpen {
+                InboxPage(model: model)
+            } else if let id = model.selectedChannel, let channel = model.chat.channels[id] {
                 // Each channel its own scroll view: one that was scrolled far down a long feed keeps its place in a short one.
                 ChannelView(model: model, channel: channel).id(id)
                     .navigationTitle(Words.channelLabel(channel))
@@ -128,10 +143,10 @@ private struct MainSheets: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .sheet(isPresented: Binding(get: { model.paletteOpen }, set: { model.paletteOpen = $0 })) {
+            .floatingPanel(isPresented: Binding(get: { model.paletteOpen }, set: { model.paletteOpen = $0 })) {
                 PaletteSheet(model: model)
             }
-            .sheet(isPresented: Binding(get: { model.searchOpen }, set: { model.searchOpen = $0 })) {
+            .floatingPanel(isPresented: Binding(get: { model.searchOpen }, set: { model.searchOpen = $0 })) {
                 SearchSheet(model: model)
             }
             .sheet(isPresented: Binding(get: { model.pinsOpen }, set: { model.pinsOpen = $0 })) {
@@ -139,9 +154,6 @@ private struct MainSheets: ViewModifier {
             }
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
-            }
-            .sheet(isPresented: Binding(get: { model.inboxOpen }, set: { model.inboxOpen = $0 })) {
-                InboxSheet(model: model)
             }
             .sheet(isPresented: Binding(get: { model.shortcutsOpen }, set: { model.shortcutsOpen = $0 })) {
                 ShortcutsSheet()
@@ -190,8 +202,8 @@ struct ChannelView: View {
                             .frame(maxWidth: .infinity)
                     }
                     if let window = model.window {
-                        if window.isEmpty && model.selectedPending.isEmpty {
-                            EmptyChannel(channel: channel)
+                        if window.reachesOldest {
+                            ChannelIntro(channel: channel, empty: window.isEmpty && model.selectedPending.isEmpty)
                         }
                         ForEach(FeedLayout.items(window.messages, newAfter: newAfter, me: model.me?.user.id)) { item in
                             switch item {
@@ -223,7 +235,7 @@ struct ChannelView: View {
             }
             .defaultScrollAnchor(.bottom)
             .hoverScroller()
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .focusable()
             .focused($feedFocused)
             .focusEffectDisabled()
@@ -314,9 +326,11 @@ struct ChannelView: View {
     private var placeholder: String { String(localized: "Message \(Words.channelLabel(channel))") }
 }
 
-/// The start of a channel with nothing in it yet: what it is, and an invitation to begin.
-private struct EmptyChannel: View {
+/// The start of a channel, above its first message once the feed reaches it: what it is, and, while nothing has been said,
+/// an invitation to begin.
+private struct ChannelIntro: View {
     let channel: Channel
+    let empty: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.space2) {
@@ -331,9 +345,11 @@ private struct EmptyChannel: View {
             if let topic = channel.topic, !topic.isEmpty {
                 Text(topic).typeStyle(Typography.body).foregroundStyle(Colors.inkMuted.style)
             }
-            Text("Say something to start the conversation.")
-                .typeStyle(Typography.body)
-                .foregroundStyle(Colors.inkSubtle.style)
+            if empty {
+                Text("Say something to start the conversation.")
+                    .typeStyle(Typography.body)
+                    .foregroundStyle(Colors.inkSubtle.style)
+            }
         }
         .padding(Spacing.space6)
         .frame(maxWidth: .infinity, alignment: .leading)

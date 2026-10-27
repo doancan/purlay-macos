@@ -16,7 +16,7 @@ struct PurlayApp: App {
             RealEnvironment.seedDevelopmentSession(environment)
         #endif
         let model = AppModel(environment)
-        attention.open = { channel in Task { await model.open(channel) } }
+        attention.open = { channel in Task { await model.showChannel(channel) } }
         _model = State(initialValue: model)
     }
 

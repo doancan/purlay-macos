@@ -1,67 +1,74 @@
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
-/// What the person was told in this workspace, newest first: All or Unread above it, then Today and Earlier. A row says who, why and
-/// where, with the message under it; unread is a dot at its edge and the line in full ink, read is muted. Opening a row goes to the
-/// message and reads it; Mark read reads it without going (`UX.md`, the inbox).
-struct InboxSheet: View {
+/// What the person was told in this workspace, as a page in the window (not a sheet): newest first, Today and Earlier, a row
+/// for who, why and where with the message under it. Unread is a dot and full ink; read is muted. Opening a row goes to the
+/// message and reads it; Mark Read reads it without going (`UX.md`, the inbox). All / Unread and Mark All Read are in the toolbar.
+struct InboxPage: View {
     let model: AppModel
-    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Colors.surface100.style)
+            .navigationTitle("Inbox")
+            .navigationSubtitle(subtitle)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Show", selection: filter) {
+                        Text("All").tag(AppModel.InboxFilter.all)
+                        Text("Unread").tag(AppModel.InboxFilter.unread)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                ToolbarItem {
+                    Button {
+                        Task { await model.markAllInboxRead() }
+                    } label: {
+                        Label("Mark All Read", systemImage: "checkmark.circle")
+                    }
+                    .disabled(!model.inboxRows.contains(where: \.isUnread))
+                    .help("Mark everything shown as read")
+                }
+            }
+    }
 
     private var filter: Binding<AppModel.InboxFilter> {
         Binding(get: { model.inboxFilter }, set: { new in Task { await model.setInboxFilter(new) } })
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Inbox").font(.title2.bold())
-                Spacer()
-                Button("Mark all read") { Task { await model.markAllInboxRead() } }
-                    .disabled(!model.inboxRows.contains(where: \.isUnread))
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
-            }
-            Picker("Show", selection: filter) {
-                Text("All").tag(AppModel.InboxFilter.all)
-                Text("Unread").tag(AppModel.InboxFilter.unread)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            content
-        }
-        .padding(16)
-        .frame(width: 560, height: 540)
+    private var subtitle: String {
+        let unread = model.inboxRows.filter(\.isUnread).count
+        return unread > 0 ? String(localized: "\(unread) unread") : ""
     }
 
-    @ViewBuilder
-    private var content: some View {
+    @ViewBuilder private var content: some View {
         switch model.inboxStatus {
         case .idle, .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView().controlSize(.large)
         case .failed:
             ContentUnavailableView {
-                Label("Could not load the inbox", systemImage: "wifi.exclamationmark")
+                Label("Could Not Load the Inbox", systemImage: "wifi.exclamationmark")
             } description: {
                 Text("Check your connection and try again.")
             } actions: {
-                Button("Try again") { Task { await model.setInboxFilter(model.inboxFilter) } }
+                Button("Try Again") { Task { await model.setInboxFilter(model.inboxFilter) } }
+                    .buttonStyle(.glassProminent)
             }
-            .frame(maxHeight: .infinity)
         case .loaded:
             if model.inboxRows.isEmpty {
                 if model.inboxFilter == .unread {
                     ContentUnavailableView(
-                        "All caught up", systemImage: "checkmark.circle",
-                        description: Text("Nothing is waiting for you.")
-                    )
-                    .frame(maxHeight: .infinity)
+                        "All Caught Up", systemImage: "checkmark.circle",
+                        description: Text("Nothing is waiting for you."))
                 } else {
                     ContentUnavailableView(
-                        "Nothing yet", systemImage: "tray",
-                        description: Text("Mentions, direct messages and replies to you will gather here.")
-                    )
-                    .frame(maxHeight: .infinity)
+                        "Nothing Yet", systemImage: "tray",
+                        description: Text("Mentions, direct messages and replies to you will gather here."))
                 }
             } else {
                 list
@@ -70,20 +77,34 @@ struct InboxSheet: View {
     }
 
     private var list: some View {
-        List {
-            ForEach(Inbox.sections(model.inboxRows, calendar: .current, now: Date()), id: \.section.hashValue) {
-                group in
-                Section(group.section == .today ? "Today" : "Earlier") {
-                    ForEach(group.rows) { row in InboxRowView(model: model, row: row) }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ForEach(Inbox.sections(model.inboxRows, calendar: .current, now: Date()), id: \.section.hashValue) {
+                    group in
+                    Section {
+                        ForEach(group.rows) { row in InboxRowView(model: model, row: row) }
+                    } header: {
+                        Text(group.section == .today ? "Today" : "Earlier")
+                            .typeStyle(Typography.label)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Colors.inkMuted.style)
+                            .padding(.horizontal, Spacing.space4)
+                            .padding(.vertical, Spacing.space2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Colors.surface100.style)
+                    }
+                }
+                if model.inboxHasMore {
+                    Button("Load More") { Task { await model.loadMoreInbox() } }
+                        .buttonStyle(.glass)
+                        .padding(Spacing.space4)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            if model.inboxHasMore {
-                Button("Load more") { Task { await model.loadMoreInbox() } }
-                    .buttonStyle(.link)
-                    .frame(maxWidth: .infinity)
-            }
+            .frame(maxWidth: Size.sizeFeedMax)
+            .frame(maxWidth: .infinity)
         }
-        .listStyle(.plain)
+        .hoverScroller()
     }
 }
 
@@ -93,49 +114,71 @@ private struct InboxRowView: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(row.isUnread ? Color.accentColor : .clear)
-                .frame(width: 8, height: 8)
-                .padding(.top, 6)
-                .accessibilityHidden(true)
-            Button {
-                Task { await model.openInboxRow(row) }
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(Words.inboxHeadline(row, me: model.me?.user.id)).font(
-                            .callout.weight(row.isUnread ? .semibold : .regular))
-                        Text(place).font(.caption).foregroundStyle(.secondary)
-                        Spacer()
+        Button {
+            Task { await model.openInboxRow(row) }
+        } label: {
+            HStack(alignment: .top, spacing: Spacing.space3) {
+                Circle()
+                    .fill(row.isUnread ? Colors.accent.style : Colors.surface100.style)
+                    .frame(width: Size.sizeDot, height: Size.sizeDot)
+                    .padding(.top, Spacing.space3)
+                    .accessibilityHidden(true)
+                Avatar(user: row.senders.first, size: Size.sizeAvatarLg)
+                VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
+                    HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
+                        Text(Words.inboxHeadline(row, me: model.me?.user.id))
+                            .typeStyle(Typography.body)
+                            .fontWeight(row.isUnread ? .semibold : .regular)
+                            .foregroundStyle(row.isUnread ? Colors.ink.style : Colors.inkMuted.style)
+                            .lineLimit(1)
+                        Text(place)
+                            .typeStyle(Typography.caption)
+                            .foregroundStyle(Colors.inkMuted.style)
+                            .padding(.horizontal, Spacing.space2)
+                            .padding(.vertical, Stroke.strokeFocus)
+                            .background(Colors.surface200.style, in: Capsule())
+                        Spacer(minLength: Spacing.space2)
                         Text(row.at.date, style: Calendar.current.isDateInToday(row.at.date) ? .time : .date)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .typeStyle(Typography.caption)
+                            .foregroundStyle(Colors.inkSubtle.style)
                     }
                     if let subject = Words.inboxSubject(row) {
-                        Text(subject).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(subject).typeStyle(Typography.caption).foregroundStyle(Colors.inkMuted.style).lineLimit(1)
                     }
                     Text(
                         row.message.deletedAt == nil
                             ? row.message.content : String(localized: "This message was deleted.")
                     )
+                    .typeStyle(Typography.body)
+                    .foregroundStyle(row.isUnread ? Colors.ink.style : Colors.inkSubtle.style)
                     .lineLimit(2)
-                    .foregroundStyle(row.isUnread ? .primary : .secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.space4)
+            .padding(.vertical, Spacing.space3)
+            .background(hovering ? Colors.surface050.style : Colors.surface100.style)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
             if row.isUnread && hovering {
-                Button("Mark read") { Task { await model.markInboxRead(row) } }
+                Button("Mark Read", systemImage: "checkmark") { Task { await model.markInboxRead(row) } }
+                    .buttonStyle(.glass)
                     .controlSize(.small)
-                    .buttonStyle(.borderless)
+                    .padding(Spacing.space2)
+                    .transition(.opacity)
             }
         }
-        .padding(.vertical, 2)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Colors.borderSubtle.style).frame(height: Stroke.strokeHairline)
+                .padding(.leading, Spacing.space4 * 2 + Size.sizeAvatarLg + Size.sizeDot)
+        }
         .onHover { hovering = $0 }
+        .animation(Motion.easingStandard.animation(Motion.durationHover), value: hovering)
         .accessibilityElement(children: .combine)
-        .accessibilityAction(named: Text("Mark read")) { Task { await model.markInboxRead(row) } }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: Text("Mark Read")) { Task { await model.markInboxRead(row) } }
     }
 
     private var place: String { model.chat.channels[row.channel].map(Words.channelLabel) ?? "" }

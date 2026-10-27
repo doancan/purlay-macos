@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# A code-signing identity for this Mac's development builds, so the keychain remembers "Always Allow" across rebuilds.
+#
+# An ad hoc signature changes with every build, and the keychain ties an item's access to the signature that made it: each
+# rebuild would be asked for the session again. A self-signed identity keeps one designated requirement for every build.
+# It is this Mac's alone: the certificate is made here, kept in the login keychain, and named in Config/Local.xcconfig,
+# which git ignores. Without it (CI, another Mac) builds are signed ad hoc, as before. Releases are signed with the
+# Developer ID (M6-1), never with this.
+#
+#   scripts/dev-signing          make the identity if it is not there, and point Config/Local.xcconfig at it
+#   scripts/dev-signing --remove remove both
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+NAME="Purlay Development"
+KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
+LOCAL=Config/Local.xcconfig
+
+if [ "${1:-}" = "--remove" ]; then
+  security delete-identity -c "$NAME" "$KEYCHAIN" 2>/dev/null || true
+  rm -f "$LOCAL"
+  echo "removed: $NAME and $LOCAL"
+  exit 0
+fi
+
+if security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "\"$NAME\""; then
+  echo "present: $NAME"
+else
+  work="$(mktemp -d)"
+  trap 'rm -rf "$work"' EXIT
+  # The system's LibreSSL: its PKCS#12 is one `security import` reads.
+  /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=$NAME" \
+    -keyout "$work/key.pem" -out "$work/cert.pem" \
+    -extensions ext -config <(printf '[req]\ndistinguished_name=dn\n[dn]\n[ext]\nbasicConstraints=critical,CA:false\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=critical,codeSigning\n') 2>/dev/null
+  passphrase="$(/usr/bin/openssl rand -hex 16)"
+  /usr/bin/openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" -out "$work/identity.p12" \
+    -passout "pass:$passphrase" -name "$NAME"
+  # codesign may use the key without asking each time.
+  security import "$work/identity.p12" -k "$KEYCHAIN" -P "$passphrase" -T /usr/bin/codesign >/dev/null
+  # Trusted for code signing by this user only: macOS asks once for the password.
+  security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$work/cert.pem"
+  echo "made: $NAME"
+fi
+
+printf '// This Mac only (scripts/dev-signing); ignored by git.\nCODE_SIGN_IDENTITY = %s\n' "$NAME" > "$LOCAL"
+echo "wrote: $LOCAL"

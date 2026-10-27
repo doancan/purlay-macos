@@ -11,3 +11,4 @@ Contract/bundle/
 *.local.md
 .DS_Store
 xcuserdata/
+Config/Local.xcconfig
