@@ -109,9 +109,10 @@ struct ComposerView: View {
 
     private func attach() { Task { add(await PickedFiles.choose()) } }
 
-    private func add(_ files: [PickedFile]) {
-        guard !files.isEmpty else { return }
-        Task { await model.attach(files, channel: channel, parent: parent) }
+    private func add(_ batch: PickedFiles.Batch) {
+        if !batch.unreadable.isEmpty { model.filesNotRead(batch.unreadable) }
+        guard !batch.files.isEmpty else { return }
+        Task { await model.attach(batch.files, channel: channel, parent: parent) }
     }
 
     private func send() {

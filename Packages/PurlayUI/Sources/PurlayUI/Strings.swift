@@ -27,6 +27,11 @@ enum Words {
             )
         case .signOutEverywhereFailed:
             return String(localized: "Could not sign out everywhere. You are still signed in.")
+        case .signOutFailed:
+            return String(
+                localized:
+                    "Could not sign out: the server could not be reached and this Mac could not forget the sign-in. You are still signed in."
+            )
         case .unsentLost(let count):
             return String(
                 localized: "\(count) unsent messages were removed because you no longer have access to their channel.")
@@ -47,6 +52,9 @@ enum Words {
         case .starFailed: return String(localized: "Could not change the star. Try again.")
         case .deepWorkFailed: return String(localized: "Could not change Deep Work. Try again.")
         case .saveFailed: return String(localized: "Could not change the save. Try again.")
+        case .filesNotRead(let names):
+            let list = names.formatted(.list(type: .and))
+            return String(localized: "Could not read \(list). Check that it is still there, then attach it again.")
         case .fileNotWritten:
             return String(localized: "Could not save the file there. Choose another place and try again.")
         case .savedFull:

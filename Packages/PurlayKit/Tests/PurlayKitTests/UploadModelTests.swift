@@ -419,6 +419,15 @@ struct UploadModelTests {
         #expect(h.server.requests.count == before, "the newest is still kept")
     }
 
+    @Test("files the screen could not read are said by name; none, nothing is said")
+    func notRead() async {
+        let h = await opened()
+        h.model.filesNotRead([])
+        #expect(h.model.notices.isEmpty)
+        h.model.filesNotRead(["a.pdf", "b.png"])
+        #expect(h.model.notices.map(\.kind) == [.filesNotRead(["a.pdf", "b.png"])])
+    }
+
     @Test("a file the screen could not write is said, as every refusal is")
     func notWritten() async {
         let h = await opened()

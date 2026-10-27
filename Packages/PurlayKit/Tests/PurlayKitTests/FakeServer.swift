@@ -24,6 +24,7 @@ final class FakeServer: HTTPTransport {
         var uploadDelays: [String: Int] = [:]
         var attachmentData: [String: Data] = [:]
         var saved: [String: String] = [:]
+        var savedIdsStatus = 200
         var saveError: (status: Int, code: String)?
         var pins: [String: [String]] = [:]
         var pinError: (status: Int, code: String)?
@@ -360,7 +361,7 @@ final class FakeServer: HTTPTransport {
                 return
                     "{\"channelId\":\"\(found.channelId.value)\",\"messageId\":\"\(found.id.value)\",\"state\":\"\(entry.value)\"}"
             }
-            return json(200, "[\(items.joined(separator: ","))]")
+            return json(snapshot.savedIdsStatus, "[\(items.joined(separator: ","))]")
         case ("GET", "/api/workspaces/\(Self.workspaceID)/saved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let wanted =

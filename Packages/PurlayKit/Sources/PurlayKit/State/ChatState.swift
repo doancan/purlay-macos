@@ -19,7 +19,7 @@ public enum Effect: Sendable, Equatable {
     case sessionEnded(SessionEndedFrame.Payload.Reason)
 }
 
-public enum Refresh: Sendable, Equatable {
+public enum Refresh: Sendable, Hashable {
     case memberships(workspace: Uuid)
     case channels(workspace: Uuid)
     case pins(channel: Uuid)

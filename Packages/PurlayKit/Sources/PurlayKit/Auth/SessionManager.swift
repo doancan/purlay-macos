@@ -42,6 +42,9 @@ public actor SessionManager {
         case serverNotTold
         /// `.everywhere` that did not happen: nothing was changed, and the person is still signed in.
         case notDone(String)
+        /// The server could not be told and this Mac could not forget the sign-in: going on would leave a live session in
+        /// the keychain that the next launch signs in with. Nothing was changed, and the person is still signed in.
+        case credentialKept
     }
 
     private let store: any SessionStore
@@ -153,8 +156,14 @@ public actor SessionManager {
             }
             told = false
         }
-        // The credential first: whatever fails after, it is no longer here.
-        try? store.delete(for: server)
+        // The credential first: whatever fails after, it is no longer here. One that cannot be removed is harmless only
+        // if the server ended it; otherwise the app stops here rather than say "signed out" over a session that lives.
+        do {
+            try store.delete(for: server)
+        } catch {
+            Log.session.error("the sign-in could not be removed: \(String(describing: error), privacy: .public)")
+            if !told { return .credentialKept }
+        }
         for wiper in wipers { await wiper.wipe() }
         owner.save(nil)
         move(to: .signedOut(scope == .everywhere ? .signedOutEverywhere : .signedOutByPerson))

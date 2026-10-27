@@ -39,7 +39,7 @@ struct ComposerTextView: NSViewRepresentable {
     /// ↑ in an empty box: change the last thing said.
     var onEditLast: (() -> Void)?
     /// A file or a picture was pasted: it is attached, not typed.
-    var onFiles: (([PickedFile]) -> Void)?
+    var onFiles: ((PickedFiles.Batch) -> Void)?
 
     private static let maxRows: CGFloat = 12
 

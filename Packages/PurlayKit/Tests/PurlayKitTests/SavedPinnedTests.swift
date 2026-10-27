@@ -201,4 +201,49 @@ struct SavedPinnedTests {
         await h.model.open(Uuid(channel(2))!)
         #expect(h.model.editing == nil)
     }
+
+    // MARK: A read that failed is asked again
+
+    private func savedReads(_ h: ModelHarness) -> Int {
+        h.server.requests.filter { $0.url.path.hasSuffix("/saved/ids") }.count
+    }
+
+    @Test("saved markers that could not be read at the start are asked again after a pause, and shown when they come")
+    func savedRetried() async {
+        let h = ModelHarness()
+        h.server.edit {
+            $0.messages[channel(1)] = [me(1_000, "kept")]
+            $0.saved = [idAt(1_000).value: "in_progress"]
+            $0.savedIdsStatus = 503
+        }
+        await h.signedIn()
+        #expect(h.model.savedIDs.isEmpty)
+        h.server.edit { $0.savedIdsStatus = 200 }
+        await h.advance(milliseconds: AppModel.refreshRetries[0])
+        #expect(h.model.savedIDs[idAt(1_000)] != nil)
+    }
+
+    @Test(
+        "a read that keeps failing is asked a bounded number of times, then left for the next reconnect; nothing keeps ticking"
+    )
+    func retriesBounded() async {
+        let h = ModelHarness()
+        h.server.edit { $0.savedIdsStatus = 503 }
+        await h.signedIn()
+        await h.advance(milliseconds: AppModel.refreshRetries.reduce(0, +) + 1_000)
+        // Each read is the client's own tries; the model asks for the read once and then once per pause.
+        #expect(savedReads(h) == (1 + AppModel.refreshRetries.count) * APIClient.maximumAttempts)
+        #expect(h.liveTimers <= 2)
+    }
+
+    @Test("signing out lets a waiting retry go")
+    func retryLetGo() async {
+        let h = ModelHarness()
+        h.server.edit { $0.savedIdsStatus = 503 }
+        await h.signedIn()
+        _ = await h.model.signOut(.thisDevice)
+        let before = savedReads(h)
+        await h.advance(milliseconds: AppModel.refreshRetries.reduce(0, +) + 1_000)
+        #expect(savedReads(h) == before)
+    }
 }

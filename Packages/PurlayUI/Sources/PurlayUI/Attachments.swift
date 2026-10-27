@@ -6,44 +6,59 @@ import UniformTypeIdentifiers
 
 /// Where a file comes from: the open panel, a drop, or the pasteboard. Each becomes the same thing: a name and bytes.
 enum PickedFiles {
+    /// What was read, and the names of what could not be: a file that is gone, or that the sandbox will not open, is said and
+    /// not dropped, and a read that failed is never taken for an empty file.
+    struct Batch: Sendable {
+        var files: [PickedFile] = []
+        var unreadable: [String] = []
+    }
+
     /// Reads files at most one byte past what a message may hold, so a huge file is refused for being huge without being held in memory.
-    static func read(_ urls: [URL]) async -> [PickedFile] {
+    static func read(_ urls: [URL]) async -> Batch {
         await Task.detached(priority: .userInitiated) {
-            urls.compactMap { url -> PickedFile? in
+            var batch = Batch()
+            for url in urls {
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
-                defer { try? handle.close() }
-                let data = (try? handle.read(upToCount: ContractConstants.attachmentBytesMax + 1)) ?? Data()
-                return PickedFile(name: url.lastPathComponent, data: data)
+                do {
+                    let handle = try FileHandle(forReadingFrom: url)
+                    defer { try? handle.close() }
+                    let data = try handle.read(upToCount: ContractConstants.attachmentBytesMax + 1) ?? Data()
+                    batch.files.append(PickedFile(name: url.lastPathComponent, data: data))
+                } catch {
+                    batch.unreadable.append(url.lastPathComponent)
+                }
             }
+            return batch
         }.value
     }
 
     /// Files copied in the Finder, or a picture copied from anywhere: a screenshot has no file, only its pixels.
     @MainActor
-    static func fromPasteboard(_ pasteboard: NSPasteboard) async -> [PickedFile] {
+    static func fromPasteboard(_ pasteboard: NSPasteboard) async -> Batch {
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
             as? [URL], !urls.isEmpty
         {
             return await read(urls)
         }
-        if let png = pasteboard.data(forType: .png) { return [PickedFile(name: "Pasted image.png", data: png)] }
+        if let png = pasteboard.data(forType: .png) {
+            return Batch(files: [PickedFile(name: "Pasted image.png", data: png)])
+        }
         if let tiff = pasteboard.data(forType: .tiff), let image = NSBitmapImageRep(data: tiff),
             let png = image.representation(using: .png, properties: [:])
         {
-            return [PickedFile(name: "Pasted image.png", data: png)]
+            return Batch(files: [PickedFile(name: "Pasted image.png", data: png)])
         }
-        return []
+        return Batch()
     }
 
     @MainActor
-    static func choose() async -> [PickedFile] {
+    static func choose() async -> Batch {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.message = String(localized: "Choose files to attach")
-        guard panel.runModal() == .OK else { return [] }
+        guard panel.runModal() == .OK else { return Batch() }
         return await read(panel.urls)
     }
 

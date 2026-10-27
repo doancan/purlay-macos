@@ -33,7 +33,12 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
             content.body = AttentionWords.body(notice)
             if case .place(let channel, _, _) = notice.content { content.userInfo = ["channel": channel.value] }
             // One per conversation: the next replaces the last, which the identifier does.
-            try? await center.add(UNNotificationRequest(identifier: notice.id, content: content, trigger: nil))
+            do {
+                try await center.add(UNNotificationRequest(identifier: notice.id, content: content, trigger: nil))
+            } catch {
+                // Nothing to say in the app (the person sees the badge and the sidebar); kept for "notices never come".
+                Log.attention.error("the system refused a notice: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

@@ -7,11 +7,15 @@ public final class InMemorySessionStore: SessionStore {
     private struct State {
         var sessions: [String: StoredSession] = [:]
         var saves = 0
+        var deleteFails = false
     }
 
     private let state = Mutex(State())
 
     public init() {}
+
+    /// Makes every delete fail, as a keychain that refuses to forget does.
+    public func failDeletes() { state.withLock { $0.deleteFails = true } }
 
     /// How many times a session was written.
     public var saves: Int { state.withLock { $0.saves } }
@@ -28,7 +32,10 @@ public final class InMemorySessionStore: SessionStore {
     }
 
     public func delete(for server: ServerAddress) throws {
-        state.withLock { $0.sessions[server.description] = nil }
+        try state.withLock {
+            if $0.deleteFails { throw KeychainError(status: -25291, operation: "delete") }
+            $0.sessions[server.description] = nil
+        }
     }
 }
 

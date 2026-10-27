@@ -120,7 +120,13 @@ public struct FileOutboxStore: OutboxStore {
         }
         let manager = FileManager.default
         if kept.isEmpty {
-            try? manager.removeItem(at: file)
+            // Nothing left to keep: a file that stays would bring sent or discarded messages back at the next launch, so
+            // only its absence is not a problem.
+            do {
+                try manager.removeItem(at: file)
+            } catch CocoaError.fileNoSuchFile {
+                return
+            }
             return
         }
         try manager.createDirectory(

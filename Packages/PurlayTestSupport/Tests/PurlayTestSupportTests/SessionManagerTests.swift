@@ -219,6 +219,29 @@ struct SessionManagerTests {
         #expect(await p.manager.state == .signedOut(.signedOutByPerson))
     }
 
+    @Test(
+        "a sign-in this Mac cannot forget, with a server that was not told, is not called signed out: nothing changes")
+    func credentialKept() async throws {
+        let p = parts(fails: true)
+        try p.store.save(session(), for: server)
+        try await p.manager.restore(for: server)
+        p.store.failDeletes()
+        #expect(await p.manager.signOut(.thisDevice) == .credentialKept)
+        #expect(p.wiper.wipes == 0)
+        if case .signedIn = await p.manager.state {} else { Issue.record("no longer signed in") }
+    }
+
+    @Test("a sign-in this Mac cannot forget is let go when the server ended it: what stays behind no longer works")
+    func credentialDeadOnServer() async throws {
+        let p = parts()
+        try p.store.save(session(), for: server)
+        try await p.manager.restore(for: server)
+        p.store.failDeletes()
+        #expect(await p.manager.signOut(.thisDevice) == .done)
+        #expect(p.wiper.wipes == 1)
+        #expect(await p.manager.state == .signedOut(.signedOutByPerson))
+    }
+
     @Test("signing out everywhere that cannot be done changes nothing, and says so")
     func everywhereFails() async throws {
         let p = parts(fails: true)

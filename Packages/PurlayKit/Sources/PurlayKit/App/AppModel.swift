@@ -14,6 +14,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         /// This device is signed out and the server could not be told: its session lives until it expires or is ended from elsewhere.
         case serverNotTold
         case signOutEverywhereFailed
+        /// Signing out here could neither reach the server nor remove the sign-in from this Mac: still signed in.
+        case signOutFailed
         case unsentLost(Int)
         case unrestorable(Int)
         case outboxCorrupt
@@ -28,6 +30,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case saveFailed
         /// A received file could not be written where the person chose.
         case fileNotWritten
+        /// Files the person chose that could not be read: gone, or not opened to the app. Named, so they know which.
+        case filesNotRead([String])
         case savedFull
         case pinFailed
         case pinsFull
@@ -156,6 +160,12 @@ public final class AppModel {
     /// The screen writes a saved file itself (the panel is its); what it could not write is said like every other refusal.
     public func fileNotWritten() {
         say(.fileNotWritten)
+    }
+
+    /// The screen reads chosen files itself; the ones it could not read are said like every other refusal.
+    public func filesNotRead(_ names: [String]) {
+        guard !names.isEmpty else { return }
+        say(.filesNotRead(names))
     }
 
     public func dismiss(_ notice: Notice) {
@@ -319,8 +329,12 @@ public final class AppModel {
         case .done: break
         case .serverNotTold: say(.serverNotTold)
         case .notDone: say(.signOutEverywhereFailed)
+        case .credentialKept: say(.signOutFailed)
         }
-        if case .notDone = result { return result }
+        switch result {
+        case .notDone, .credentialKept: return result
+        case .done, .serverNotTold: break
+        }
         tearDown()
         phase = .signedOut
         return result
@@ -368,7 +382,7 @@ public final class AppModel {
             engine.start()
             sync()
             await refreshPeople()
-            await reloadSaved()
+            reread(.saved(workspace: membership.workspace.id)) { await $0.reloadSaved() }
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
                 Uuid.init)
             let first =
@@ -483,6 +497,8 @@ public final class AppModel {
         attention = Attention()
         deepWorkTimer?()
         deepWorkTimer = nil
+        for cancel in refreshRetry.values { cancel() }
+        refreshRetry = [:]
         if lastBadge != nil { environment.attention.setBadge(nil) }
         lastBadge = nil
         workspacePeople = []
@@ -670,6 +686,7 @@ public final class AppModel {
             ("selectedChannel", selectedChannel == nil ? 0 : 1), ("me", me == nil ? 0 : 1),
             ("workspace", workspace == nil ? 0 : 1), ("keyboardRow", keyboardRow == nil ? 0 : 1),
             ("focus", focus == nil ? 0 : 1), ("editing", editing == nil ? 0 : 1),
+            ("refreshRetry", refreshRetry.count),
         ]
     }
 
@@ -1065,16 +1082,21 @@ public final class AppModel {
         pins[message.channelId]?.contains { $0.message.id == message.id } ?? false
     }
 
-    private func reloadSaved() async {
-        guard let api, let workspace else { return }
-        if let ids = try? await api.listSavedIds(workspaceId: workspace.id.value) {
-            savedIDs = Dictionary(ids.map { ($0.messageId, $0.state) }, uniquingKeysWith: { _, last in last })
-        }
+    /// Whether the saved markers were read; a failure is in `problems` and asked again by `reread`.
+    @discardableResult
+    private func reloadSaved() async -> Bool {
+        guard let api, let workspace else { return true }
+        guard let ids = try? await api.listSavedIds(workspaceId: workspace.id.value) else { return false }
+        savedIDs = Dictionary(ids.map { ($0.messageId, $0.state) }, uniquingKeysWith: { _, last in last })
+        return true
     }
 
-    private func reloadPins(_ channel: Uuid) async {
-        guard let api else { return }
-        if let list = try? await api.listPins(channelId: channel.value) { pins[channel] = list }
+    @discardableResult
+    private func reloadPins(_ channel: Uuid) async -> Bool {
+        guard let api else { return true }
+        guard let list = try? await api.listPins(channelId: channel.value) else { return false }
+        pins[channel] = list
+        return true
     }
 
     /// Saves a message for the person, or lets the save go: painted at once, put back with a word if the server refuses. A deleted message
@@ -1506,6 +1528,8 @@ public final class AppModel {
     private var attention = Attention()
     private var lastBadge: Int?
     private var deepWorkTimer: (() -> Void)?
+    /// A re-read waiting to be tried again, by what it reads; each value cancels its timer.
+    private var refreshRetry: [Refresh: () -> Void] = [:]
 
     /// Whether notices pop up while the app is not in front. The Dock badge does not depend on it.
     public var noticesOn: Bool { environment.preferences.string(for: Self.noticesKey) != "0" }
@@ -1852,18 +1876,24 @@ public final class AppModel {
 
     // MARK: What a frame says to read again
 
+    /// A re-read that failed is asked again after a pause, a few times: a reconnect's re-read comes exactly when the network
+    /// is least sure, and the next reconnect may be a long way off. The client already retries a read within seconds
+    /// (`APIClient.retryDelays`); these pauses are for an outage longer than that. The screens that read their own (a feed,
+    /// a thread) say a failure themselves and are not retried here.
+    static let refreshRetries = [5_000, 15_000, 45_000]
+
     private func handle(_ refresh: Refresh) {
         switch refresh {
         case .channels(let id) where id == workspace?.id:
-            Task { await self.reloadChannels() }
+            reread(refresh) { await $0.reloadChannels() }
         case .messages(let channel) where channel == selectedChannel:
             Task { await self.open(channel) }
         case .memberships:
-            Task { await self.reloadMe() }
+            reread(refresh) { await $0.reloadMe() }
         case .saved(let id) where id == workspace?.id:
-            Task { await self.reloadSaved() }
+            reread(refresh) { await $0.reloadSaved() }
         case .pins(let channel) where channel == selectedChannel:
-            Task { await self.reloadPins(channel) }
+            reread(refresh) { await $0.reloadPins(channel) }
         case .thread(let root) where root == thread?.root:
             Task { await self.reloadThread() }
         case .threads where thread != nil:
@@ -1873,20 +1903,39 @@ public final class AppModel {
         }
     }
 
-    private func reloadChannels() async {
-        guard let api, let engine, let workspace else { return }
-        guard let channels = try? await api.listChannels(workspaceId: workspace.id.value) else { return }
+    @discardableResult
+    private func reloadChannels() async -> Bool {
+        guard let api, let engine, let workspace else { return true }
+        guard let channels = try? await api.listChannels(workspaceId: workspace.id.value) else { return false }
         let held = Set(chat.channels.keys)
         let current = Set(channels.map(\.id))
         engine.lose(Array(held.subtracting(current)))
         engine.setChannels(channels)
         watchJoined()
         sync()
+        return true
     }
 
-    private func reloadMe() async {
-        guard let api else { return }
-        if let fresh = try? await api.getMe() { me = fresh }
+    @discardableResult
+    private func reloadMe() async -> Bool {
+        guard let api else { return true }
+        guard let fresh = try? await api.getMe() else { return false }
+        me = fresh
+        return true
+    }
+
+    /// Reads again now; if that fails, again after each pause in `refreshRetries`. A newer request for the same read replaces
+    /// a waiting retry, and signing out lets every retry go.
+    private func reread(_ refresh: Refresh, attempt: Int = 0, _ read: @escaping (AppModel) async -> Bool) {
+        refreshRetry[refresh]?()
+        refreshRetry[refresh] = nil
+        Task { [weak self] in
+            guard let self, await read(self) == false, attempt < Self.refreshRetries.count else { return }
+            self.refreshRetry[refresh] = self.environment.schedule(Self.refreshRetries[attempt]) { [weak self] in
+                self?.refreshRetry[refresh] = nil
+                self?.reread(refresh, attempt: attempt + 1, read)
+            }
+        }
     }
 }
 
