@@ -1,0 +1,64 @@
+#!/usr/bin/env swift
+// The app's icon, made from the logo (Design/purlay-logo.png): the logo's square is drawn into the macOS icon shape (a
+// rounded square of 824 on a 1024 canvas, transparent around it), at every size the asset catalog asks for. A full-bleed
+// square would be put in a grey plate by the system; this shape is shown as it is.
+//
+//   scripts/icon    write App/Resources/Assets.xcassets/AppIcon.appiconset from the logo
+import AppKit
+
+let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+let source = root.appendingPathComponent("Design/purlay-logo.png")
+let set = root.appendingPathComponent("App/Resources/Assets.xcassets/AppIcon.appiconset")
+
+guard let logo = NSImage(contentsOf: source), let logoImage = logo.cgImage(forProposedRect: nil, context: nil, hints: nil)
+else {
+    FileHandle.standardError.write(Data("FAIL: \(source.path) cannot be read\n".utf8))
+    exit(1)
+}
+
+// The mark sits in the middle of the logo with a wide white margin; the middle 83 % is kept so the mark fills the shape
+// as Apple's own icons do, and its margin stays the logo's own white.
+let side = Double(min(logoImage.width, logoImage.height))
+let keep = side * 0.83
+let crop = CGRect(
+    x: (Double(logoImage.width) - keep) / 2, y: (Double(logoImage.height) - keep) / 2, width: keep, height: keep)
+guard let mark = logoImage.cropping(to: crop) else { exit(1) }
+
+func render(_ pixels: Int) -> Data {
+    let scale = Double(pixels) / 1024
+    guard
+        let context = CGContext(
+            data: nil, width: pixels, height: pixels, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { exit(1) }
+    context.interpolationQuality = .high
+    let shape = CGRect(x: 100 * scale, y: 100 * scale, width: 824 * scale, height: 824 * scale)
+    let radius = 185.4 * scale
+    context.addPath(CGPath(roundedRect: shape, cornerWidth: radius, cornerHeight: radius, transform: nil))
+    context.clip()
+    context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+    context.fill(shape)
+    context.draw(mark, in: shape)
+    guard let image = context.makeImage(),
+        let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+    else { exit(1) }
+    return png
+}
+
+try? FileManager.default.removeItem(at: set)
+try FileManager.default.createDirectory(at: set, withIntermediateDirectories: true)
+var images: [[String: String]] = []
+for points in [16, 32, 128, 256, 512] {
+    for scale in [1, 2] {
+        let name = "icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"
+        try render(points * scale).write(to: set.appendingPathComponent(name))
+        images.append(["idiom": "mac", "size": "\(points)x\(points)", "scale": "\(scale)x", "filename": name])
+    }
+}
+let contents: [String: Any] = ["images": images, "info": ["author": "xcode", "version": 1]]
+try JSONSerialization.data(withJSONObject: contents, options: [.prettyPrinted, .sortedKeys])
+    .write(to: set.appendingPathComponent("Contents.json"))
+let catalog = set.deletingLastPathComponent().appendingPathComponent("Contents.json")
+try JSONSerialization.data(withJSONObject: ["info": ["author": "xcode", "version": 1]], options: [.prettyPrinted, .sortedKeys])
+    .write(to: catalog)
+print("wrote \(images.count) sizes to \(set.path)")
