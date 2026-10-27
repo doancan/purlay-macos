@@ -11,30 +11,67 @@ struct OnboardingCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(spacing: Spacing.space5) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: Size.sizeAvatarLg * 2.5, height: Size.sizeAvatarLg * 2.5)
-                .accessibilityHidden(true)
-            VStack(spacing: Spacing.space2) {
-                Text(title)
-                    .typeStyle(Typography.display)
-                    .foregroundStyle(Colors.ink.style)
-                    .multilineTextAlignment(.center)
+        ScrollView {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: Spacing.space16) {
+                    identity.frame(width: Size.sizeAttachment)
+                    form
+                }
+                VStack(spacing: Spacing.space6) {
+                    appIcon
+                    form
+                }
+            }
+            .padding(Spacing.space8)
+            .frame(maxWidth: .infinity, minHeight: Size.sizeDialog)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .defaultScrollAnchor(.center)
+        .containerBackground(.ultraThinMaterial, for: .window)
+    }
+
+    private var appIcon: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable().frame(width: Size.sizeRail * 1.5, height: Size.sizeRail * 1.5)
+            .accessibilityHidden(true)
+    }
+
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: Spacing.space6) {
+            appIcon
+            VStack(alignment: .leading, spacing: Spacing.space3) {
+                Text("Good work.\nBetter together.")
+                    .font(.system(size: Spacing.space8, weight: .bold)).tracking(-0.7)
+                Text("A quieter place for your team's conversations, ideas and decisions.")
+                    .typeStyle(Typography.body).foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: Spacing.space4) {
+                identityLine("Conversations that stay in context", image: "bubble.left.and.bubble.right")
+                identityLine("Space to focus with Deep Work", image: "moon")
+                identityLine("Your workspace, on your server", image: "server.rack")
+            }
+        }
+    }
+
+    private func identityLine(_ title: LocalizedStringKey, image: String) -> some View {
+        Label(title, systemImage: image).font(.callout).foregroundStyle(.secondary)
+    }
+
+    private var form: some View {
+        VStack(alignment: .leading, spacing: Spacing.space6) {
+            VStack(alignment: .leading, spacing: Spacing.space2) {
+                Text(title).typeStyle(Typography.display).foregroundStyle(Colors.ink.style)
+                    .accessibilityAddTraits(.isHeader)
                 if let subtitle {
-                    Text(subtitle)
-                        .typeStyle(Typography.body)
-                        .foregroundStyle(Colors.inkMuted.style)
-                        .multilineTextAlignment(.center)
+                    Text(subtitle).typeStyle(Typography.body).foregroundStyle(Colors.inkMuted.style)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             content()
         }
         .padding(Spacing.space8)
-        .frame(width: Size.sizeDialog)
-        .glassEffect(.regular, in: .rect(cornerRadius: Radius.radius2xl * 2))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .containerBackground(.ultraThinMaterial, for: .window)
+        .frame(width: Size.sizeDialog - Spacing.space16)
+        .modifier(ControlSurface(radius: Radius.radius2xl * 2))
     }
 }
 
@@ -50,11 +87,12 @@ struct ServerAddressView: View {
             subtitle: String(localized: "Enter the address of your team's Purlay server.")
         ) {
             VStack(spacing: Spacing.space3) {
+                Text("Server address").font(.callout.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
                 TextField("chat.example.com", text: $address)
                     .textFieldStyle(.plain)
                     .typeStyle(Typography.title)
-                    .multilineTextAlignment(.center)
                     .padding(Spacing.space3)
+                    .accessibilityLabel("Server address")
                     .background(Colors.surface100.style, in: .rect(cornerRadius: Radius.radiusXl))
                     .overlay {
                         RoundedRectangle(cornerRadius: Radius.radiusXl)
@@ -64,7 +102,7 @@ struct ServerAddressView: View {
                     .focused($focused)
                     .onSubmit(connect)
                 Button(action: connect) {
-                    Text("Continue").frame(maxWidth: .infinity)
+                    Label("Connect", systemImage: "arrow.right").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
@@ -136,7 +174,7 @@ struct SignInView: View {
         OnboardingCard(
             title: "Sign In to Purlay",
             subtitle: String(
-                localized: "You sign in in your browser, the same way you do on the web, and come back here.")
+                localized: "Continue in your browser to sign in securely.")
         ) {
             VStack(spacing: Spacing.space3) {
                 if let server = model.server {

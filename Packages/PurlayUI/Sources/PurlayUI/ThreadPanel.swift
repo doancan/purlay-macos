@@ -63,7 +63,7 @@ struct ThreadPanel: View {
                     }
                 }
             }
-            .background(Colors.surface100.style)
+            .background(NativePalette.canvas.style)
             .onExitCommand { model.closeThread() }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Thread")
@@ -78,8 +78,9 @@ private struct Header: View {
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Thread").typeStyle(Typography.heading).foregroundStyle(Colors.ink.style)
-                Text(channelName).typeStyle(Typography.caption).foregroundStyle(Colors.inkMuted.style).lineLimit(1)
+                Text("Thread").typeStyle(Typography.heading).foregroundStyle(NativePalette.ink.style)
+                Text(channelName).typeStyle(Typography.caption).foregroundStyle(NativePalette.secondary.style)
+                    .lineLimit(1)
             }
             Spacer()
             followButton

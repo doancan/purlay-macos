@@ -16,6 +16,7 @@ final class ComposerState {
     var notice: LocalizedStringKey?
     /// Set by the text view: puts markdown where the caret is, as a key would.
     var insertMarkdown: ((MarkdownKind) -> Void)?
+    var showEmoji: (() -> Void)?
     /// Set by the text view: writes a person's handle in place of what was typed after the `@`.
     var choose: ((User) -> Void)?
     /// Set by the text view: replaces everything (a draft read, or the box emptied after a send) without being undone into.
@@ -144,6 +145,11 @@ struct ComposerTextView: NSViewRepresentable {
 
         func attach(to state: ComposerState) {
             state.insertMarkdown = { [weak self] kind in self?.insert(kind) }
+            state.showEmoji = { [weak self] in
+                guard let view = self?.view else { return }
+                view.window?.makeFirstResponder(view)
+                NSApp.orderFrontCharacterPalette(nil)
+            }
             state.choose = { [weak self] user in self?.choose(user) }
             state.replaceAll = { [weak self] text in self?.set(text) }
         }

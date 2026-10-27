@@ -15,7 +15,9 @@ struct ComposerView: View {
     var compact = false
     @State private var state: ComposerState
     /// The formatting row, shown or hidden as the person last left it: out of the way until wanted.
-    @AppStorage("composer.formatting") private var formatting = true
+    @AppStorage("composer.formatting") private var formatting = false
+    @AppStorage("composer.hints") private var showHints = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var previewing = false
     @State private var saving: Task<Void, Never>?
 
@@ -46,7 +48,7 @@ struct ComposerView: View {
                     .foregroundStyle(Colors.inkMuted.style)
             }
             card
-            if !compact { hints }
+            if !compact && showHints { hints }
         }
         .padding(.horizontal, Spacing.space4)
         .padding(.top, Spacing.space2)
@@ -84,10 +86,12 @@ struct ComposerView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             if formatting {
-                FormatRow(state: state, previewing: $previewing)
-                    .padding(.horizontal, Spacing.space2)
-                    .padding(.top, Spacing.space1 + Stroke.strokeFocus)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    FormatRow(state: state, previewing: $previewing)
+                }
+                .padding(.horizontal, Spacing.space2)
+                .padding(.top, Spacing.space1 + Stroke.strokeFocus)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
             if previewing {
                 MessageBody(text: state.text.isEmpty ? " " : state.text)
@@ -106,16 +110,16 @@ struct ComposerView: View {
             }
             actions
         }
-        .background(Colors.surface100.style, in: .rect(cornerRadius: Radius.radius2xl))
+        .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radius2xl + Spacing.space1))
         .overlay {
-            RoundedRectangle(cornerRadius: Radius.radius2xl)
+            RoundedRectangle(cornerRadius: Radius.radius2xl + Spacing.space1)
                 .strokeBorder(
-                    dropping || state.isFocused ? Colors.focusRing.style : Colors.borderSubtle.style,
+                    dropping || state.isFocused ? Colors.focusRing.style : NativePalette.border.style,
                     lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline)
         }
         .tokenShadow(Shadows.shadowRaised)
-        .animation(Motion.easingStandard.animation(Motion.durationHover), value: state.isFocused)
-        .animation(Motion.easingStandard.animation(Motion.durationOverlay), value: formatting)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: state.isFocused)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay), value: formatting)
     }
 
     private var actions: some View {
@@ -132,6 +136,13 @@ struct ComposerView: View {
             }
             .help("Mention someone")
             .accessibilityLabel("Mention someone")
+            Button {
+                state.showEmoji?()
+            } label: {
+                Image(systemName: "face.smiling").frame(
+                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
+            }
+            .help("Emoji and Symbols").accessibilityLabel("Emoji and Symbols")
             Toggle(isOn: $formatting) {
                 Image(systemName: "textformat").frame(width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
             }
@@ -159,19 +170,28 @@ struct ComposerView: View {
             .help("Send  ↩")
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(Colors.inkMuted.style)
+        .foregroundStyle(NativePalette.secondary.style)
         .padding(.horizontal, Spacing.space2)
         .padding(.bottom, Spacing.space2)
     }
 
     private var hints: some View {
-        HStack(spacing: Spacing.space1) {
-            Text("**Return** to send")
-            Text("·")
-            Text("**Shift-Return** for a new line")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Spacing.space1) {
+                if !state.text.isEmpty {
+                    Label(
+                        model.draft(for: channel, parent: parent) == state.text
+                            ? "Draft saved on this Mac" : "Saving draft…", systemImage: "checkmark")
+                    Spacer(minLength: Spacing.space3)
+                }
+                Text("**Return** to send")
+                Text("·")
+                Text("**Shift-Return** for a new line")
+            }
+            Text("**Return** to send · **⇧Return** for a new line")
         }
         .typeStyle(Typography.caption)
-        .foregroundStyle(Colors.inkSubtle.style)
+        .foregroundStyle(NativePalette.secondary.style)
         .padding(.horizontal, Spacing.space2)
         .accessibilityHidden(true)
     }

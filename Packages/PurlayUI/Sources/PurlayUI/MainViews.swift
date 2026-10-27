@@ -10,7 +10,12 @@ struct MainView: View {
     @State private var selection: SidebarSelection?
     @State private var sheet: ChannelSheet?
     @State private var leaving: Channel?
+    @State private var detailsOpen = false
+    @State private var detailsTab = ChannelDetailTab.about
+    @State private var forward = true
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationSplitView {
@@ -18,33 +23,88 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: Size.sizeSidebar, max: 360)
         } detail: {
             detail
-                .inspector(isPresented: threadShown) {
-                    ThreadPanel(model: model)
-                        .inspectorColumnWidth(min: 320, ideal: Size.sizeThread, max: 560)
+                .inspector(isPresented: inspectorShown) {
+                    Group {
+                        if model.thread != nil {
+                            ThreadPanel(model: model)
+                        } else if let id = model.selectedChannel, let channel = model.chat.channels[id] {
+                            ChannelDetails(model: model, channel: channel, tab: $detailsTab) { detailsOpen = false }
+                                .id(id)
+                        }
+                    }
+                    .inspectorColumnWidth(min: 300, ideal: 350, max: 480)
                 }
         }
-        // The window's own background is a material, so the sidebar's glass shows the desktop through it (as Finder's does);
-        // the content column draws its opaque token surface over it and reads as a page.
-        .containerBackground(.ultraThinMaterial, for: .window)
+        // A clear window lets the sidebar's behind-window material sample the desktop. The feed stays an opaque reading surface.
+        .containerBackground(.clear, for: .window)
+        .toolbarBackground(NativePalette.toolbar.style, for: .windowToolbar)
+        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+        .toolbarColorScheme(colorScheme, for: .windowToolbar)
+        .toolbar(removing: .title)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Menu {
+                    Button("New Conversation…", systemImage: "square.and.pencil") { sheet = .conversation }
+                    Button("New Channel…", systemImage: "number") { sheet = .newChannel }
+                    Button("Browse Channels…", systemImage: "rectangle.stack") { sheet = .browse }
+                } label: {
+                    Label("New", systemImage: "square.and.pencil").foregroundStyle(NativePalette.toolbarControl.style)
+                }
+                .help("New conversation or channel")
+            }
+            ToolbarItem(placement: .navigation) {
+                WindowHeading(
+                    title: model.inboxOpen
+                        ? String(localized: "Inbox")
+                        : model.selectedChannel.flatMap { model.chat.channels[$0] }.map(Words.channelLabel) ?? "Purlay",
+                    subtitle: model.inboxOpen
+                        ? String(localized: "Mentions, replies and conversations")
+                        : model.selectedChannel.flatMap { model.chat.channels[$0]?.topic } ?? "")
+            }
+            .sharedBackgroundVisibility(.hidden)
+        }
         .modifier(MainSheets(model: model, sheet: $sheet, leaving: $leaving))
+        .onExitCommand {
+            if model.paletteOpen {
+                model.paletteOpen = false
+            } else if model.searchOpen {
+                model.searchOpen = false
+            } else if detailsOpen {
+                detailsOpen = false
+            } else {
+                model.dismissTopmost()
+            }
+        }
         .onAppear { selection = shown }
         // Only what is in front of the person is read (D-143).
         .onChange(of: scenePhase, initial: true) { _, phase in model.setActive(phase == .active) }
         .onChange(of: selection) { _, new in
             guard let new, new != shown else { return }
+            forward = position(new) >= position(shown)
             switch new {
             case .inbox: Task { await model.openInbox() }
             case .channel(let id): Task { await model.showChannel(id) }
             }
         }
         // The model moves too (a notice clicked, a search result opened): the sidebar follows it.
-        .onChange(of: shown) { _, new in if new != selection { selection = new } }
+        .onChange(of: shown) { _, new in
+            if new != selection { selection = new }
+            if model.inboxOpen { detailsOpen = false }
+        }
+        .onChange(of: model.thread?.root) { _, new in
+            if new != nil { detailsOpen = false }
+        }
     }
 
     /// What the window shows, as the sidebar would name it.
     private var shown: SidebarSelection? {
         if model.inboxOpen { return .inbox }
         return model.selectedChannel.map(SidebarSelection.channel)
+    }
+
+    private func position(_ item: SidebarSelection?) -> Int {
+        guard case .channel(let id) = item else { return -1 }
+        return model.sidebar.flatMap(\.channels).firstIndex(where: { $0.id == id }) ?? 0
     }
 
     @ViewBuilder private var detail: some View {
@@ -56,13 +116,24 @@ struct MainView: View {
                 ChannelView(model: model, channel: channel).id(id)
                     .navigationTitle(Words.channelLabel(channel))
                     .navigationSubtitle(channel.topic ?? "")
-                    .toolbar { ChannelToolbar(model: model, channel: channel) }
+                    .toolbar {
+                        ChannelToolbar(
+                            model: model, channel: channel, detailsOpen: $detailsOpen,
+                            detailsTab: $detailsTab, leaving: $leaving)
+                    }
             } else {
-                ContentUnavailableView(
-                    "No Channel Open", systemImage: "bubble.left.and.bubble.right",
-                    description: Text("Pick a channel or a conversation in the sidebar."))
+                ContentUnavailableView {
+                    Label("Room for Your Next Idea", systemImage: "bubble.left.and.bubble.right")
+                } description: {
+                    Text("Open a channel, or start a conversation with your team.")
+                } actions: {
+                    Button("Browse Channels") { sheet = .browse }.buttonStyle(.glass)
+                    Button("New Conversation") { sheet = .conversation }.buttonStyle(.glassProminent)
+                }
             }
         }
+        .modifier(ChannelEntrance(forward: forward))
+        .id(shown)
         .safeAreaBar(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
@@ -73,11 +144,18 @@ struct MainView: View {
             }
             .animation(Motion.easingStandard.animation(Motion.durationOverlay), value: model.notices.count)
         }
-        .background(Colors.surface100.style)
+        .background(NativePalette.canvas.style)
     }
 
-    private var threadShown: Binding<Bool> {
-        Binding(get: { model.thread != nil }, set: { if !$0 { model.closeThread() } })
+    private var inspectorShown: Binding<Bool> {
+        Binding(
+            get: { model.thread != nil || detailsOpen },
+            set: {
+                if !$0 {
+                    model.closeThread()
+                    detailsOpen = false
+                }
+            })
     }
 }
 
@@ -86,38 +164,75 @@ struct MainView: View {
 private struct ChannelToolbar: ToolbarContent {
     let model: AppModel
     let channel: Channel
+    @Binding var detailsOpen: Bool
+    @Binding var detailsTab: ChannelDetailTab
+    @Binding var leaving: Channel?
     @Environment(\.openURL) private var openURL
 
     var body: some ToolbarContent {
-        ToolbarItemGroup {
+        ToolbarSpacer(.flexible, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                DeepWorkItems(model: model)
+            } label: {
+                Label(
+                    model.deepWorkEnds == nil ? "Focus" : "Focusing",
+                    systemImage: model.deepWorkEnds == nil ? "moon" : "moon.fill"
+                )
+                .foregroundStyle(NativePalette.toolbarControl.style)
+            }
+            .help("Deep Work  ⇧⌘D")
+        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                model.closeThread()
+                detailsTab = .members
+                detailsOpen = true
+            } label: {
+                Label("\(channel.memberCount)", systemImage: "person.2").foregroundStyle(
+                    NativePalette.toolbarControl.style)
+            }
+            .help("Channel members")
             Button {
                 Task { await model.setStarred(!channel.starred, channel) }
             } label: {
                 Label(channel.starred ? "Unstar" : "Star", systemImage: channel.starred ? "star.fill" : "star")
+                    .foregroundStyle(NativePalette.toolbarControl.style)
             }
             .help(channel.starred ? "Remove from Starred" : "Add to Starred")
             Button {
                 model.pinsOpen = true
             } label: {
-                Label("Pinned", systemImage: "pin")
+                Label("Pinned", systemImage: "pin").foregroundStyle(NativePalette.toolbarControl.style)
             }
             .help("Pinned messages")
         }
-        ToolbarSpacer(.fixed)
-        ToolbarItemGroup {
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 Task { await model.openInbox() }
             } label: {
-                Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
+                Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray").foregroundStyle(
+                    NativePalette.toolbarControl.style)
             }
             .badge(model.attentionCount)
             .help("Inbox  ⇧⌘I")
             Button {
-                model.paletteOpen = true
+                model.openSearch(channel.type == .directMessage ? nil : "in:\(channel.name ?? channel.title) ")
             } label: {
-                Label("Search", systemImage: "magnifyingglass")
+                Label("Search", systemImage: "magnifyingglass").foregroundStyle(NativePalette.toolbarControl.style)
             }
-            .help("Go to or search  ⌘K")
+            .help("Search this conversation")
+            Button {
+                model.closeThread()
+                detailsTab = .about
+                detailsOpen.toggle()
+            } label: {
+                Label("Channel Details", systemImage: "sidebar.right").foregroundStyle(
+                    NativePalette.toolbarControl.style)
+            }
+            .help("Channel details, members and files")
             Menu {
                 Button("Open in Browser", systemImage: "safari") {
                     if let url = model.webURL(.channel(channel.id)) { openURL(url) }
@@ -126,9 +241,9 @@ private struct ChannelToolbar: ToolbarContent {
                     if let url = model.webURL(.channel(channel.id)) { Clipboard.copy(url.absoluteString) }
                 }
                 Divider()
-                ChannelMenu(model: model, channel: channel, leaving: .constant(nil))
+                ChannelMenu(model: model, channel: channel, leaving: $leaving)
             } label: {
-                Label("More", systemImage: "ellipsis")
+                Label("More", systemImage: "ellipsis").foregroundStyle(NativePalette.toolbarControl.style)
             }
             .help("More for this channel")
         }
@@ -154,6 +269,9 @@ private struct MainSheets: ViewModifier {
             }
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
+            }
+            .sheet(isPresented: Binding(get: { model.draftsOpen }, set: { model.draftsOpen = $0 })) {
+                DraftsSheet(model: model)
             }
             .sheet(isPresented: Binding(get: { model.shortcutsOpen }, set: { model.shortcutsOpen = $0 })) {
                 ShortcutsSheet()
@@ -234,6 +352,7 @@ struct ChannelView: View {
                 .frame(maxWidth: .infinity)
             }
             .defaultScrollAnchor(.bottom)
+            .defaultScrollAnchor(.top, for: .alignment)
             .hoverScroller()
             .scrollEdgeEffectStyle(.soft, for: .all)
             .focusable()
@@ -334,19 +453,16 @@ private struct ChannelIntro: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.space2) {
-            Image(systemName: channel.type == .directMessage ? "person.2" : "number")
-                .font(.system(size: Size.sizeIconLg * 2))
-                .foregroundStyle(Colors.accentText.style)
-                .frame(width: Size.sizeAvatarLg * 2, height: Size.sizeAvatarLg * 2)
-                .glassEffect(.regular, in: .rect(cornerRadius: Radius.radius2xl))
-            Text("This is the start of \(Words.channelLabel(channel))")
+            ChannelEmblem(channel: channel, size: Size.sizeRail)
+                .padding(.bottom, Spacing.space2)
+            Text(Words.channelLabel(channel))
                 .typeStyle(Typography.display)
                 .foregroundStyle(Colors.ink.style)
             if let topic = channel.topic, !topic.isEmpty {
                 Text(topic).typeStyle(Typography.body).foregroundStyle(Colors.inkMuted.style)
             }
             if empty {
-                Text("Say something to start the conversation.")
+                Text("A good conversation starts with a hello.")
                     .typeStyle(Typography.body)
                     .foregroundStyle(Colors.inkSubtle.style)
             }

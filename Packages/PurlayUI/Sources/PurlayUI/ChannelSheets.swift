@@ -1,5 +1,6 @@
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 enum ChannelSheet: String, Identifiable {
@@ -40,32 +41,56 @@ struct NewChannelSheet: View {
     private var made: String? { ChannelName.finished(name) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("New Channel").font(.title2.bold())
-            VStack(alignment: .leading, spacing: 4) {
-                TextField("Name", text: $name, prompt: Text("e.g. design-review"))
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(create)
-                    .onChange(of: name) { _, _ in problem = nil }
-                if let made {
-                    Text("It will be called #\(made)").font(.caption).foregroundStyle(.secondary)
-                } else if !name.isEmpty {
-                    Text("Use letters or numbers.").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            SheetHeading(title: "New Channel", subtitle: "Give your next conversation a home.", image: "number")
+                .padding(Spacing.space5)
+            Divider()
+            Form {
+                Section {
+                    TextField("Name", text: $name, prompt: Text("e.g. design-review"))
+                        .onSubmit(create)
+                        .onChange(of: name) { _, _ in problem = nil }
+                    if let made {
+                        Label("#\(made)", systemImage: "checkmark.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else if !name.isEmpty {
+                        Text("Use letters or numbers.").font(.caption).foregroundStyle(Colors.dangerText.style)
+                    }
+                    TextField("Topic", text: $topic, prompt: Text("What is this channel for?"))
+                }
+                Section {
+                    Toggle("Private channel", isOn: $isPrivate)
+                    Label(
+                        isPrivate
+                            ? "Only invited members can see this channel."
+                            : "Anyone in your workspace can find and join this channel.",
+                        systemImage: isPrivate ? "lock" : "globe"
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            TextField("Topic (optional)", text: $topic).textFieldStyle(.roundedBorder)
-            Toggle("Make private", isOn: $isPrivate)
-            Text(isPrivate ? "Only the people you add can see it." : "Everybody in the workspace can find and join it.")
-                .font(.caption).foregroundStyle(.secondary)
-            if let problem { Text(problem).foregroundStyle(.red).font(.callout) }
+            .formStyle(.grouped)
+            .frame(height: 240)
+            if let problem {
+                Label(problem, systemImage: "exclamationmark.circle")
+                    .font(.callout).foregroundStyle(Colors.dangerText.style)
+                    .padding(.horizontal, Spacing.space5).padding(.bottom, Spacing.space3)
+            }
+            Divider()
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Create", action: create).keyboardShortcut(.defaultAction).disabled(made == nil || busy)
+                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                Button(action: create) {
+                    HStack {
+                        if busy { ProgressView().controlSize(.small) }
+                        Text(busy ? "Creating…" : "Create Channel")
+                    }
+                }
+                .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).disabled(made == nil || busy)
             }
+            .controlSize(.large).padding(Spacing.space4)
         }
-        .padding(20)
-        .frame(width: 420)
+        .frame(width: Size.sizeDialog)
     }
 
     private func create() {
@@ -103,11 +128,13 @@ struct BrowseChannelsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Browse Channels").font(.title2.bold())
+                SheetHeading(
+                    title: "Browse Channels", subtitle: "Find the conversations that matter to you.",
+                    image: "rectangle.stack")
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
             }
-            TextField("Search", text: $query).textFieldStyle(.roundedBorder)
+            TextField("Search channels", text: $query).textFieldStyle(.roundedBorder).controlSize(.large)
             if model.joinableChannels.isEmpty {
                 ContentUnavailableView(
                     "Nothing to join", systemImage: "checkmark.circle",
@@ -123,14 +150,15 @@ struct BrowseChannelsSheet: View {
                             Text("\(channel.memberCount) people").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Join") { join(channel) }.disabled(joining != nil)
+                        Button(joining == channel.id ? "Joining…" : "Join") { join(channel) }
+                            .buttonStyle(.glass).disabled(joining != nil)
                     }
                     .padding(.vertical, 2)
                 }
             }
         }
         .padding(20)
-        .frame(width: 480, height: 420)
+        .frame(width: Size.sizePalette, height: Size.sizeDialog - Spacing.space10)
     }
 
     private func join(_ channel: Channel) {
@@ -165,13 +193,31 @@ struct NewConversationSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("New Conversation").font(.title2.bold())
+                SheetHeading(
+                    title: "New Conversation", subtitle: "One person, a few people, or a note to yourself.",
+                    image: "bubble.left.and.bubble.right")
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
             }
-            TextField("Search people", text: $query).textFieldStyle(.roundedBorder)
+            TextField("Search people", text: $query).textFieldStyle(.roundedBorder).controlSize(.large)
             if !chosen.isEmpty {
-                Text(chosen.map(\.displayName).joined(separator: ", ")).font(.callout).foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.space2) {
+                        ForEach(chosen, id: \.id) { person in
+                            Button {
+                                toggle(person)
+                            } label: {
+                                HStack(spacing: Spacing.space1) {
+                                    Text(person.displayName).lineLimit(1)
+                                    Image(systemName: "xmark").font(.caption2)
+                                }
+                            }
+                            .buttonStyle(.glass).controlSize(.small)
+                            .accessibilityLabel("Remove \(person.displayName)")
+                        }
+                    }
+                    .padding(.vertical, Spacing.space1)
+                }
             }
             List(people, id: \.id) { person in
                 let isChosen = chosen.contains { $0.id == person.id }
@@ -181,11 +227,15 @@ struct NewConversationSheet: View {
                     HStack {
                         Image(systemName: isChosen ? "checkmark.circle.fill" : "circle").foregroundStyle(
                             isChosen ? Color.accentColor : .secondary)
-                        Text(person.displayName)
-                        Text("@\(person.username)").foregroundStyle(.secondary)
-                        if person.id == model.me?.user.id { Text("(you, for notes)").foregroundStyle(.secondary) }
+                        PresenceAvatar(user: person, online: model.isOnline(person.id), size: Size.sizeAvatar)
+                        VStack(alignment: .leading, spacing: Spacing.space1) {
+                            Text(person.displayName).fontWeight(.medium).lineLimit(1)
+                            Text("@\(person.username)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        if person.id == model.me?.user.id { Text("You").font(.caption).foregroundStyle(.secondary) }
                         Spacer()
                     }
+                    .padding(.vertical, Spacing.space2)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -201,11 +251,14 @@ struct NewConversationSheet: View {
                     Text("That is as many people as a conversation holds.").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Start", action: start).keyboardShortcut(.defaultAction).disabled(chosen.isEmpty || busy)
+                Button(busy ? "Opening…" : "Start Conversation", action: start)
+                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).controlSize(.large)
+                    .disabled(chosen.isEmpty || busy)
             }
         }
         .padding(20)
-        .frame(width: 480, height: 460)
+        .frame(width: Size.sizePalette, height: Size.sizeDialog)
+        .task { await model.refreshPeople() }
     }
 
     private func toggle(_ person: User) {

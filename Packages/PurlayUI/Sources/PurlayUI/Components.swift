@@ -3,6 +3,27 @@ import PurlayKit
 import PurlayTokens
 import SwiftUI
 
+struct SheetHeading: View {
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    let image: String
+
+    var body: some View {
+        HStack(spacing: Spacing.space3) {
+            Image(systemName: image)
+                .font(.title3.weight(.medium)).foregroundStyle(Colors.accentText.style)
+                .frame(width: Size.sizeRailItem, height: Size.sizeRailItem)
+                .background(Colors.accentSubtle.style, in: .rect(cornerRadius: Radius.radius2xl))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Spacing.space1) {
+                Text(title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                Text(subtitle).font(.callout).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 // The small parts every screen is built from: a person's face, whether they are here, a count. Each takes its sizes and colours
 // from the tokens, so the sidebar, the feed and the thread draw a person the same way.
 
@@ -134,7 +155,7 @@ struct DayDivider: View {
                 .foregroundStyle(Colors.inkMuted.style)
                 .padding(.horizontal, Spacing.space3)
                 .padding(.vertical, Spacing.space1)
-                .glassEffect(.regular, in: Capsule())
+                .background(NativePalette.raised.style, in: Capsule())
             rule
         }
         .padding(.vertical, Spacing.space2)
@@ -144,7 +165,7 @@ struct DayDivider: View {
     }
 
     private var rule: some View {
-        Rectangle().fill(Colors.borderSubtle.style).frame(height: Stroke.strokeHairline)
+        Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
     }
 
     private var label: String {

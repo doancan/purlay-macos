@@ -132,7 +132,8 @@ enum Words {
         switch problem {
         case .unreachable:
             return (
-                String(localized: "Can't reach the server"), String(localized: "Check the address and your connection.")
+                String(localized: "Server Unavailable"),
+                String(localized: "Make sure your Purlay server is running, then try again.")
             )
         case .notAPurlayServer:
             return (

@@ -12,7 +12,7 @@ struct InboxPage: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Colors.surface100.style)
+            .background(NativePalette.canvas.style)
             .navigationTitle("Inbox")
             .navigationSubtitle(subtitle)
             .toolbar {
@@ -25,7 +25,7 @@ struct InboxPage: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                ToolbarItem {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         Task { await model.markAllInboxRead() }
                     } label: {
@@ -87,11 +87,11 @@ struct InboxPage: View {
                         Text(group.section == .today ? "Today" : "Earlier")
                             .typeStyle(Typography.label)
                             .fontWeight(.semibold)
-                            .foregroundStyle(Colors.inkMuted.style)
+                            .foregroundStyle(NativePalette.secondary.style)
                             .padding(.horizontal, Spacing.space4)
                             .padding(.vertical, Spacing.space2)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Colors.surface100.style)
+                            .background(NativePalette.canvas.style)
                     }
                 }
                 if model.inboxHasMore {
@@ -119,7 +119,7 @@ private struct InboxRowView: View {
         } label: {
             HStack(alignment: .top, spacing: Spacing.space3) {
                 Circle()
-                    .fill(row.isUnread ? Colors.accent.style : Colors.surface100.style)
+                    .fill(row.isUnread ? Colors.accent.style : NativePalette.canvas.style)
                     .frame(width: Size.sizeDot, height: Size.sizeDot)
                     .padding(.top, Spacing.space3)
                     .accessibilityHidden(true)
@@ -129,35 +129,36 @@ private struct InboxRowView: View {
                         Text(Words.inboxHeadline(row, me: model.me?.user.id))
                             .typeStyle(Typography.body)
                             .fontWeight(row.isUnread ? .semibold : .regular)
-                            .foregroundStyle(row.isUnread ? Colors.ink.style : Colors.inkMuted.style)
+                            .foregroundStyle(row.isUnread ? NativePalette.ink.style : NativePalette.secondary.style)
                             .lineLimit(1)
                         Text(place)
                             .typeStyle(Typography.caption)
-                            .foregroundStyle(Colors.inkMuted.style)
+                            .foregroundStyle(NativePalette.secondary.style)
                             .padding(.horizontal, Spacing.space2)
                             .padding(.vertical, Stroke.strokeFocus)
                             .background(Colors.surface200.style, in: Capsule())
                         Spacer(minLength: Spacing.space2)
                         Text(row.at.date, style: Calendar.current.isDateInToday(row.at.date) ? .time : .date)
                             .typeStyle(Typography.caption)
-                            .foregroundStyle(Colors.inkSubtle.style)
+                            .foregroundStyle(NativePalette.secondary.style)
                     }
                     if let subject = Words.inboxSubject(row) {
-                        Text(subject).typeStyle(Typography.caption).foregroundStyle(Colors.inkMuted.style).lineLimit(1)
+                        Text(subject).typeStyle(Typography.caption).foregroundStyle(NativePalette.secondary.style)
+                            .lineLimit(1)
                     }
                     Text(
                         row.message.deletedAt == nil
                             ? row.message.content : String(localized: "This message was deleted.")
                     )
                     .typeStyle(Typography.body)
-                    .foregroundStyle(row.isUnread ? Colors.ink.style : Colors.inkSubtle.style)
+                    .foregroundStyle(row.isUnread ? NativePalette.ink.style : NativePalette.secondary.style)
                     .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, Spacing.space4)
             .padding(.vertical, Spacing.space3)
-            .background(hovering ? Colors.surface050.style : Colors.surface100.style)
+            .background(hovering ? NativePalette.hover.style : NativePalette.canvas.style)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -171,7 +172,7 @@ private struct InboxRowView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Colors.borderSubtle.style).frame(height: Stroke.strokeHairline)
+            Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
                 .padding(.leading, Spacing.space4 * 2 + Size.sizeAvatarLg + Size.sizeDot)
         }
         .onHover { hovering = $0 }

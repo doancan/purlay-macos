@@ -20,6 +20,9 @@ struct MessageRow: View {
     @State private var hovering = false
     @State private var picking = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("messages.compact") private var compact = false
+    @AppStorage("messages.timestamps") private var timestamps = false
 
     private var editing: Bool { model.editing == message.id }
     private var deleted: Bool { message.deletedAt != nil }
@@ -35,11 +38,11 @@ struct MessageRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, Spacing.space4)
-        .padding(.top, continuation ? Stroke.strokeFocus : Spacing.space2)
+        .padding(.top, continuation ? Stroke.strokeFocus : compact ? Spacing.space2 : Spacing.space4)
         .padding(.bottom, Stroke.strokeFocus)
         .background(background)
-        .animation(Motion.easingStandard.animation(Motion.durationHover), value: hovering)
-        .animation(Motion.easingStandard.animation(Motion.durationMark), value: highlighted)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: hovering)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationMark), value: highlighted)
         .overlay(alignment: .leading) {
             if keyboard { Rectangle().fill(Colors.focusRing.style).frame(width: Stroke.strokeMarker * 1.5) }
         }
@@ -74,8 +77,8 @@ struct MessageRow: View {
             Text(message.createdAt.date, format: .dateTime.hour().minute())
                 .typeStyle(Typography.caption)
                 .monospacedDigit()
-                .foregroundStyle(Colors.inkSubtle.style)
-                .opacity(hovering ? 1 : 0)
+                .foregroundStyle(NativePalette.secondary.style)
+                .opacity(hovering || timestamps ? 1 : 0)
                 .frame(width: Size.sizeAvatarLg, alignment: .trailing)
                 .padding(.top, Stroke.strokeFocus)
                 .accessibilityHidden(true)
@@ -88,11 +91,11 @@ struct MessageRow: View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
             Text(message.sender?.displayName ?? String(localized: "Purlay"))
                 .typeStyle(Typography.heading)
-                .foregroundStyle(Colors.ink.style)
+                .foregroundStyle(NativePalette.ink.style)
             Text(message.createdAt.date, format: .dateTime.hour().minute())
                 .typeStyle(Typography.caption)
                 .monospacedDigit()
-                .foregroundStyle(Colors.inkSubtle.style)
+                .foregroundStyle(NativePalette.secondary.style)
                 .help(message.createdAt.date.formatted(date: .complete, time: .standard))
             if message.editedAt != nil && !deleted {
                 Text("edited").typeStyle(Typography.caption).foregroundStyle(Colors.inkSubtle.style)
@@ -134,7 +137,7 @@ struct MessageRow: View {
         Rectangle().fill(
             highlighted
                 ? Colors.accentSubtle.style
-                : hovering && !editing ? Colors.surface050.style : Colors.surface100.style)
+                : hovering && !editing ? NativePalette.hover.style : NativePalette.canvas.style)
     }
 
     @ViewBuilder private var menu: some View {

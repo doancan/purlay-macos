@@ -22,6 +22,7 @@ struct ShortcutsSheet: View {
             rows: [
                 Row(keys: "⌘K", what: "Jump to a channel, person or search"),
                 Row(keys: "⇧⌘F", what: "Search messages"),
+                Row(keys: "⌥⌘D", what: "Drafts"),
                 Row(keys: "⌥↑  ⌥↓", what: "Previous or next channel"),
                 Row(keys: "⌥⇧↑  ⌥⇧↓", what: "Previous or next channel with something to read"),
                 Row(keys: "⎋", what: "Close what is open: the edit, then the thread"),

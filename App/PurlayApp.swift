@@ -25,7 +25,8 @@ struct PurlayApp: App {
             RootView(model: model)
                 .task { await model.launch() }
         }
-        .defaultSize(width: 1_100, height: 720)
+        .defaultSize(width: 1_180, height: 780)
+        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(after: .textEditing) {
                 Button("Jump to…") { model.togglePalette() }.keyboardShortcut("k")
@@ -46,6 +47,8 @@ struct PurlayApp: App {
                     .keyboardShortcut("i", modifiers: [.command, .shift])
                 Button("Pinned Messages…") { model.pinsOpen = true }
                 Button("Saved Messages…") { model.savedOpen = true }
+                Button("Drafts…") { model.draftsOpen = true }
+                    .keyboardShortcut("d", modifiers: [.command, .option])
             }
             CommandGroup(replacing: .help) {
                 Button("Keyboard Shortcuts") { model.shortcutsOpen = true }.keyboardShortcut("/")

@@ -1,4 +1,5 @@
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// A message's body, drawn from the tree the reader makes of it. A body past a bound is drawn as typed (D-101).
@@ -6,10 +7,14 @@ struct MessageBody: View {
     let text: String
 
     var body: some View {
-        switch MarkdownReader.cached(text) {
-        case .tree(let blocks): BlockList(blocks: blocks)
-        case .typed: Text(text).textSelection(.enabled)
+        Group {
+            switch MarkdownReader.cached(text) {
+            case .tree(let blocks): BlockList(blocks: blocks)
+            case .typed: Text(text).textSelection(.enabled)
+            }
         }
+        .typeStyle(Typography.body)
+        .foregroundStyle(NativePalette.ink.style)
     }
 }
 
