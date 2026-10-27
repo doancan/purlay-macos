@@ -28,8 +28,12 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// Whether a person is here, as the server last said; nobody is, until it says so.
-    public func isOnline(_ user: Uuid) -> Bool { chat.presence[user]?.online ?? false }
+    /// Whether a person is here, as the server last said; nobody is, until it says so. The person themselves is here while
+    /// this app is connected: the server tells others about them, not them about themselves.
+    public func isOnline(_ user: Uuid) -> Bool {
+        if user == me?.user.id { return connection == .open }
+        return chat.presence[user]?.online ?? false
+    }
 }
 
 extension AppModel {

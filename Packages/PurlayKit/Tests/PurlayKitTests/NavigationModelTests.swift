@@ -96,3 +96,19 @@ struct WebPageTests {
         #expect(link.query == "message=\(idAt(5).value)")
     }
 }
+
+/// Who is shown as here.
+@MainActor
+@Suite("presence")
+struct PresenceTests {
+    @Test("the person is here while connected, and not when the connection is gone; others are as the server says")
+    func selfFollowsConnection() async throws {
+        let h = ModelHarness()
+        await h.signedIn()
+        let me = try #require(h.model.me?.user.id)
+        #expect(h.model.isOnline(me) == (h.model.connection == .open))
+        #expect(!h.model.isOnline(idAt(42)))
+        _ = await h.model.signOut(.thisDevice)
+        #expect(!h.model.isOnline(me))
+    }
+}

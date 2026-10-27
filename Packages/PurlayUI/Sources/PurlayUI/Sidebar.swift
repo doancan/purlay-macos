@@ -25,12 +25,9 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                HStack {
-                    Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
-                    Spacer(minLength: Spacing.space2)
-                    if model.attentionCount > 0 { CountBadge(count: model.attentionCount) }
-                }
-                .tag(SidebarSelection.inbox)
+                Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
+                    .badge(model.attentionCount)
+                    .tag(SidebarSelection.inbox)
                 DestinationRow(title: "Saved", systemImage: "bookmark") { model.savedOpen = true }
                 DestinationRow(title: "Search", systemImage: "magnifyingglass", hint: "⌘K") { model.paletteOpen = true }
             }
@@ -81,7 +78,7 @@ private struct DestinationRow: View {
                 if count > 0 {
                     CountBadge(count: count)
                 } else if let hint {
-                    Text(hint).typeStyle(Typography.caption).foregroundStyle(Colors.navInkMuted.style)
+                    Text(hint).typeStyle(Typography.caption).foregroundStyle(.secondary)
                 }
             }
             .contentShape(.rect)
@@ -140,21 +137,22 @@ struct SidebarChannelRow: View {
     var body: some View {
         Label {
             HStack(spacing: Spacing.space1) {
+                // Semantic styles, not token colours: the system turns a selected row's text light on the accent only for these.
                 Text(name)
                     .lineLimit(1)
                     .fontWeight(channel.isUnread && !channel.isMuted ? .semibold : .regular)
-                    .foregroundStyle(channel.isMuted ? Colors.navInkMuted.style : Colors.navInk.style)
+                    .foregroundStyle(channel.isMuted ? .secondary : .primary)
                 if hasDraft {
                     Image(systemName: "pencil")
                         .imageScale(.small)
-                        .foregroundStyle(Colors.navInkMuted.style)
+                        .foregroundStyle(.secondary)
                         .accessibilityLabel("Draft")
                         .help("You have an unsent draft here")
                 }
                 if channel.isMuted {
                     Image(systemName: "bell.slash")
                         .imageScale(.small)
-                        .foregroundStyle(Colors.navInkMuted.style)
+                        .foregroundStyle(.secondary)
                         .accessibilityLabel("Muted")
                 }
             }
@@ -162,8 +160,7 @@ struct SidebarChannelRow: View {
             mark
         }
         .badge(channel.mentionBadge(deepWork: quiet) ?? 0)
-        .accessibilityAddTraits(channel.isUnread ? .isSelected : [])
-        .accessibilityHint(channel.isUnread ? Text("Unread") : Text(""))
+        .accessibilityValue(channel.isUnread ? Text("Unread") : Text(""))
     }
 
     /// Words left half written here, unless this is the channel being written in, where the box already shows them.
