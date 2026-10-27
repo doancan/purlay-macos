@@ -120,7 +120,9 @@ public struct NativeSignIn: Sendable {
 }
 
 /// The name this Mac is told to the server by: what the person sees beside the session (D-188). The server accepts 1 to
-/// 64 characters, counted as JavaScript counts them (UTF-16 units), and no control or line-breaking ones.
+/// 64 characters, counted as JavaScript counts them (UTF-16 units), and no control or line-breaking ones, nor the invisible
+/// ones that change how the text around them reads (zero-width and directional marks, embeddings, overrides, isolates, the
+/// byte-order mark), so a name cannot be made to look like another device's.
 public enum DeviceName {
     public static let fallback = "Mac"
 
@@ -141,6 +143,7 @@ public enum DeviceName {
 
     private static func isForbidden(_ scalar: Unicode.Scalar) -> Bool {
         let value = scalar.value
-        return value <= 0x1f || (0x7f...0x9f).contains(value) || value == 0x2028 || value == 0x2029
+        return value <= 0x1f || (0x7f...0x9f).contains(value) || (0x200b...0x200f).contains(value)
+            || (0x2028...0x202e).contains(value) || (0x2066...0x2069).contains(value) || value == 0xfeff
     }
 }
