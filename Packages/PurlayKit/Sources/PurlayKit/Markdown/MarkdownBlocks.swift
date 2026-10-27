@@ -172,7 +172,7 @@ struct BlockReader {
                 leaf.lines.removeLast()
                 leaf.endings.removeLast()
                 stack.removeLast()
-                if leaf.lines.isEmpty { stack.last!.children.removeLast() }
+                if leaf.lines.isEmpty { stack.last?.children.removeLast() }
                 let table = Node(.table(alignments: alignments), lines: [header])
                 attach(table)
                 stack.append(table)
@@ -192,7 +192,7 @@ struct BlockReader {
     // MARK: Tree
 
     private func attach(_ node: Node) {
-        stack.last!.children.append(node)
+        stack.last?.children.append(node)
     }
 
     private mutating func open(_ node: Node) {

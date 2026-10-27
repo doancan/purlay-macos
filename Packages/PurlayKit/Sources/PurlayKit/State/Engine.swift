@@ -19,7 +19,7 @@ public enum DegradedReason: Sendable, Equatable {
 @MainActor
 public final class Engine {
     /// The key a degraded entry has when an error answers nothing the client can name.
-    public static let unnamed = Uuid("00000000-0000-7000-8000-000000000000")!
+    public static let unnamed = Uuid(UUID(uuid: (0, 0, 0, 0, 0, 0, 0x70, 0, 0x80, 0, 0, 0, 0, 0, 0, 0)))
 
     public struct Options {
         public var url: URL
@@ -94,8 +94,8 @@ public final class Engine {
     /// Unsent messages that went with a channel the person lost, and a number that rises each time, so a notice says it once per loss.
     public private(set) var lost: (count: Int, sequence: Int)?
 
-    private var connection: Connection!
-    public private(set) var sends: SendCoordinator!
+    private let connection: Connection
+    public let sends: SendCoordinator
     private var watched = Set<Uuid>()
     /// Subscribe frames the connection has already reported as refused, so the `ERROR` that follows is not reported twice.
     private var reported = Set<Uuid>()
@@ -110,23 +110,27 @@ public final class Engine {
         chat = ChatState(selfID: options.selfID)
         let serverClock = options.serverClock
         let ids = MessageIDGenerator(now: { serverClock.now() })
+        // The send coordinator and the connection call back into the engine, and each needs the other; they are made
+        // before the engine exists, so they reach it through this, which is pointed at the engine once it does.
+        let engine = WeakEngine()
         sends = SendCoordinator(
             .init(
                 ids: ids, serverClock: options.serverClock, schedule: options.schedule, outbox: options.outbox,
-                sendFrame: { [weak self] frame in self?.connection.send(frame) ?? false }, sendHTTP: options.sendHTTP,
-                onDelivered: { [weak self] message in self?.delivered(message) },
-                onChange: { [weak self] _ in self?.options.onChange() },
-                onLost: { [weak self] count in self?.noteLost(count) }, onStorageProblem: options.onStorageProblem))
+                sendFrame: { frame in engine.value?.connection.send(frame) ?? false }, sendHTTP: options.sendHTTP,
+                onDelivered: { message in engine.value?.delivered(message) },
+                onChange: { _ in engine.value?.options.onChange() },
+                onLost: { count in engine.value?.noteLost(count) }, onStorageProblem: options.onStorageProblem))
         connection = Connection(
             .init(
                 url: options.url, openSocket: options.openSocket, schedule: options.schedule, random: options.random,
                 clock: options.clock, serverClock: options.serverClock, checkSession: options.checkSession,
-                newID: { ids.next() }, onFrame: { [weak self] frame in self?.frame(frame) },
-                onStatus: { [weak self] status in self?.statusChanged(status) },
-                onSubscribeRefused: { [weak self] channels, code, reference in
-                    self?.reported.insert(reference)
-                    self?.refuse(channels, code)
+                newID: { ids.next() }, onFrame: { frame in engine.value?.frame(frame) },
+                onStatus: { status in engine.value?.statusChanged(status) },
+                onSubscribeRefused: { channels, code, reference in
+                    engine.value?.reported.insert(reference)
+                    engine.value?.refuse(channels, code)
                 }, onRefused: options.onRefused))
+        engine.value = self
     }
 
     // MARK: Life
@@ -215,8 +219,9 @@ public final class Engine {
 
     /// A channel as the person's own action changed it, held until the server's frame says the same.
     public func updateChannel(_ id: Uuid, _ edit: (inout Channel) -> Void) {
-        guard chat.channels[id] != nil else { return }
-        edit(&chat.channels[id]!)
+        guard var channel = chat.channels[id] else { return }
+        edit(&channel)
+        chat.channels[id] = channel
         options.onChange()
     }
 
@@ -331,6 +336,7 @@ public final class Engine {
             options.refresh(.channels(workspace: workspace))
             options.refresh(.memberships(workspace: workspace))
             options.refresh(.notifications(workspace: workspace))
+            options.refresh(.saved(workspace: workspace))
         }
     }
 
@@ -414,4 +420,10 @@ public final class Engine {
             }
         }
     }
+}
+
+/// The engine, as the parts it owns see it: weak, so they never keep it alive, and filled in once the engine is made.
+@MainActor
+private final class WeakEngine {
+    weak var value: Engine?
 }

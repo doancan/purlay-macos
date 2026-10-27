@@ -21,7 +21,7 @@ enum RealEnvironment {
     static func make(attention: any AttentionPresenter = SilentAttention()) -> AppEnvironment {
         let info = Bundle.main.infoDictionary
         let version =
-            SemanticVersion(info?["CFBundleShortVersionString"] as? String ?? "0.0.0") ?? SemanticVersion("0.0.0")!
+            SemanticVersion(info?["CFBundleShortVersionString"] as? String ?? "") ?? SemanticVersion(0, 0, 0)
         let support =
             FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory

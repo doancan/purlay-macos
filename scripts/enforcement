@@ -31,6 +31,14 @@ check() { # root
   if grep -rnE '(@unchecked Sendable|nonisolated\(unsafe\))' "$root/Packages" "$root/App" 2>/dev/null | grep -v 'enforcement-allow'; then
     echo "FAIL: an unchecked concurrency escape" >&2; failed=1
   fi
+  # Production code cannot trap on a value it was handed (§12.9): no `try!`, `as!`, `fatalError`, and no force unwrap or
+  # implicitly unwrapped optional. A trap cannot be caught, so the rule is prevention. `preconditionFailure` stays for the
+  # two invariants a test proves (a constant pattern, an id built to its own shape). Comment lines and generated code are
+  # not looked at.
+  if grep -rnE --include='*.swift' '(try!|as!|fatalError\(|unsafelyUnwrapped|[]A-Za-z0-9_)]!([].),]|[[:space:]]*$))' \
+    "$root/App" "$root/Packages"/*/Sources 2>/dev/null | grep -v '/Generated/' | grep -v '/PurlayTestSupport/' | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'; then
+    echo "FAIL: production code that can trap" >&2; failed=1
+  fi
   return $failed
 }
 
@@ -55,4 +63,7 @@ plant "UI opens a session" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "le
 plant "Sparkle in the kit" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "import Sparkle"
 plant "a dependency M-8 does not allow" project.yml "      - url: x # .package(url: \"https://example.test/KeychainAccess\")"
 plant "an unchecked Sendable" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "extension Foo: @unchecked Sendable {}"
+plant "a force unwrap" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "let first = [1].first!.description"
+plant "a try!" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let data = try! Data(contentsOf: URL(fileURLWithPath: \"/\"))"
+plant "an implicitly unwrapped optional" App/PurlayApp.swift "var window: NSWindow!"
 exit $fail

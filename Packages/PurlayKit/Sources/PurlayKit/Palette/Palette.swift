@@ -25,7 +25,7 @@ public enum Palette {
     /// The most rows of matches; the search row comes after them.
     public static let limit = 12
 
-    public static func entries(query: String, channels: [Channel], people: [User], selfID: Uuid) -> [PaletteEntry] {
+    public static func entries(query: String, channels: [Channel], people: [User], selfID: Uuid?) -> [PaletteEntry] {
         let typed = String(
             query.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ContractConstants.searchQueryMax))
         let candidates = Self.candidates(channels: channels, people: people)

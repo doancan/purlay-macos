@@ -14,8 +14,7 @@ struct PaletteSheet: View {
     private var entries: [PaletteEntry] {
         Palette.entries(
             query: query, channels: Array(model.chat.channels.values), people: model.workspacePeople,
-            selfID: model.me?.user.id ?? Uuid(
-                "00000000-0000-4000-8000-000000000000")!)
+            selfID: model.me?.user.id)
     }
 
     var body: some View {

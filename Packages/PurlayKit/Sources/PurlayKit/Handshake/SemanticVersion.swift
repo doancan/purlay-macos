@@ -6,6 +6,12 @@ public struct SemanticVersion: Sendable, Hashable, Comparable, CustomStringConve
     public let core: [Int]
     public let preRelease: [String]
 
+    /// A release, from its three numbers: a version that cannot be malformed.
+    public init(_ major: Int, _ minor: Int, _ patch: Int) {
+        core = [major, minor, patch]
+        preRelease = []
+    }
+
     /// `1.2.3` or `1.2.3-rc.1`: three numbers, and after the first hyphen anything of letters, digits, dots and hyphens.
     /// Build metadata (`+…`) is not part of the shape, as it is not for the server.
     public init?(_ text: String) {

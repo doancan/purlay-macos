@@ -47,4 +47,10 @@ struct SemanticVersionTests {
     func describes(_ text: String) throws {
         #expect(try version(text).description == text)
     }
+
+    @Test("a version made from its three numbers is the one that text spells")
+    func fromNumbers() {
+        #expect(SemanticVersion(1, 2, 3) == SemanticVersion("1.2.3"))
+        #expect(SemanticVersion(0, 0, 0) < SemanticVersion(0, 0, 1))
+    }
 }
