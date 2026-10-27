@@ -4,4 +4,17 @@ The native macOS client for [Purlay](https://github.com/doancan/purlay): Swift, 
 earns its place, drawn in Liquid Glass. Decided in `DECISIONS.md` D-186 of the server repository, which also owns
 the contract this client is generated from.
 
-Not started yet: the plan comes first.
+Built with Swift 6 and SwiftUI for macOS 26 and later. Native split navigation, Liquid Glass controls, a translucent sidebar,
+threads, an inbox, saved messages, drafts, channel members and file browsing share the same client model.
+
+Build with Xcode 26 or newer:
+
+```sh
+xcodegen generate
+xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Debug -destination 'platform=macOS,arch=arm64' build
+```
+
+Connect to a compatible Purlay server on first launch. The app is a client and does not start a server itself.
+For local development, `PURLAY_DEV_SERVER` and `PURLAY_DEV_SESSION` can seed a session in Debug builds only.
+
+Run `swift test` inside a package to check that layer, or `scripts/verify` for the full repository checks.
