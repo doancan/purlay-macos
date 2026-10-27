@@ -127,6 +127,21 @@ final class ModelHarness {
         for _ in 0..<20 { await Task.yield() }
     }
 
+    /// Timers that are waiting to fire: what an idle app costs, as a count.
+    var liveTimers: Int { timers.filter { $0.live.live }.count }
+
+    /// Lets time pass: each timer that falls due fires, in order, and what it starts is given a moment.
+    func advance(milliseconds: Int) async {
+        let end = now + milliseconds
+        while let next = timers.filter({ $0.live.live && $0.due <= end }).min(by: { $0.due < $1.due }) {
+            now = max(now, next.due)
+            next.live.live = false
+            next.work()
+            await settle()
+        }
+        now = end
+    }
+
     var last: FakeSocket {
         guard let socket = sockets.last else { preconditionFailure("no socket") }
         return socket

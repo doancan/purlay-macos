@@ -643,6 +643,36 @@ public final class AppModel {
         threadFollow = .reading
     }
 
+    // MARK: What is held
+
+    /// How much of the person's the model holds, by kind: what "Memory after sign-out" (§14) can count. A new collection that is not
+    /// added here is one a test cannot see leak, so a collection is added here when it is made.
+    var retainedParts: [(String, Int)] {
+        [
+            ("notices", notices.count), ("pending", pending.count), ("degraded", degraded.count),
+            ("markedRead", markedRead.count), ("readRetryAfter", readRetryAfter.count),
+            ("workspacePeople", workspacePeople.count), ("channelPeople", channelPeople.count),
+            ("threadMarked", threadMarked.count), ("thread", thread == nil ? 0 : 1), ("inboxRows", inboxRows.count),
+            ("inboxNotes", inboxNotes.count), ("savedIDs", savedIDs.count), ("savedItems", savedItems.count),
+            ("pins", pins.count), ("uploads", uploadsByPlace.count), ("uploadBytes", uploadBytes.count),
+            ("attachmentCache", attachmentCache.count + attachmentCacheOrder.count + attachmentCacheBytes),
+            ("waitingSends", waitingSends.count), ("handedBack", handedBack.count),
+            ("searchResults", searchResults.count), ("problems", problems.entries.count),
+            ("channels", chat.channels.count), ("windows", chat.windows.count), ("gone", chat.gone.count),
+            ("typing", chat.typing.count), ("presence", chat.presence.count), ("deepWork", chat.deepWork.count),
+            ("selectedChannel", selectedChannel == nil ? 0 : 1), ("me", me == nil ? 0 : 1),
+            ("workspace", workspace == nil ? 0 : 1), ("keyboardRow", keyboardRow == nil ? 0 : 1),
+            ("focus", focus == nil ? 0 : 1), ("editing", editing == nil ? 0 : 1),
+        ]
+    }
+
+    var retainedItemCount: Int { retainedParts.reduce(0) { $0 + $1.1 } }
+
+    /// What is held, for a failing test to say.
+    var retainedDescription: String {
+        retainedParts.filter { $0.1 > 0 }.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
+    }
+
     // MARK: Opening at login
 
     /// What the system holds, not what was asked of it.
