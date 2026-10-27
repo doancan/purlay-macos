@@ -1,0 +1,120 @@
+name: Release macOS
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/tags/v* ]]
+          version=$(sed -n 's/^MARKETING_VERSION = //p' Config/Base.xcconfig)
+          [[ "$GITHUB_REF_NAME" == "v$version" ]]
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - name: Prepare pinned contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/doancan/purlay.git "$RUNNER_TEMP/server"
+          git -C "$RUNNER_TEMP/server" checkout f9d8716bca3d936575c8349894a449d07df8a0f9
+          (cd "$RUNNER_TEMP/server" && bun install --frozen-lockfile && bun run contract:bundle --out "$GITHUB_WORKSPACE/Contract/bundle")
+          scripts/contract verify
+      - name: Check architecture and test packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/contract verify
+          scripts/generate --check
+          scripts/enforcement
+          scripts/enforcement --demo
+          for package in Tools/PurlayGen Packages/*; do
+            swift test --package-path "$package"
+          done
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          password=$(openssl rand -base64 32)
+          echo "::add-mask::$password"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          identity=$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)
+          [[ -n "$identity" ]]
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Build universal signed app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build \
+            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS='--timestamp' build
+          codesign --verify --deep --strict --verbose=2 build/Build/Products/Release/Purlay.app
+          lipo -verify_arch arm64 x86_64 build/Build/Products/Release/Purlay.app/Contents/MacOS/Purlay
+      - name: Notarize and staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=build/Build/Products/Release/Purlay.app
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarization.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarization.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" --wait --timeout 60m \
+            --output-format json > "$RUNNER_TEMP/notarization.json"
+          cat "$RUNNER_TEMP/notarization.json"
+          [[ "$(jq -r .status "$RUNNER_TEMP/notarization.json")" == Accepted ]]
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          mkdir -p dist
+          ditto -c -k --keepParent "$app" "dist/Purlay-$VERSION-macOS-universal.zip"
+          cd dist
+          shasum -a 256 *.zip > SHA256SUMS
+      - name: Publish GitHub release
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag --title "Purlay $VERSION" \
+            --notes $'Native Purlay client for macOS 26 and later.\n\nUniversal build for Apple Silicon and Intel Macs, signed with Developer ID and notarized by Apple.\n\nDownload and extract the ZIP, then move Purlay.app to Applications. Connect to your Purlay server on first launch.\n\nIncludes threads, inbox, saved messages, drafts, channel members, and file browsing. SHA256SUMS contains the download checksum.'
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
+          rm -f "$RUNNER_TEMP/certificate.p12"

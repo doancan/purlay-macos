@@ -248,9 +248,9 @@ public enum Colors {
     /// Anahtar sözcükler: if, return, const. code-bg üzerinde her iki temada. Renk tek başına anlam taşımaz: kod okunabilirliği sözdizimine değil, düzene dayanır.
     public static let syntaxKeyword = TokenColor(
         name: "syntax-keyword",
-        light: RGBA(hex: 0x2c2c54),
-        dark: RGBA(hex: 0xc4c4ee),
-        midnight: RGBA(hex: 0xc4c4ee))
+        light: RGBA(hex: 0x6d28d9),
+        dark: RGBA(hex: 0xc4a7ff),
+        midnight: RGBA(hex: 0xc4a7ff))
     /// Metin değerleri. code-bg üzerinde her iki temada. Renk tek başına anlam taşımaz: kod okunabilirliği sözdizimine değil, düzene dayanır.
     public static let syntaxString = TokenColor(
         name: "syntax-string",

@@ -18,3 +18,9 @@ Connect to a compatible Purlay server on first launch. The app is a client and d
 For local development, `PURLAY_DEV_SERVER` and `PURLAY_DEV_SESSION` can seed a session in Debug builds only.
 
 Run `swift test` inside a package to check that layer, or `scripts/verify` for the full repository checks.
+
+Releases are built by `.github/workflows/release.yml` when a `v` tag matching `MARKETING_VERSION` is pushed.
+The workflow tests the packages, builds for Apple Silicon and Intel, signs with Developer ID, notarizes with Apple,
+and publishes a stapled app ZIP and SHA-256 checksum. Signing uses the repository secrets `MACOS_CERTIFICATE_P12`
+(base64-encoded PKCS#12), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
+The contract bundle is rebuilt from the server commit pinned in the workflow and checked against `Contract/contract.lock`.
