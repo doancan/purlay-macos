@@ -82,7 +82,9 @@ jobs:
             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             OTHER_CODE_SIGN_FLAGS='--timestamp' build
           codesign --verify --deep --strict --verbose=2 build/Build/Products/Release/Purlay.app
-          lipo -verify_arch arm64 x86_64 build/Build/Products/Release/Purlay.app/Contents/MacOS/Purlay
+          for architecture in arm64 x86_64; do
+            lipo -verify_arch "$architecture" build/Build/Products/Release/Purlay.app/Contents/MacOS/Purlay
+          done
       - name: Notarize and staple
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
