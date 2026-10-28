@@ -12,7 +12,7 @@ import UserNotifications
 @MainActor
 final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCenterDelegate {
     /// Opens a conversation, from a click on its notice.
-    var open: ((Uuid) -> Void)?
+    var open: ((Uuid, String?) -> Void)?
 
     private let center = UNUserNotificationCenter.current()
 
@@ -33,8 +33,9 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
             content.body = AttentionWords.body(notice)
             if case .place(let channel, _, _) = notice.content {
                 content.userInfo = ["channel": channel.value]
+                if let source = notice.sourceID { content.userInfo["source"] = source }
                 // Notification Center stacks a conversation's notices together.
-                content.threadIdentifier = channel.value
+                content.threadIdentifier = notice.id
             }
             // One per conversation: the next replaces the last, which the identifier does.
             do {
@@ -72,9 +73,11 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
         _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
     ) async {
         let channel = (response.notification.request.content.userInfo["channel"] as? String).flatMap(Uuid.init)
+        let source = response.notification.request.content.userInfo["source"] as? String
         await MainActor.run {
             NSApp.activate()
-            if let channel { open?(channel) }
+            NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+            if let channel { open?(channel, source) }
         }
     }
 }

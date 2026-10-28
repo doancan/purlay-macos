@@ -318,12 +318,17 @@ struct SidebarChannelRow: View {
 
 /// Workspace creation and role-aware entry points to administration settings.
 private struct WorkspaceHeader: View {
+    @Environment(\.desktopSessions) private var sessions
     let model: AppModel
     @Binding var sheet: ChannelSheet?
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Menu {
+            if let sessions {
+                WorkspaceSwitchItems(sessions: sessions, model: model)
+                Divider()
+            }
             Section {
                 Button("New Channel…", systemImage: "number") { sheet = .newChannel }
                 Button("Browse Channels…", systemImage: "list.bullet") { sheet = .browse }
@@ -335,6 +340,7 @@ private struct WorkspaceHeader: View {
                         page in
                         Button(page.title, systemImage: page.image) {
                             model.selectSettingsPage(page)
+                            sessions?.prepareSettings(for: model)
                             openSettings()
                         }
                     }
@@ -375,6 +381,7 @@ private struct WorkspaceHeader: View {
 /// Who the person is, at the sidebar's foot, on glass: their face, their name, and Deep Work while it lasts; the menu has
 /// what belongs to the person (profile, Deep Work, settings, signing out).
 private struct AccountFooter: View {
+    @Environment(\.desktopSessions) private var sessions
     let model: AppModel
     @State private var confirmingEverywhere = false
     @Environment(\.openSettings) private var openSettings
@@ -393,7 +400,9 @@ private struct AccountFooter: View {
             Section {
                 Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
                 Button("Sign Out Everywhere…") { confirmingEverywhere = true }
-                Button("Use Another Server…") { Task { await model.chooseAnotherServer() } }
+                Button("Add Server…") {
+                    if let sessions { sessions.addServer() } else { Task { await model.chooseAnotherServer() } }
+                }
             }
         } label: {
             HStack(spacing: Spacing.space2) {
@@ -436,6 +445,7 @@ private struct AccountFooter: View {
 
     private func settings(_ page: SettingsPage) {
         model.selectSettingsPage(page)
+        sessions?.prepareSettings(for: model)
         openSettings()
     }
 }

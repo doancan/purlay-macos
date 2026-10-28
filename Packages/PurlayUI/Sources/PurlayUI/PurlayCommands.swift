@@ -22,6 +22,8 @@ extension FocusedValues {
 /// Go moves, and each item is disabled where it has nothing to act on.
 public struct PurlayCommands: Commands {
     private let fallbackModel: AppModel
+    private let sessions: DesktopSessions?
+    @Environment(\.openSettings) private var openSettings
     @FocusedValue(\.purlayModel) private var focusedModel
     @Environment(\.openWindow) private var openWindow
     private var model: AppModel { focusedModel ?? fallbackModel }
@@ -29,7 +31,10 @@ public struct PurlayCommands: Commands {
     @AppStorage("messages.compact") private var compact = false
     @AppStorage("messages.timestamps") private var timestamps = false
 
-    public init(model: AppModel) { self.fallbackModel = model }
+    public init(model: AppModel, sessions: DesktopSessions? = nil) {
+        self.fallbackModel = model
+        self.sessions = sessions
+    }
 
     private var ready: Bool { model.phase == .ready }
     private var channel: Channel? {
@@ -96,6 +101,13 @@ public struct PurlayCommands: Commands {
             .disabled(!ready)
             Divider()
             DeepWorkItems(model: model)
+        }
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings…") {
+                sessions?.prepareSettings(for: model)
+                openSettings()
+            }
+            .keyboardShortcut(",")
         }
         CommandGroup(after: .appSettings) {
             Button("Sign Out") { Task { await model.signOut(.thisDevice) } }

@@ -64,6 +64,14 @@ navigation, thread, search and presentation state; the session shares one socket
 markers, people and drafts. Menu commands target the focused window. Closing a conversation window leaves the
 session running; signing out clears all its windows. Restored windows validate the server, user and workspace.
 
+The toolbar switcher keeps multiple servers and workspaces connected. Adding a server leaves existing sessions
+running; selecting a membership on the same server reuses its saved credential. Each workspace has its own
+navigation, drafts and durable outbox. The first account keeps the existing storage location; subsequent sessions
+use separate preferences and directories. The Dock badge sums active sessions, and notifications carry their
+source session so identical channel IDs cannot open a different server. Sign-out clears every workspace and
+conversation window for that server, leaving other servers connected. Workspaces visited in the switcher reopen
+on launch. The keychain still keeps one account per server address.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

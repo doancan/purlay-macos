@@ -8,7 +8,7 @@ import SwiftUI
 struct PurlayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var updates = UpdateController()
-    @State private var model: AppModel
+    @State private var sessions: DesktopSessions
     private let attention = SystemAttention()
 
     init() {
@@ -16,37 +16,45 @@ struct PurlayApp: App {
         #if DEBUG
             RealEnvironment.seedDevelopmentSession(environment)
         #endif
-        let model = AppModel(environment)
-        attention.open = { channel in Task { await model.showChannel(channel) } }
-        _model = State(initialValue: model)
+        let sessions = DesktopSessions(environment)
+        attention.open = { channel, source in
+            Task { await sessions.openNotification(channel: channel, sourceID: source) }
+        }
+        _sessions = State(initialValue: sessions)
     }
 
     var body: some Scene {
         Window("Purlay", id: "main") {
-            RootView(model: model)
-                .task {
-                    delegate.model = model
-                    await model.launch()
+            RootView(model: sessions.active)
+                .id(sessions.selectedID)
+                .environment(\.desktopSessions, sessions)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) { DesktopSwitcher(sessions: sessions) }
                 }
+                .task {
+                    delegate.model = sessions.active
+                    await sessions.launch()
+                }
+                .onChange(of: sessions.selectedID) { _, _ in delegate.model = sessions.active }
         }
         .defaultSize(width: 1_180, height: 780)
         .windowToolbarStyle(.unified)
         .commands {
-            PurlayCommands(model: model)
+            PurlayCommands(model: sessions.active, sessions: sessions)
             CommandGroup(after: .appInfo) {
                 UpdateMenuItem(updates: updates)
             }
         }
         WindowGroup("Conversation", id: "conversation", for: ConversationWindowRequest.self) { $request in
             if let request {
-                ConversationScene(owner: model, request: request)
+                ConversationScene(sessions: sessions, request: request)
             }
         }
         .defaultSize(width: 1_040, height: 720)
         .windowToolbarStyle(.unified)
         Settings {
             TabView {
-                Tab("Preferences", systemImage: "gearshape") { SettingsView(model: model) }
+                Tab("Preferences", systemImage: "gearshape") { SettingsView(model: sessions.settingsModel) }
                 Tab("Updates", systemImage: "arrow.triangle.2.circlepath") { UpdateSettings(updates: updates) }
             }
             .frame(width: 760, height: 620)
@@ -55,7 +63,7 @@ struct PurlayApp: App {
 }
 
 private struct ConversationScene: View {
-    let owner: AppModel
+    let sessions: DesktopSessions
     let request: ConversationWindowRequest
     @State private var model: AppModel?
     @State private var unavailable = false
@@ -82,14 +90,20 @@ private struct ConversationScene: View {
             }
         }
         .frame(minWidth: 520, minHeight: 360)
-        .task { await owner.launch() }
-        .task(id: owner.phase) {
+        .environment(\.desktopSessions, sessions)
+        .task { await sessions.launch() }
+        .task(id: sessions.revision) {
             guard model == nil else { return }
-            if owner.phase == .ready {
+            if let owner = sessions.owner(for: request) {
                 model = await owner.makeConversationWindow(request)
                 unavailable = model == nil
-            } else if owner.phase == .signedOut || owner.phase == .needsServer {
-                unavailable = true
+            } else {
+                unavailable = sessions.sessions.allSatisfy {
+                    switch $0.model.phase {
+                    case .launching, .checking, .loading, .signingIn: false
+                    default: true
+                    }
+                }
             }
         }
         .onDisappear { model?.closeConversationWindow() }

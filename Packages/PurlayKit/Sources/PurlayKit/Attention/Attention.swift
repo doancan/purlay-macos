@@ -16,10 +16,13 @@ public struct AttentionNotice: Equatable, Sendable, Identifiable {
     /// One per conversation, so its next notice replaces its last.
     public let id: String
     public let content: Content
+    /// Local desktop session that owns the notice; never a credential.
+    public let sourceID: String?
 
-    public init(id: String, content: Content) {
+    public init(id: String, content: Content, sourceID: String? = nil) {
         self.id = id
         self.content = content
+        self.sourceID = sourceID
     }
 }
 

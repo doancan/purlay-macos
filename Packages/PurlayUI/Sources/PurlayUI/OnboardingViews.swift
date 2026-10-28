@@ -172,6 +172,7 @@ struct ProblemView: View {
 }
 
 struct SignInView: View {
+    @Environment(\.desktopSessions) private var sessions
     let model: AppModel
     let busy: Bool
 
@@ -200,9 +201,11 @@ struct SignInView: View {
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
                 .disabled(busy)
-                Button("Use Another Server") { Task { await model.chooseAnotherServer() } }
-                    .buttonStyle(.link)
-                    .disabled(busy)
+                Button("Use Another Server") {
+                    if let sessions { sessions.addServer() } else { Task { await model.chooseAnotherServer() } }
+                }
+                .buttonStyle(.link)
+                .disabled(busy)
                 ForEach(model.notices) { notice in
                     NoticeBanner(notice: notice) { model.dismiss(notice) }
                 }

@@ -84,7 +84,13 @@ public final class AppModel {
     }
 
     public internal(set) var settingsPage: SettingsPage = .general
-    public private(set) var phase: Phase = .launching
+    public private(set) var phase: Phase = .launching {
+        didSet { onPhaseChange?() }
+    }
+    @ObservationIgnored var onPhaseChange: (() -> Void)?
+    @ObservationIgnored var onSessionEnded: (() -> Void)?
+    @ObservationIgnored var onChooseAnotherServer: (() -> Void)?
+    private let preferredWorkspaceID: Uuid?
     public private(set) var server: ServerAddress?
     public private(set) var serverInfo: ClientInfo?
     private var sessionMe: MeResponse?
@@ -309,8 +315,9 @@ public final class AppModel {
 
     var deepWorkChange = 0
 
-    public init(_ environment: AppEnvironment) {
+    public init(_ environment: AppEnvironment, workspaceID: Uuid? = nil) {
         self.environment = environment
+        self.preferredWorkspaceID = workspaceID
         uploadIDs = MessageIDGenerator(now: environment.clock)
         launchAtLogin = environment.loginItem.status
     }
@@ -434,6 +441,10 @@ public final class AppModel {
             await sessionOwner.chooseAnotherServer()
             return
         }
+        if let onChooseAnotherServer {
+            onChooseAnotherServer()
+            return
+        }
         if phase == .ready || phase == .loading { _ = await signOut(.thisDevice) }
         environment.preferences.set(nil, for: Self.serverKey)
         server = nil
@@ -524,6 +535,7 @@ public final class AppModel {
         case .endedByServer: say(.sessionEndedByServer)
         case .signedOutByPerson, .signedOutEverywhere, nil: break
         }
+        onSessionEnded?()
     }
 
     /// Ends the session here, or everywhere. The result says whether the server was told.
@@ -544,7 +556,16 @@ public final class AppModel {
         }
         tearDown()
         phase = .signedOut
+        onSessionEnded?()
         return result
+    }
+
+    /// Stops this workspace without revoking the shared server credential a second time.
+    func invalidateLocalSession() {
+        observation?.cancel()
+        observation = nil
+        tearDown()
+        phase = .signedOut
     }
 
     // MARK: Signed in
@@ -552,6 +573,7 @@ public final class AppModel {
     private func bootstrap() async {
         guard let server, let origin, let manager else { return }
         phase = .loading
+        let context = contextGeneration
         let client = APIClient(
             configuration: APIConfiguration(
                 baseURL: server.origin, clientHeader: ClientHeader.value(appVersion: environment.appVersion),
@@ -562,14 +584,18 @@ public final class AppModel {
         self.api = api
         do {
             let me = try await api.getMe()
+            guard context == contextGeneration else { return }
             self.me = me
             await manager.identify(userID: me.user.id.value)
-            guard
-                let membership = me.memberships.first(where: {
+            guard context == contextGeneration else { return }
+            let membership =
+                preferredWorkspaceID.map { id in
+                    me.memberships.first { $0.workspace.id == id }
+                }
+                ?? (me.memberships.first {
                     $0.workspace.slug == environment.preferences.string(for: "workspace")
-                })
-                    ?? me.memberships.first
-            else {
+                } ?? me.memberships.first)
+            guard let membership else {
                 // Signed in, in no workspace: nothing to show here yet.
                 workspace = nil
                 phase = .ready
@@ -583,12 +609,14 @@ public final class AppModel {
             if load.unrestorable > 0 { say(.unrestorable(load.unrestorable)) }
             if load.corruptFile != nil { say(.outboxCorrupt) }
             let channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
+            guard context == contextGeneration else { return }
             engine.setChannels(channels)
             attention.prime(channels)
             watchJoined()
             engine.start()
             sync()
             await refreshPeople()
+            guard context == contextGeneration else { return }
             reread(.saved(workspace: membership.workspace.id)) { await $0.reloadSaved() }
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
                 Uuid.init)
@@ -596,10 +624,12 @@ public final class AppModel {
                 channels.first { $0.id == remembered && $0.state != nil }
                 ?? Sidebar.sections(channels).first?.channels.first
             phase = .ready
+            guard context == contextGeneration else { return }
             if let first { await open(first.id) }
         } catch let error as APIError where error.status == 401 {
             // Told by the session manager already.
         } catch {
+            guard context == contextGeneration else { return }
             if (error as? TransportError)?.isTransient == true {
                 phase = .problem(.unreachable)
             } else {
