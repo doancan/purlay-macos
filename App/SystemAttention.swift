@@ -13,6 +13,9 @@ import UserNotifications
 final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCenterDelegate {
     /// Opens a conversation, from a click on its notice.
     var open: ((Uuid, String?) -> Void)?
+    var openLink: ((URL) -> Void)?
+    private var reminderChanges: [String: UUID] = [:]
+    private var reminderTasks: [String: Task<Void, Never>] = [:]
     var bringForward: (() -> Void)?
 
     private let center = UNUserNotificationCenter.current()
@@ -53,6 +56,78 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
 
+    func replaceReminders(_ notices: [ReminderNotice], scope: String) {
+        let change = UUID()
+        reminderChanges[scope] = change
+        let prefix = "purlay-reminder:\(scope):"
+        let previous = reminderTasks[scope]
+        reminderTasks[scope] = Task { [center] in
+            await previous?.value
+            guard reminderChanges[scope] == change else { return }
+            let pending = await center.pendingNotificationRequests()
+            guard reminderChanges[scope] == change else { return }
+            let wanted = Set(notices.map { prefix + $0.id })
+            // A server delivery may precede Notification Center by a few milliseconds. Leave a due
+            // local request to fire; explicit cancellation/sign-out uses the methods below.
+            let obsolete = pending.filter {
+                $0.identifier.hasPrefix(prefix) && !wanted.contains($0.identifier)
+                    && (($0.content.userInfo["reminderAt"] as? Double).map(Date.init(timeIntervalSince1970:))
+                        ?? .distantPast) > .now.addingTimeInterval(2)
+            }.map(\.identifier)
+            center.removePendingNotificationRequests(withIdentifiers: obsolete)
+            guard !notices.isEmpty, await Self.mayTell(center), reminderChanges[scope] == change else { return }
+            for notice in notices where notice.date > .now {
+                guard reminderChanges[scope] == change else { return }
+                let content = UNMutableNotificationContent()
+                content.title = String(localized: "Message Reminder")
+                content.body = String(localized: "Return to your message in \(notice.label).")
+                content.userInfo = [
+                    "reminderLink": notice.link.absoluteString, "reminderAt": notice.date.timeIntervalSince1970,
+                ]
+                let trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: max(1, notice.date.timeIntervalSinceNow), repeats: false)
+                let name = prefix + notice.id
+                do {
+                    try await center.add(UNNotificationRequest(identifier: name, content: content, trigger: trigger))
+                    if reminderChanges[scope] != change {
+                        center.removePendingNotificationRequests(withIdentifiers: [name])
+                    }
+                } catch {
+                    Log.attention.error(
+                        "the system refused a reminder: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+    }
+
+    func cancelReminders(_ ids: [String], scope: String) {
+        reminderChanges[scope] = UUID()
+        let names = ids.map { "purlay-reminder:\(scope):\($0)" }
+        retract(names)
+        let previous = reminderTasks[scope]
+        reminderTasks[scope] = Task {
+            await previous?.value
+            retract(names)
+        }
+    }
+
+    func clearReminders(scope: String) {
+        let change = UUID()
+        reminderChanges[scope] = change
+        let prefix = "purlay-reminder:\(scope):"
+        let previous = reminderTasks[scope]
+        reminderTasks[scope] = Task { [center] in
+            await previous?.value
+            guard reminderChanges[scope] == change else { return }
+            let pending = await center.pendingNotificationRequests()
+            let delivered = await center.deliveredNotifications()
+            guard reminderChanges[scope] == change else { return }
+            retract(
+                pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+                    + delivered.map(\.request.identifier).filter { $0.hasPrefix(prefix) })
+        }
+    }
+
     /// Whether a notice may be shown, asking the system once if it has never been asked.
     private static func mayTell(_ center: UNUserNotificationCenter) async -> Bool {
         switch await center.notificationSettings().authorizationStatus {
@@ -67,7 +142,9 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
     /// A notice is only added while the window is not in front, but if it is in front by the time the system delivers it, it says nothing.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter, willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions { [] }
+    ) async -> UNNotificationPresentationOptions {
+        notification.request.content.userInfo["reminderLink"] is String ? [.banner, .list] : []
+    }
 
     /// A click brings the window forward on the conversation.
     nonisolated func userNotificationCenter(
@@ -75,11 +152,13 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
     ) async {
         let channel = (response.notification.request.content.userInfo["channel"] as? String).flatMap(Uuid.init)
         let source = response.notification.request.content.userInfo["source"] as? String
+        let reminderLink = (response.notification.request.content.userInfo["reminderLink"] as? String).flatMap(
+            URL.init(string:))
         await MainActor.run {
             bringForward?()
             NSApp.activate()
             NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
-            if let channel { open?(channel, source) }
+            if let reminderLink { openLink?(reminderLink) } else if let channel { open?(channel, source) }
         }
     }
 }

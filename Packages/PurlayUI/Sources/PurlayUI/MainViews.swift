@@ -278,6 +278,15 @@ private struct MainSheets: ViewModifier {
             .sheet(isPresented: Binding(get: { model.pinsOpen }, set: { model.pinsOpen = $0 })) {
                 PinsSheet(model: model)
             }
+            .sheet(isPresented: Binding(get: { model.remindersOpen }, set: { model.remindersOpen = $0 })) {
+                RemindersSheet(model: model)
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { model.reminderTarget != nil }, set: { if !$0 { model.reminderTarget = nil } })
+            ) {
+                if let message = model.reminderTarget { ReminderSheet(model: model, message: message) }
+            }
             .sheet(isPresented: Binding(get: { model.scheduledOpen }, set: { model.scheduledOpen = $0 })) {
                 ScheduledSheet(model: model)
             }

@@ -92,6 +92,14 @@ request ID across retries and clears draft text/files only after confirmation; l
 a signed-out session. The server owns delivery while the app is closed. Ship the matching server migration
 and API from `codex/desktop-scheduling` before enabling the native feature on an installation.
 
+Message reminders require `capabilities.messageReminders`. A message’s Remind Me action sets a private
+server reminder; Reminders lists pending items with change-time, cancel and jump-to-message actions. Due
+items appear in Inbox. The confirmed time also registers a macOS notification, so an authorized Mac can
+remind after Purlay quits. The alert carries a deep link and no message content. Time is stored as an absolute
+instant. Native notifications follow macOS permissions/Focus and the app’s notification preference.
+Changes from other devices refresh through `REMINDERS_UPDATED`; offline Macs reconcile when they reconnect.
+Signing out removes this account’s pending alerts. Reminder notifications do not inflate unread-message counts.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

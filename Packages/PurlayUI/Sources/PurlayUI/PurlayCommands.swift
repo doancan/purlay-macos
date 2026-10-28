@@ -127,6 +127,8 @@ public struct PurlayCommands: Commands {
     }
 
     @ViewBuilder private var messageItems: some View {
+        if model.supportsReminders { Button("Remind Me…") { model.reminderTarget = message }.disabled(message == nil) }
+
         let message = message
         let mine = message.map { $0.sender?.id == model.me?.user.id } ?? false
         Button("Reply in Thread") { if let message { Task { await model.openThread(message) } } }
@@ -182,6 +184,7 @@ public struct PurlayCommands: Commands {
         Button("Inbox") { Task { await model.openInbox() } }
             .keyboardShortcut("i", modifiers: [.command, .shift])
             .disabled(!ready)
+        if model.supportsReminders { Button("Reminders") { model.remindersOpen = true }.disabled(!ready) }
         if model.supportsScheduling { Button("Scheduled Messages") { model.scheduledOpen = true }.disabled(!ready) }
         Button("Saved Messages") { model.savedOpen = true }.disabled(!ready)
         Button("Open Topics") { Task { await model.openUnresolved() } }

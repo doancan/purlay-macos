@@ -48,6 +48,15 @@ final class RecordingAttention: AttentionPresenter {
     private(set) var badges: [Int?] = []
     private(set) var shown: [AttentionNotice] = []
     private(set) var retracted: [String] = []
+    private(set) var reminders: [String: [ReminderNotice]] = [:]
+    private(set) var cancelledReminders: [String] = []
+    private(set) var clearedReminderScopes: [String] = []
+    func replaceReminders(_ notices: [ReminderNotice], scope: String) { reminders[scope] = notices }
+    func cancelReminders(_ ids: [String], scope: String) { cancelledReminders += ids }
+    func clearReminders(scope: String) {
+        reminders[scope] = []
+        clearedReminderScopes.append(scope)
+    }
     var badge: Int? { badges.last ?? nil }
     func setBadge(_ count: Int?) { badges.append(count) }
     func show(_ notice: AttentionNotice) { shown.append(notice) }

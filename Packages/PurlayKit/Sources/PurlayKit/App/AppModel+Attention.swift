@@ -11,6 +11,7 @@ extension AppModel {
 
     public func setNoticesOn(_ on: Bool) {
         environment.preferences.set(on ? "1" : "0", for: Self.noticesKey)
+        (sessionOwner ?? self).syncReminderNotices()
     }
 
     /// When the open workspace's Deep Work ends, if it has not: nil when it is off or over.

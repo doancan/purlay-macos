@@ -314,6 +314,13 @@ private struct DesktopAttentionSource: AttentionPresenter {
         owner.notices[id, default: []].insert(name)
         owner.presenter.show(AttentionNotice(id: name, content: notice.content, sourceID: id))
     }
+    func replaceReminders(_ notices: [ReminderNotice], scope: String) {
+        owner.presenter.replaceReminders(notices, scope: "\(id):\(scope)")
+    }
+    func cancelReminders(_ ids: [String], scope: String) {
+        owner.presenter.cancelReminders(ids, scope: "\(id):\(scope)")
+    }
+    func clearReminders(scope: String) { owner.presenter.clearReminders(scope: "\(id):\(scope)") }
     func retract(_ ids: [String]) {
         let names = ids.map { "\(id):\($0)" }
         owner.notices[id]?.subtract(names)

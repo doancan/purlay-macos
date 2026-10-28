@@ -243,6 +243,7 @@ extension Words {
     static func inboxHeadline(_ row: InboxRow, me: Uuid?) -> String {
         let who = names(row.senders)
         switch row.reason {
+        case .reminder: return String(localized: "Your message reminder is due")
         case .mention: return String(localized: "\(who) mentioned you")
         case .directMessage: return String(localized: "\(who) sent you a message")
         case .channelMessage: return String(localized: "\(who) posted")

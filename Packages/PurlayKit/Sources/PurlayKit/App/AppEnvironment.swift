@@ -29,6 +29,15 @@ public protocol AttentionPresenter {
     func setBadge(_ count: Int?)
     func show(_ notice: AttentionNotice)
     func retract(_ ids: [String])
+    func replaceReminders(_ notices: [ReminderNotice], scope: String)
+    func cancelReminders(_ ids: [String], scope: String)
+    func clearReminders(scope: String)
+}
+
+extension AttentionPresenter {
+    public func replaceReminders(_ notices: [ReminderNotice], scope: String) {}
+    public func cancelReminders(_ ids: [String], scope: String) {}
+    public func clearReminders(scope: String) {}
 }
 
 /// For where nothing can be told: a test that does not look, and a build with no notifications.

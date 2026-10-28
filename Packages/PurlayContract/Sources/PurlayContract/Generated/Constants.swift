@@ -51,6 +51,8 @@ public enum ContractConstants {
 
     public static let messageIdSkew = MessageIdSkew(aheadMs: 5000, behindMs: 60000)
 
+    public static let messageRemindersMax = 100
+
     public static let messageVersionsKept = 100
 
     public static let messageWindowSide = 25

@@ -23,6 +23,9 @@ final class FakeServer: HTTPTransport {
         var uploadErrors: [String: (status: Int, code: String, remaining: Int?)] = [:]
         var uploadDelays: [String: Int] = [:]
         var attachmentData: [String: Data] = [:]
+        var reminders: [MessageReminder] = []
+        var reminderError: (status: Int, code: String)?
+        var reminderDelay = 0
         var scheduled: [ScheduledMessage] = []
         var scheduledError: (status: Int, code: String)?
         var scheduledDelay = 0
@@ -116,13 +119,14 @@ final class FakeServer: HTTPTransport {
 
     static func clientInfo(
         minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390",
-        notificationTypeFilters: Bool? = true, scheduledMessages: Bool? = nil
+        notificationTypeFilters: Bool? = true, scheduledMessages: Bool? = nil, messageReminders: Bool? = nil
     )
         -> String
     {
         let flags = [
             notificationTypeFilters.map { "\"notificationTypeFilters\":\($0)" },
             scheduledMessages.map { "\"scheduledMessages\":\($0)" },
+            messageReminders.map { "\"messageReminders\":\($0)" },
         ].compactMap { $0 }.joined(separator: ",")
         let capability = flags.isEmpty ? "" : ",\"capabilities\":{\(flags)}"
         return """
@@ -191,6 +195,35 @@ final class FakeServer: HTTPTransport {
         }
         func unauthenticated() -> HTTPResponse {
             json(401, #"{"error":{"code":"UNAUTHENTICATED","message":"x"}}"#)
+        }
+        if path.contains("/reminder") {
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.reminderDelay > 0 { try await Task.sleep(for: .milliseconds(snapshot.reminderDelay)) }
+            if let error = snapshot.reminderError {
+                return json(error.status, "{\"error\":{\"code\":\"\(error.code)\",\"message\":\"x\"}}")
+            }
+            if request.method == "GET" { return json(200, Self.encoded(snapshot.reminders)) }
+            let parts = path.split(separator: "/")
+            guard parts.count == 4,
+                let message = snapshot.messages.values.flatMap({ $0 }).first(where: { $0.id.value == parts[2] })
+            else { return HTTPResponse(status: 404) }
+            if request.method == "DELETE" {
+                state.withLock { $0.reminders.removeAll { $0.message.id == message.id } }
+                return HTTPResponse(status: 204)
+            }
+            guard let data = request.body,
+                let input = try? JSONDecoder().decode(SetMessageReminderRequest.self, from: data)
+            else { return HTTPResponse(status: 400) }
+            let now = Timestamp(Date(timeIntervalSince1970: Double(epochMs) / 1_000))
+            let item = MessageReminder(
+                createdAt: now,
+                id: snapshot.reminders.first(where: { $0.message.id == message.id })?.id ?? Uuid(UUID()),
+                message: message, remindAt: input.remindAt)
+            state.withLock {
+                $0.reminders.removeAll { $0.message.id == message.id }
+                $0.reminders.append(item)
+            }
+            return json(200, Self.encoded(item))
         }
         if path.contains("/scheduled") {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }

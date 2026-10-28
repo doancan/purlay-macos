@@ -154,6 +154,11 @@ struct MessageRow: View {
 
     @ViewBuilder private var menu: some View {
         if !deleted {
+            if model.supportsReminders {
+                Button(
+                    model.reminder(for: message) == nil ? "Remind Me…" : "Change Reminder…", systemImage: "bell.badge"
+                ) { model.reminderTarget = message }
+            }
             Button("Copy Text", systemImage: "doc.on.doc") { Clipboard.copy(message.content) }
             Button("Copy Link", systemImage: "link") {
                 if let url = model.webURL(.message(message.id, in: message.channelId)) {

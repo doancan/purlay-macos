@@ -342,6 +342,7 @@ public final class Engine {
             options.refresh(.channels(workspace: workspace))
             options.refresh(.memberships(workspace: workspace))
             options.refresh(.notifications(workspace: workspace))
+            options.refresh(.reminders(workspace: workspace))
             options.refresh(.saved(workspace: workspace))
         }
     }

@@ -23,6 +23,7 @@ public enum Refresh: Sendable, Hashable {
     case memberships(workspace: Uuid)
     case channels(workspace: Uuid)
     case pins(channel: Uuid)
+    case reminders(workspace: Uuid)
     case saved(workspace: Uuid)
     case notifications(workspace: Uuid)
     case incident(channel: Uuid)
@@ -185,6 +186,7 @@ public struct ChatState: Sendable, Equatable {
         // What says "read again": never patched from the frame.
         case .workspaceUpdated(let changed): return [.refresh(.memberships(workspace: changed.data.workspaceId))]
         case .channelsUpdated(let changed): return [.refresh(.channels(workspace: changed.data.workspaceId))]
+        case .remindersUpdated(let changed): return [.refresh(.reminders(workspace: changed.data.workspaceId))]
         case .savedUpdated(let changed): return [.refresh(.saved(workspace: changed.data.workspaceId))]
         case .notificationsUpdated(let changed): return [.refresh(.notifications(workspace: changed.data.workspaceId))]
         case .pinsUpdated(let changed): return [.refresh(.pins(channel: changed.data.channelId))]

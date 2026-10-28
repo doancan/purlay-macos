@@ -20,6 +20,7 @@ struct PurlayApp: App {
         attention.open = { channel, source in
             Task { await sessions.openNotification(channel: channel, sourceID: source) }
         }
+        attention.openLink = { url in Task { await sessions.openLink(url) } }
         _sessions = State(initialValue: sessions)
     }
 

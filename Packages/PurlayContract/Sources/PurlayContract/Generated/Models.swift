@@ -1751,27 +1751,32 @@ public struct ChannelsUpdatedFrame: Sendable, Hashable, Codable {
 }
 
 public struct ClientCapabilities: Sendable, Hashable, Codable {
+    public var messageReminders: Bool?
     public var notificationTypeFilters: Bool?
     public var scheduledMessages: Bool?
 
-    public init(notificationTypeFilters: Bool? = nil, scheduledMessages: Bool? = nil) {
+    public init(messageReminders: Bool? = nil, notificationTypeFilters: Bool? = nil, scheduledMessages: Bool? = nil) {
+        self.messageReminders = messageReminders
         self.notificationTypeFilters = notificationTypeFilters
         self.scheduledMessages = scheduledMessages
     }
 
     private enum CodingKeys: String, CodingKey {
+        case messageReminders
         case notificationTypeFilters
         case scheduledMessages
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.messageReminders = try container.decodeIfPresent(Bool.self, forKey: .messageReminders)
         self.notificationTypeFilters = try container.decodeIfPresent(Bool.self, forKey: .notificationTypeFilters)
         self.scheduledMessages = try container.decodeIfPresent(Bool.self, forKey: .scheduledMessages)
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.messageReminders, forKey: .messageReminders)
         try container.encodeIfPresent(self.notificationTypeFilters, forKey: .notificationTypeFilters)
         try container.encodeIfPresent(self.scheduledMessages, forKey: .scheduledMessages)
     }
@@ -1864,27 +1869,32 @@ public struct ClientInfo: Sendable, Hashable, Codable {
     }
 
     public struct Capabilities: Sendable, Hashable, Codable {
+        public var messageReminders: Bool?
         public var notificationTypeFilters: Bool?
         public var scheduledMessages: Bool?
 
-        public init(notificationTypeFilters: Bool? = nil, scheduledMessages: Bool? = nil) {
+        public init(messageReminders: Bool? = nil, notificationTypeFilters: Bool? = nil, scheduledMessages: Bool? = nil) {
+            self.messageReminders = messageReminders
             self.notificationTypeFilters = notificationTypeFilters
             self.scheduledMessages = scheduledMessages
         }
 
         private enum CodingKeys: String, CodingKey {
+            case messageReminders
             case notificationTypeFilters
             case scheduledMessages
         }
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.messageReminders = try container.decodeIfPresent(Bool.self, forKey: .messageReminders)
             self.notificationTypeFilters = try container.decodeIfPresent(Bool.self, forKey: .notificationTypeFilters)
             self.scheduledMessages = try container.decodeIfPresent(Bool.self, forKey: .scheduledMessages)
         }
 
         public func encode(to encoder: any Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(self.messageReminders, forKey: .messageReminders)
             try container.encodeIfPresent(self.notificationTypeFilters, forKey: .notificationTypeFilters)
             try container.encodeIfPresent(self.scheduledMessages, forKey: .scheduledMessages)
         }
@@ -5485,6 +5495,45 @@ public struct MessagePage: Sendable, Hashable, Codable {
     }
 }
 
+public struct MessageReminder: Sendable, Hashable, Codable {
+    public var createdAt: Timestamp
+    public var id: Uuid
+    public var message: Message
+    public var remindAt: Timestamp
+
+    public init(createdAt: Timestamp, id: Uuid, message: Message, remindAt: Timestamp) {
+        self.createdAt = createdAt
+        self.id = id
+        self.message = message
+        self.remindAt = remindAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case createdAt
+        case id
+        case message
+        case remindAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.createdAt = try container.decode(Timestamp.self, forKey: .createdAt)
+        self.id = try container.decode(Uuid.self, forKey: .id)
+        self.message = try container.decode(Message.self, forKey: .message)
+        self.remindAt = try container.decode(Timestamp.self, forKey: .remindAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.createdAt, forKey: .createdAt)
+        try container.encode(self.id, forKey: .id)
+        try container.encode(self.message, forKey: .message)
+        try container.encode(self.remindAt, forKey: .remindAt)
+    }
+}
+
+public typealias MessageReminderList = [MessageReminder]
+
 public struct MessageRevisedFrame: Sendable, Hashable, Codable {
     public var data: Payload
     public var refId: Uuid?
@@ -6180,10 +6229,11 @@ public enum NotificationType: Sendable, Hashable, Codable {
     case threadReply
     case threadResolved
     case channelMessage
+    case reminder
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [NotificationType] = [.mention, .directMessage, .threadReply, .threadResolved, .channelMessage]
+    public static let known: [NotificationType] = [.mention, .directMessage, .threadReply, .threadResolved, .channelMessage, .reminder]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -6192,6 +6242,7 @@ public enum NotificationType: Sendable, Hashable, Codable {
             case "thread_reply": self = .threadReply
             case "thread_resolved": self = .threadResolved
             case "channel_message": self = .channelMessage
+            case "reminder": self = .reminder
             default: self = .unknown(rawValue)
         }
     }
@@ -6203,6 +6254,7 @@ public enum NotificationType: Sendable, Hashable, Codable {
             case .threadReply: return "thread_reply"
             case .threadResolved: return "thread_resolved"
             case .channelMessage: return "channel_message"
+            case .reminder: return "reminder"
             case .unknown(let value): return value
         }
     }
@@ -7152,6 +7204,68 @@ public struct ReadThreadRequest: Sendable, Hashable, Codable {
     }
 }
 
+public struct RemindersUpdatedFrame: Sendable, Hashable, Codable {
+    public var data: Payload
+    public var refId: Uuid?
+    public var ts: Double
+
+    public init(data: Payload, refId: Uuid? = nil, ts: Double) {
+        self.data = data
+        self.refId = refId
+        self.ts = ts
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case data
+        case event
+        case refId
+        case ts
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let eventTag = try container.decode(String.self, forKey: .event)
+        guard eventTag == "REMINDERS_UPDATED" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .event, in: container,
+                debugDescription: "expected REMINDERS_UPDATED, found \(eventTag)")
+        }
+        self.data = try container.decode(Payload.self, forKey: .data)
+        self.refId = try container.decodeIfPresent(Uuid.self, forKey: .refId)
+        self.ts = try container.decode(Double.self, forKey: .ts)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.data, forKey: .data)
+        try container.encode("REMINDERS_UPDATED", forKey: .event)
+        try container.encodeIfPresent(self.refId, forKey: .refId)
+        try container.encode(self.ts, forKey: .ts)
+    }
+
+    public struct Payload: Sendable, Hashable, Codable {
+        public var workspaceId: Uuid
+
+        public init(workspaceId: Uuid) {
+            self.workspaceId = workspaceId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case workspaceId
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.workspaceId = try container.decode(Uuid.self, forKey: .workspaceId)
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(self.workspaceId, forKey: .workspaceId)
+        }
+    }
+}
+
 public struct ReplayState: Sendable, Hashable, Codable {
     public var channelId: Uuid
     public var nextCursor: Uuid?
@@ -8039,6 +8153,7 @@ public enum ServerFrame: Sendable, Hashable, Codable {
     case accessRevoked(AccessRevokedFrame)
     case deepWorkUpdated(DeepWorkUpdatedFrame)
     case savedUpdated(SavedUpdatedFrame)
+    case remindersUpdated(RemindersUpdatedFrame)
     case notificationsUpdated(NotificationsUpdatedFrame)
     case pinsUpdated(PinsUpdatedFrame)
     case incidentUpdated(IncidentUpdatedFrame)
@@ -8071,6 +8186,7 @@ public enum ServerFrame: Sendable, Hashable, Codable {
             case "ACCESS_REVOKED": self = .accessRevoked(try AccessRevokedFrame(from: decoder))
             case "DEEP_WORK_UPDATED": self = .deepWorkUpdated(try DeepWorkUpdatedFrame(from: decoder))
             case "SAVED_UPDATED": self = .savedUpdated(try SavedUpdatedFrame(from: decoder))
+            case "REMINDERS_UPDATED": self = .remindersUpdated(try RemindersUpdatedFrame(from: decoder))
             case "NOTIFICATIONS_UPDATED": self = .notificationsUpdated(try NotificationsUpdatedFrame(from: decoder))
             case "PINS_UPDATED": self = .pinsUpdated(try PinsUpdatedFrame(from: decoder))
             case "INCIDENT_UPDATED": self = .incidentUpdated(try IncidentUpdatedFrame(from: decoder))
@@ -8099,6 +8215,7 @@ public enum ServerFrame: Sendable, Hashable, Codable {
             case .accessRevoked(let value): try value.encode(to: encoder)
             case .deepWorkUpdated(let value): try value.encode(to: encoder)
             case .savedUpdated(let value): try value.encode(to: encoder)
+            case .remindersUpdated(let value): try value.encode(to: encoder)
             case .notificationsUpdated(let value): try value.encode(to: encoder)
             case .pinsUpdated(let value): try value.encode(to: encoder)
             case .incidentUpdated(let value): try value.encode(to: encoder)
@@ -8467,6 +8584,28 @@ public struct SetLocaleRequest: Sendable, Hashable, Codable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.locale, forKey: .locale)
+    }
+}
+
+public struct SetMessageReminderRequest: Sendable, Hashable, Codable {
+    public var remindAt: Timestamp
+
+    public init(remindAt: Timestamp) {
+        self.remindAt = remindAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case remindAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.remindAt = try container.decode(Timestamp.self, forKey: .remindAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.remindAt, forKey: .remindAt)
     }
 }
 

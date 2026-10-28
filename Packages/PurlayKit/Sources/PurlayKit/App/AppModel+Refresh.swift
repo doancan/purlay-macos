@@ -26,6 +26,8 @@ extension AppModel {
             Task { await self.open(channel) }
         case .memberships:
             reread(refresh) { await $0.reloadMe() }
+        case .reminders(let id) where id == workspace?.id && sessionOwner == nil:
+            reread(refresh) { await $0.loadReminders() }
         case .saved(let id) where id == workspace?.id:
             reread(refresh) { await $0.reloadSaved() }
         case .pins(let channel) where channel == selectedChannel:

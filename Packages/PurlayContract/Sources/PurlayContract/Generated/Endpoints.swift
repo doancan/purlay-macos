@@ -259,6 +259,21 @@ public enum Endpoints {
         query: nil, body: nil,
         responses: [204: .empty])
 
+    public static let setMessageReminder = EndpointSpec(
+        id: "setMessageReminder", method: "PUT", path: "/api/messages/:messageId/reminder", auth: .session,
+        query: nil, body: .schema("SetMessageReminderRequest"),
+        responses: [200: .schema("MessageReminder")])
+
+    public static let cancelMessageReminder = EndpointSpec(
+        id: "cancelMessageReminder", method: "DELETE", path: "/api/messages/:messageId/reminder", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let listMessageReminders = EndpointSpec(
+        id: "listMessageReminders", method: "GET", path: "/api/workspaces/:workspaceId/reminders", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("MessageReminderList")])
+
     public static let scheduleMessage = EndpointSpec(
         id: "scheduleMessage", method: "PUT", path: "/api/channels/:channelId/scheduled/:scheduledId", auth: .session,
         query: nil, body: .schema("ScheduleMessageRequest"),
@@ -383,6 +398,9 @@ public enum Endpoints {
         unpinMessage,
         saveMessage,
         unsaveMessage,
+        setMessageReminder,
+        cancelMessageReminder,
+        listMessageReminders,
         scheduleMessage,
         cancelScheduledMessage,
         listScheduledMessages,

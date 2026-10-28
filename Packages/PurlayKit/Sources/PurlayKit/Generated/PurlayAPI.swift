@@ -253,6 +253,21 @@ public struct PurlayAPI: Sendable {
         try await client.sendEmpty(Endpoints.unsaveMessage, path: ["messageId": messageId])
     }
 
+    /// `PUT /api/messages/:messageId/reminder`
+    public func setMessageReminder(messageId: String, body: SetMessageReminderRequest) async throws -> MessageReminder {
+        try await client.send(Endpoints.setMessageReminder, path: ["messageId": messageId], body: body, as: MessageReminder.self)
+    }
+
+    /// `DELETE /api/messages/:messageId/reminder`
+    public func cancelMessageReminder(messageId: String) async throws {
+        try await client.sendEmpty(Endpoints.cancelMessageReminder, path: ["messageId": messageId])
+    }
+
+    /// `GET /api/workspaces/:workspaceId/reminders`
+    public func listMessageReminders(workspaceId: String) async throws -> MessageReminderList {
+        try await client.send(Endpoints.listMessageReminders, path: ["workspaceId": workspaceId], as: MessageReminderList.self)
+    }
+
     /// `PUT /api/channels/:channelId/scheduled/:scheduledId`
     public func scheduleMessage(channelId: String, scheduledId: String, body: ScheduleMessageRequest) async throws -> ScheduledMessage {
         try await client.send(Endpoints.scheduleMessage, path: ["channelId": channelId, "scheduledId": scheduledId], body: body, as: ScheduledMessage.self)

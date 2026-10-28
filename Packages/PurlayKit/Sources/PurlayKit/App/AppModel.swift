@@ -264,6 +264,12 @@ public final class AppModel {
     public var paletteOpen = false
     public var searchOpen = false
     public var pinsOpen = false
+    public var remindersOpen = false
+    public var reminderTarget: Message?
+    var storedReminders: [MessageReminder] = []
+    var loadingReminders = false
+    var failedReminders = false
+    var reminderGeneration = 0
     public var scheduledOpen = false
     public internal(set) var scheduledItems: [ScheduledMessage] = []
     public internal(set) var scheduledLoading = false
@@ -629,6 +635,7 @@ public final class AppModel {
             sync()
             await refreshPeople()
             guard context == contextGeneration else { return }
+            reread(.reminders(workspace: membership.workspace.id)) { await $0.loadReminders() }
             reread(.saved(workspace: membership.workspace.id)) { await $0.reloadSaved() }
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
                 Uuid.init)
@@ -724,6 +731,7 @@ public final class AppModel {
             window.phase = .signedOut
         }
         conversationWindows = []
+        clearReminders()
         contextGeneration += 1
         cookieCache = nil
         markedRead = [:]

@@ -47,6 +47,11 @@ struct SidebarView: View {
                     .tag(SidebarSelection.inbox)
                 Label("Open Topics", systemImage: "bubble.left.and.text.bubble.right")
                     .tag(SidebarSelection.unresolved)
+                if model.supportsReminders {
+                    DestinationRow(title: "Reminders", systemImage: "bell.badge", count: model.reminderItems.count) {
+                        model.remindersOpen = true
+                    }
+                }
                 if model.supportsScheduling {
                     DestinationRow(title: "Scheduled", systemImage: "clock") { model.scheduledOpen = true }
                 }

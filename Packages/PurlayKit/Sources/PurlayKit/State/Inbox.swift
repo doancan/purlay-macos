@@ -5,7 +5,7 @@ import PurlayContract
 /// (D-162): it stands where the newest sits, names each replier once, and is unread while any of them is.
 public struct InboxRow: Identifiable, Equatable, Sendable {
     public enum Reason: Equatable, Sendable {
-        case mention, directMessage, channelMessage, threadResolved, reply, unknown
+        case reminder, mention, directMessage, channelMessage, threadResolved, reply, unknown
     }
 
     /// The newest notification it gathers.
@@ -116,6 +116,7 @@ extension InboxRow {
 
     private static func reason(_ type: NotificationType) -> Reason {
         switch type {
+        case .reminder: return .reminder
         case .mention: return .mention
         case .directMessage: return .directMessage
         case .channelMessage: return .channelMessage

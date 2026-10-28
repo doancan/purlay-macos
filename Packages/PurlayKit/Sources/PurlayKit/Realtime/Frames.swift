@@ -25,6 +25,7 @@ extension ServerFrame {
         case .sessionEnded(let frame): return frame.refId
         case .accessRevoked(let frame): return frame.refId
         case .deepWorkUpdated(let frame): return frame.refId
+        case .remindersUpdated(let frame): return frame.refId
         case .savedUpdated(let frame): return frame.refId
         case .notificationsUpdated(let frame): return frame.refId
         case .pinsUpdated(let frame): return frame.refId
