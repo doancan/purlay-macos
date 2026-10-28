@@ -25,6 +25,10 @@ final class FakeServer: HTTPTransport {
         var attachmentData: [String: Data] = [:]
         var saved: [String: String] = [:]
         var savedIdsStatus = 200
+        var savedListStatus = 200
+        var savedPageSize: Int?
+        var savedDelays: [String: Int] = [:]
+        var savedMutationDelay: Int?
         var saveError: (status: Int, code: String)?
         var pins: [String: [String]] = [:]
         var pinError: (status: Int, code: String)?
@@ -355,7 +359,7 @@ final class FakeServer: HTTPTransport {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let q = items.first { $0.name == "q" }?.value ?? ""
-            if let wait = snapshot.searchDelays[q] { try? await Task.sleep(for: .milliseconds(wait)) }
+            if let wait = snapshot.searchDelays[q] { try await Task.sleep(for: .milliseconds(wait)) }
             if snapshot.searchStatus != 200 {
                 return json(snapshot.searchStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
             }
@@ -409,17 +413,25 @@ final class FakeServer: HTTPTransport {
             return json(snapshot.savedIdsStatus, "[\(items.joined(separator: ","))]")
         case ("GET", "/api/workspaces/\(Self.workspaceID)/saved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            let wanted =
-                URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems?.first {
-                    $0.name == "state"
-                }?.value ?? "in_progress"
+            let query = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let wanted = query.first { $0.name == "state" }?.value ?? "in_progress"
+            if let delay = snapshot.savedDelays[wanted] { try? await Task.sleep(for: .milliseconds(delay)) }
+            if snapshot.savedListStatus != 200 {
+                return json(snapshot.savedListStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
             let all = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
-            let items = snapshot.saved.filter { $0.value == wanted }.compactMap { entry -> String? in
-                guard let found = all.first(where: { $0.id.value == entry.key }) else { return nil }
+            let before = query.first { $0.name == "before" }?.value
+            let matches = all.filter { snapshot.saved[$0.id.value] == wanted }
+            let eligible = matches.filter { message in before.map { message.id.value < $0 } ?? true }
+                .sorted { $0.id > $1.id }
+            let limit = snapshot.savedPageSize ?? ContractConstants.pageLimit.default
+            let page = Array(eligible.prefix(limit))
+            let items = page.map { found -> String in
                 return
                     "{\"id\":\"\(found.id.value)\",\"message\":\(Self.encoded(found)),\"savedAt\":\"2026-10-09T12:00:00.000Z\",\"state\":\"\(wanted)\"}"
             }
-            return json(200, "{\"data\":[\(items.joined(separator: ","))],\"nextCursor\":null}")
+            let cursor = eligible.count > limit ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+            return json(200, "{\"data\":[\(items.joined(separator: ","))],\"nextCursor\":\(cursor)}")
         case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/saved"),
             ("DELETE", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/saved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
@@ -427,9 +439,15 @@ final class FakeServer: HTTPTransport {
                 return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
             }
             let id = String(path.dropFirst("/api/messages/".count).dropLast("/saved".count))
+            let body = request.body.flatMap { try? JSONDecoder().decode(SaveMessageRequest.self, from: $0) }
+            if let delay = snapshot.savedMutationDelay { try? await Task.sleep(for: .milliseconds(delay)) }
             state.withLock { state in
                 if request.method == "PUT" {
-                    if state.saved[id] == nil { state.saved[id] = "in_progress" }
+                    if let wanted = body?.state {
+                        state.saved[id] = wanted.rawValue
+                    } else if state.saved[id] == nil {
+                        state.saved[id] = "in_progress"
+                    }
                 } else {
                     state.saved[id] = nil
                 }

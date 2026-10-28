@@ -11,11 +11,15 @@ extension AppModel {
     public func openSearch(_ query: String? = nil) {
         paletteOpen = false
         searchOpen = true
+        searchInput = String((query ?? searchQuery).prefix(ContractConstants.searchQueryMax))
         if let query {
             // Said at once, so the sheet that opens shows what is being searched for.
             searchQuery = String(
                 query.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ContractConstants.searchQueryMax))
             Task { await search(query) }
+        } else if searchStatus == .idle && searchQuery.count >= ContractConstants.searchQueryMin {
+            let input = searchInput
+            Task { await search(input) }
         }
     }
 
@@ -29,6 +33,7 @@ extension AppModel {
         searchGeneration += 1
         let generation = searchGeneration
         let typed = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ContractConstants.searchQueryMax))
+        searchInput = String(raw.prefix(ContractConstants.searchQueryMax))
         searchQuery = typed
         guard typed.count >= ContractConstants.searchQueryMin, let api, let workspace else {
             searchResults = []
@@ -42,6 +47,7 @@ extension AppModel {
                 workspaceId: workspace.id.value,
                 query: SearchQuery(limit: ContractConstants.pageLimit.default, q: typed))
             guard generation == searchGeneration else { return }
+            try Task.checkCancellation()
             searchResults = page.data
             searchCursor = page.nextCursor
             searchStatus = .done
@@ -49,7 +55,9 @@ extension AppModel {
             guard generation == searchGeneration else { return }
             searchResults = []
             searchCursor = nil
-            searchStatus = .failed
+            searchStatus =
+                Task.isCancelled || error is CancellationError || (error as? TransportError) == .cancelled
+                ? .idle : .failed
         }
     }
 
@@ -78,9 +86,17 @@ extension AppModel {
     public func clearSearch() {
         searchGeneration += 1
         searchQuery = ""
+        searchInput = ""
         searchResults = []
         searchCursor = nil
         searchStatus = .idle
+    }
+
+    /// Closing search gives up its pending reads, without turning cancellation into a connection failure or losing the query.
+    public func cancelSearch() {
+        searchGeneration &+= 1
+        loadingMoreResults = false
+        if searchStatus == .searching { searchStatus = .idle }
     }
 
     /// Goes to a message: its channel, with the feed read around it, and the feed told to show it. A reply opens its root's thread, and is

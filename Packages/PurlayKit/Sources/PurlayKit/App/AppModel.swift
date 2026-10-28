@@ -105,6 +105,7 @@ public final class AppModel {
     var api: PurlayAPI?
     private var observation: Task<Void, Never>?
     private var noticeCounter = 0
+    private var launched = false
     /// The newest message of each channel that was marked read from here, so the same one is not asked for twice.
     private var markedRead: [Uuid: Uuid] = [:]
     private var marking = Set<Uuid>()
@@ -179,6 +180,14 @@ public final class AppModel {
     /// The pins of each channel that was opened, newest first as the server gives them.
     var pins: [Uuid: [PinnedMessage]] = [:]
     public internal(set) var savedItems: [SavedItem] = []
+    public enum SavedStatus: Equatable, Sendable { case idle, loading, loaded, failed }
+    public internal(set) var savedStatus: SavedStatus = .idle
+    public internal(set) var loadingMoreSaved = false
+    public internal(set) var savedPaginationFailed = false
+    var savedState: SavedState = .inProgress
+    var savedCursor: Uuid?
+    var savedGeneration = 0
+    var sessionGeneration = 0
     /// The message whose words are being changed, if any: one at a time.
     public internal(set) var editing: Uuid?
     /// Reactions on their way, as message id and emoji: a double click is one request.
@@ -236,6 +245,8 @@ public final class AppModel {
     }
 
     public internal(set) var searchQuery = ""
+    /// What the search field opens with, including the space after a channel scope such as `in:design `.
+    public internal(set) var searchInput = ""
     public internal(set) var searchResults: [Message] = []
     public internal(set) var searchStatus: SearchStatus = .idle
     public internal(set) var focus: Focus?
@@ -310,6 +321,8 @@ public final class AppModel {
 
     /// At launch: the server this app was last pointed at, if any.
     public func launch() async {
+        guard !launched else { return }
+        launched = true
         phase = .launching
         guard let typed = environment.preferences.string(for: Self.serverKey) else {
             phase = .needsServer
@@ -366,9 +379,16 @@ public final class AppModel {
 
     /// Forgets the server, so the next launch asks again: changing server signs out (one at a time).
     public func chooseAnotherServer() async {
-        if phase == .ready || phase == .loading { _ = await signOut(.thisDevice) }
+        switch await signOut(.thisDevice) {
+        case .credentialKept, .notDone: return
+        case .done, .serverNotTold: break
+        }
+        observation?.cancel()
+        observation = nil
+        manager = nil
         environment.preferences.set(nil, for: Self.serverKey)
         server = nil
+        origin = nil
         serverInfo = nil
         phase = .needsServer
     }
@@ -601,6 +621,7 @@ public final class AppModel {
     }
 
     private func tearDown() {
+        sessionGeneration &+= 1
         cookieCache = nil
         markedRead = [:]
         marking = []
@@ -626,6 +647,11 @@ public final class AppModel {
         attachmentCacheBytes = 0
         savedIDs = [:]
         savedItems = []
+        savedGeneration &+= 1
+        savedStatus = .idle
+        savedCursor = nil
+        loadingMoreSaved = false
+        savedPaginationFailed = false
         pins = [:]
         // After the engine is gone: stopping it says it changed, and that would count what is no longer anybody's.
         attention = Attention()
