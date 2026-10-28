@@ -37,6 +37,7 @@ struct ShortcutsSheet: View {
             rows: [
                 Row(keys: "⌘N", what: "New conversation"),
                 Row(keys: "⇧⌘N", what: "New channel"),
+                Row(keys: "⌥⌘N", what: "Open conversation in a new window"),
                 Row(keys: "⇧⌘O", what: "Browse channels"),
             ]),
         Group(

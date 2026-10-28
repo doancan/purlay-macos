@@ -14,6 +14,7 @@ struct MainView: View {
     @State private var detailsTab = ChannelDetailTab.about
     @State private var forward = true
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.controlActiveState) private var controlActiveState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -78,7 +79,13 @@ struct MainView: View {
         }
         .onAppear { selection = shown }
         // Only what is in front of the person is read (D-143).
-        .onChange(of: scenePhase, initial: true) { _, phase in model.setActive(phase == .active) }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            model.setActive(phase == .active && controlActiveState == .key)
+        }
+        .onChange(of: controlActiveState, initial: true) { _, state in
+            model.setActive(scenePhase == .active && state == .key)
+        }
+        .onDisappear { model.setActive(false) }
         .onChange(of: selection) { _, new in
             guard let new, new != shown else { return }
             forward = position(new) >= position(shown)

@@ -78,6 +78,7 @@ extension AppModel {
 
     /// A reply arrived: the open thread, if it is that one, adds it.
     func receiveReply(_ reply: Message) {
+        for window in liveConversationWindows { window.receiveReply(reply) }
         guard thread?.receive(reply) == true else { return }
         markThreadReadIfSeen()
     }

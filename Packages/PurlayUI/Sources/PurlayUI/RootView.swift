@@ -42,5 +42,6 @@ public struct RootView: View {
         // One accent: the system's prominent buttons, selections and toggles take the brand's blue, as the token views do.
         .tint(Colors.accent.color)
         .preferredColorScheme(appearance.scheme)
+        .focusedSceneValue(\.purlayModel, model)
     }
 }

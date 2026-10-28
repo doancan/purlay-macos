@@ -17,6 +17,7 @@ struct ChannelMenu: View {
     /// Opens the channel's details on a tab, where the window can show them.
     var showDetails: ((ChannelDetailTab) -> Void)?
     @Environment(\.openURL) private var openURL
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Button(channel.starred ? "Unstar" : "Star", systemImage: channel.starred ? "star.slash" : "star") {
@@ -37,6 +38,11 @@ struct ChannelMenu: View {
             Button("Files", systemImage: "doc.on.doc") { showDetails(.files) }
         }
         Divider()
+        Button("Open in New Window", systemImage: "macwindow.on.rectangle") {
+            if let request = model.conversationWindowRequest(for: channel.id) {
+                openWindow(id: "conversation", value: request)
+            }
+        }
         Button("Copy Link", systemImage: "link") {
             if let url = model.webURL(.channel(channel.id)) { Clipboard.copy(url.absoluteString) }
         }

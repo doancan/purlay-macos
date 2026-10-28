@@ -87,7 +87,14 @@ public final class AppModel {
     public private(set) var phase: Phase = .launching
     public private(set) var server: ServerAddress?
     public private(set) var serverInfo: ClientInfo?
-    public internal(set) var me: MeResponse?
+    private var sessionMe: MeResponse?
+    public internal(set) var me: MeResponse? {
+        get {
+            if let sessionOwner { return sessionOwner.me }
+            return sessionMe
+        }
+        set { if let sessionOwner { sessionOwner.me = newValue } else { sessionMe = newValue } }
+    }
     public private(set) var workspace: Workspace?
     public internal(set) var selectedChannel: Uuid?
     public private(set) var notices: [Notice] = []
@@ -103,6 +110,8 @@ public final class AppModel {
     private var manager: SessionManager?
     var engine: Engine?
     var api: PurlayAPI?
+    @ObservationIgnored weak var sessionOwner: AppModel?
+    @ObservationIgnored private var conversationWindows: [WeakConversationModel] = []
     private var observation: Task<Void, Never>?
     private var noticeCounter = 0
     /// The newest message of each channel that was marked read from here, so the same one is not asked for twice.
@@ -124,7 +133,14 @@ public final class AppModel {
     // MARK: People
 
     /// The people of the workspace, and the members of the private channels that were opened: who an `@` could reach.
-    public internal(set) var workspacePeople: [User] = []
+    private var sessionPeople: [User] = []
+    public internal(set) var workspacePeople: [User] {
+        get {
+            if let sessionOwner { return sessionOwner.workspacePeople }
+            return sessionPeople
+        }
+        set { if let sessionOwner { sessionOwner.workspacePeople = newValue } else { sessionPeople = newValue } }
+    }
     var channelPeople: [Uuid: [User]] = [:]
 
     // MARK: Threads
@@ -183,9 +199,23 @@ public final class AppModel {
     // MARK: Saved, pinned, and the last message
 
     /// What the person saved, by message, and in which state.
-    public internal(set) var savedIDs: [Uuid: SavedState] = [:]
+    private var sessionSavedIDs: [Uuid: SavedState] = [:]
+    public internal(set) var savedIDs: [Uuid: SavedState] {
+        get {
+            if let sessionOwner { return sessionOwner.savedIDs }
+            return sessionSavedIDs
+        }
+        set { if let sessionOwner { sessionOwner.savedIDs = newValue } else { sessionSavedIDs = newValue } }
+    }
     /// The pins of each channel that was opened, newest first as the server gives them.
-    var pins: [Uuid: [PinnedMessage]] = [:]
+    private var sessionPins: [Uuid: [PinnedMessage]] = [:]
+    var pins: [Uuid: [PinnedMessage]] {
+        get {
+            if let sessionOwner { return sessionOwner.pins }
+            return sessionPins
+        }
+        set { if let sessionOwner { sessionOwner.pins = newValue } else { sessionPins = newValue } }
+    }
     public internal(set) var savedItems: [SavedItem] = []
     public internal(set) var savedFilter: SavedState = .inProgress
     public internal(set) var savedLoading = false
@@ -233,7 +263,14 @@ public final class AppModel {
     public var draftsOpen = false
     public private(set) var draftRevision = 0
 
-    func draftDidChange() { draftRevision &+= 1 }
+    func draftDidChange() {
+        if let sessionOwner {
+            sessionOwner.draftDidChange()
+            return
+        }
+        draftRevision &+= 1
+        for window in liveConversationWindows { window.draftRevision &+= 1 }
+    }
 
     // MARK: Search
 
@@ -328,6 +365,11 @@ public final class AppModel {
 
     /// At launch: the server this app was last pointed at, if any.
     public func launch() async {
+        if let sessionOwner {
+            await sessionOwner.launch()
+            return
+        }
+        guard phase == .launching else { return }
         phase = .launching
         guard let typed = environment.preferences.string(for: Self.serverKey) else {
             phase = .needsServer
@@ -338,6 +380,10 @@ public final class AppModel {
 
     /// Points the app at a server, asks what it is, and goes on to sign-in or to the person's workspace if a session is kept.
     public func connect(to typed: String) async {
+        if let sessionOwner {
+            await sessionOwner.connect(to: typed)
+            return
+        }
         let address: ServerAddress
         do {
             address = try ServerAddress.parse(typed, allowsLocalHTTP: environment.allowsLocalHTTP)
@@ -384,6 +430,10 @@ public final class AppModel {
 
     /// Forgets the server, so the next launch asks again: changing server signs out (one at a time).
     public func chooseAnotherServer() async {
+        if let sessionOwner {
+            await sessionOwner.chooseAnotherServer()
+            return
+        }
         if phase == .ready || phase == .loading { _ = await signOut(.thisDevice) }
         environment.preferences.set(nil, for: Self.serverKey)
         server = nil
@@ -434,6 +484,10 @@ public final class AppModel {
 
     /// Signs in through the system browser.
     public func signIn() async {
+        if let sessionOwner {
+            await sessionOwner.signIn()
+            return
+        }
         guard let server, let origin, let manager else { return }
         phase = .signingIn
         let flow = NativeSignIn(
@@ -475,6 +529,7 @@ public final class AppModel {
     /// Ends the session here, or everywhere. The result says whether the server was told.
     @discardableResult
     public func signOut(_ scope: SignOutScope) async -> SessionManager.SignOutResult {
+        if let sessionOwner { return await sessionOwner.signOut(scope) }
         guard let manager else { return .done }
         let result = await manager.signOut(scope)
         switch result {
@@ -619,6 +674,14 @@ public final class AppModel {
     }
 
     private func tearDown() {
+        for window in liveConversationWindows {
+            // Only the session owner stops the connection and clears shared state.
+            window.sessionOwner = nil
+            window.engine = nil
+            window.tearDown()
+            window.phase = .signedOut
+        }
+        conversationWindows = []
         contextGeneration += 1
         cookieCache = nil
         markedRead = [:]
@@ -680,7 +743,10 @@ public final class AppModel {
         connection = engine.status
         degraded = engine.degraded
         markReadIfSeen()
-        tellAttention()
+        if sessionOwner == nil {
+            tellAttention()
+            for window in liveConversationWindows { window.sync() }
+        }
     }
 
     // MARK: Reading
@@ -692,6 +758,7 @@ public final class AppModel {
         readRetryAfter = [:]
         markReadIfSeen()
         markThreadReadIfSeen()
+        (sessionOwner ?? self).tellAttention()
     }
 
     /// The person is at the end of the messages, or has scrolled up.
@@ -715,15 +782,18 @@ public final class AppModel {
         let read = [markedRead[channel], chat.channels[channel]?.state?.lastReadMessageId].compactMap { $0 }.max()
         if let read, read >= newest { return }
         marking.insert(channel)
+        let context = contextGeneration
         Task { @MainActor in
-            defer { marking.remove(channel) }
+            defer { if context == contextGeneration { marking.remove(channel) } }
             do {
                 let state = try await api.markChannelRead(
                     channelId: channel.value, body: ReadChannelRequest(lastReadMessageId: newest))
+                guard context == contextGeneration else { return }
                 markedRead[channel] = newest
                 engine?.setState(state, for: channel)
                 sync()
             } catch {
+                guard context == contextGeneration else { return }
                 // Not read yet, and nothing said: it is asked again when the person next sees the channel, or after a while.
                 readRetryAfter[channel] = environment.clock().addingTimeInterval(Self.readRetryDelay)
             }
@@ -809,6 +879,62 @@ public final class AppModel {
         }
     }
 
+}
+
+@MainActor
+private final class WeakConversationModel {
+    weak var model: AppModel?
+    init(_ model: AppModel) { self.model = model }
+}
+
+extension AppModel {
+    var liveConversationWindows: [AppModel] {
+        conversationWindows.removeAll { $0.model == nil }
+        return conversationWindows.compactMap(\.model)
+    }
+
+    var sessionIsActive: Bool { isActive || liveConversationWindows.contains { $0.isActive } }
+
+    public func conversationWindowRequest(for channel: Uuid) -> ConversationWindowRequest? {
+        guard let origin, let me, let workspace, chat.channels[channel] != nil else { return nil }
+        return ConversationWindowRequest(
+            server: origin.description, user: me.user.id, workspace: workspace.id, channel: channel)
+    }
+
+    /// Each window owns navigation and presentation; one session owns the socket, outbox and account data.
+    public func makeConversationWindow(_ request: ConversationWindowRequest) async -> AppModel? {
+        if let sessionOwner { return await sessionOwner.makeConversationWindow(request) }
+        guard phase == .ready, request.server == origin?.description, request.user == me?.user.id,
+            request.workspace == workspace?.id, chat.channels[request.channel] != nil
+        else { return nil }
+        var windowEnvironment = environment
+        windowEnvironment.attention = SilentAttention()
+        let window = AppModel(windowEnvironment)
+        window.sessionOwner = self
+        window.phase = .ready
+        window.server = server
+        window.origin = origin
+        window.serverInfo = serverInfo
+        window.workspace = workspace
+        window.engine = engine
+        window.api = api
+        window.draftRevision = draftRevision
+        window.isActive = false
+        conversationWindows.append(WeakConversationModel(window))
+        window.sync()
+        await window.showChannel(request.channel)
+        guard window.phase == .ready else { return nil }
+        return window
+    }
+
+    public func closeConversationWindow() {
+        guard let owner = sessionOwner else { return }
+        owner.conversationWindows.removeAll { $0.model === self }
+        sessionOwner = nil
+        engine = nil
+        tearDown()
+        phase = .signedOut
+    }
 }
 
 extension Channel {

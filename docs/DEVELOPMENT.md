@@ -59,6 +59,11 @@ Open Topics (Option-Command-U) collects unresolved conversations across the work
 pagination, retry and direct resolution. Opening a row takes you to its channel and thread. Thread updates
 refresh the page while it is open. Viewing Inbox or Open Topics does not mark the hidden channel as read.
 
+Open a conversation in its own window from the channel menu or Option-Command-N. Each window has independent
+navigation, thread, search and presentation state; the session shares one socket and durable send queue, saved
+markers, people and drafts. Menu commands target the focused window. Closing a conversation window leaves the
+session running; signing out clears all its windows. Restored windows validate the server, user and workspace.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

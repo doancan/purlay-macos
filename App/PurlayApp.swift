@@ -22,7 +22,7 @@ struct PurlayApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("Purlay", id: "main") {
             RootView(model: model)
                 .task {
                     delegate.model = model
@@ -37,6 +37,13 @@ struct PurlayApp: App {
                 UpdateMenuItem(updates: updates)
             }
         }
+        WindowGroup("Conversation", id: "conversation", for: ConversationWindowRequest.self) { $request in
+            if let request {
+                ConversationScene(owner: model, request: request)
+            }
+        }
+        .defaultSize(width: 1_040, height: 720)
+        .windowToolbarStyle(.unified)
         Settings {
             TabView {
                 Tab("Preferences", systemImage: "gearshape") { SettingsView(model: model) }
@@ -44,6 +51,48 @@ struct PurlayApp: App {
             }
             .frame(width: 760, height: 620)
         }
+    }
+}
+
+private struct ConversationScene: View {
+    let owner: AppModel
+    let request: ConversationWindowRequest
+    @State private var model: AppModel?
+    @State private var unavailable = false
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Group {
+            if let model {
+                RootView(model: model)
+                    .onChange(of: model.phase) { _, phase in
+                        if phase != .ready { dismiss() }
+                    }
+            } else if unavailable {
+                ContentUnavailableView {
+                    Label("Conversation Unavailable", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                } description: {
+                    Text("Open Purlay and sign in to the workspace that owns this conversation.")
+                } actions: {
+                    Button("Open Purlay") { openWindow(id: "main") }
+                }
+            } else {
+                ProgressView("Opening conversation…")
+            }
+        }
+        .frame(minWidth: 520, minHeight: 360)
+        .task { await owner.launch() }
+        .task(id: owner.phase) {
+            guard model == nil else { return }
+            if owner.phase == .ready {
+                model = await owner.makeConversationWindow(request)
+                unavailable = model == nil
+            } else if owner.phase == .signedOut || owner.phase == .needsServer {
+                unavailable = true
+            }
+        }
+        .onDisappear { model?.closeConversationWindow() }
     }
 }
 

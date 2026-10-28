@@ -15,17 +15,21 @@ struct WindowActions {
 
 extension FocusedValues {
     @Entry var windowActions: WindowActions?
+    @Entry public var purlayModel: AppModel?
 }
 
 /// The menu bar, as a Mac app has it: File makes things, View shapes the window, Message and Channel act on what is chosen,
 /// Go moves, and each item is disabled where it has nothing to act on.
 public struct PurlayCommands: Commands {
-    let model: AppModel
+    private let fallbackModel: AppModel
+    @FocusedValue(\.purlayModel) private var focusedModel
+    @Environment(\.openWindow) private var openWindow
+    private var model: AppModel { focusedModel ?? fallbackModel }
     @FocusedValue(\.windowActions) private var actions
     @AppStorage("messages.compact") private var compact = false
     @AppStorage("messages.timestamps") private var timestamps = false
 
-    public init(model: AppModel) { self.model = model }
+    public init(model: AppModel) { self.fallbackModel = model }
 
     private var ready: Bool { model.phase == .ready }
     private var channel: Channel? {
@@ -40,7 +44,6 @@ public struct PurlayCommands: Commands {
 
     public var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            // One window holds the whole app, so File makes conversations and channels rather than a second window.
             Button("New Conversation…") { actions?.newConversation() }
                 .keyboardShortcut("n")
                 .disabled(actions == nil)
@@ -50,6 +53,14 @@ public struct PurlayCommands: Commands {
             Button("Browse Channels…") { actions?.browse() }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 .disabled(actions == nil)
+            Divider()
+            Button("Open Conversation in New Window") {
+                if let channel, let request = model.conversationWindowRequest(for: channel.id) {
+                    openWindow(id: "conversation", value: request)
+                }
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+            .disabled(channel == nil)
         }
         SidebarCommands()
         InspectorCommands()

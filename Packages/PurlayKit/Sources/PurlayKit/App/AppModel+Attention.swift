@@ -39,6 +39,10 @@ extension AppModel {
     }
 
     private func setDeepWork(until: Date?) async {
+        if let sessionOwner {
+            await sessionOwner.setDeepWork(until: until)
+            return
+        }
         guard let api, let workspace else { return }
         let before = storedDeepWork()
         deepWorkChange += 1
@@ -74,7 +78,7 @@ extension AppModel {
         guard engine != nil else { return }
         let end = deepWorkEnd
         let outcome = attention.observe(
-            Array(chat.channels.values), deepWork: end != nil, inFront: isActive, noticesOn: noticesOn)
+            Array(chat.channels.values), deepWork: end != nil, inFront: sessionIsActive, noticesOn: noticesOn)
         if outcome.badge != lastBadge || lastBadge == nil {
             lastBadge = outcome.badge
             environment.attention.setBadge(outcome.badge)

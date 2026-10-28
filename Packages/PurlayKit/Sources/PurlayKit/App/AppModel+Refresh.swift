@@ -11,6 +11,7 @@ extension AppModel {
     static let refreshRetries = [5_000, 15_000, 45_000]
 
     func handle(_ refresh: Refresh) {
+        for window in liveConversationWindows { window.handle(refresh) }
         if unresolvedOpen {
             switch refresh {
             case .thread, .threads, .channels, .unresolved:
@@ -54,7 +55,9 @@ extension AppModel {
     @discardableResult
     private func reloadMe() async -> Bool {
         guard let api else { return true }
+        let context = contextGeneration
         guard let fresh = try? await api.getMe() else { return false }
+        guard context == contextGeneration else { return true }
         me = fresh
         return true
     }
