@@ -120,6 +120,7 @@ public final class AppModel {
     @ObservationIgnored private var conversationWindows: [WeakConversationModel] = []
     private var observation: Task<Void, Never>?
     private var noticeCounter = 0
+    private var launched = false
     /// The newest message of each channel that was marked read from here, so the same one is not asked for twice.
     private var markedRead: [Uuid: Uuid] = [:]
     private var marking = Set<Uuid>()
@@ -223,13 +224,18 @@ public final class AppModel {
         set { if let sessionOwner { sessionOwner.pins = newValue } else { sessionPins = newValue } }
     }
     public internal(set) var savedItems: [SavedItem] = []
-    public internal(set) var savedFilter: SavedState = .inProgress
-    public internal(set) var savedLoading = false
-    public internal(set) var savedFailed = false
-    public internal(set) var savedUpdating: Set<Uuid> = []
+    public enum SavedStatus: Equatable, Sendable { case idle, loading, loaded, failed }
+    public internal(set) var savedStatus: SavedStatus = .idle
+    public internal(set) var loadingMoreSaved = false
+    public internal(set) var savedPaginationFailed = false
+    var savedState: SavedState = .inProgress
     var savedCursor: Uuid?
     var savedGeneration = 0
     var contextGeneration = 0
+    public var savedFilter: SavedState { savedState }
+    public var savedLoading: Bool { savedStatus == .loading || loadingMoreSaved }
+    public var savedFailed: Bool { savedStatus == .failed || savedPaginationFailed }
+    public internal(set) var savedUpdating: Set<Uuid> = []
     /// The message whose words are being changed, if any: one at a time.
     public internal(set) var editing: Uuid?
     /// Reactions on their way, as message id and emoji: a double click is one request.
@@ -310,6 +316,8 @@ public final class AppModel {
     public internal(set) var searchChannelID: Uuid?
     public internal(set) var searchSenderID: Uuid?
     public internal(set) var recentSearches: [MessageSearch] = []
+    /// What the search field opens with, including the space after a channel scope such as `in:design `.
+    public internal(set) var searchInput = ""
     public internal(set) var searchResults: [Message] = []
     public internal(set) var searchStatus: SearchStatus = .idle
     public internal(set) var focus: Focus?
@@ -396,6 +404,8 @@ public final class AppModel {
             return
         }
         guard phase == .launching else { return }
+        guard !launched else { return }
+        launched = true
         phase = .launching
         guard let typed = environment.preferences.string(for: Self.serverKey) else {
             phase = .needsServer
@@ -464,9 +474,16 @@ public final class AppModel {
             onChooseAnotherServer()
             return
         }
-        if phase == .ready || phase == .loading { _ = await signOut(.thisDevice) }
+        switch await signOut(.thisDevice) {
+        case .credentialKept, .notDone: return
+        case .done, .serverNotTold: break
+        }
+        observation?.cancel()
+        observation = nil
+        manager = nil
         environment.preferences.set(nil, for: Self.serverKey)
         server = nil
+        origin = nil
         serverInfo = nil
         phase = .needsServer
     }
@@ -769,12 +786,13 @@ public final class AppModel {
         scheduledLoading = false
         scheduledFailed = false
         savedItems = []
-        savedGeneration += 1
+        savedGeneration &+= 1
+        savedStatus = .idle
         savedCursor = nil
-        savedLoading = false
-        savedFailed = false
+        loadingMoreSaved = false
+        savedPaginationFailed = false
         savedUpdating = []
-        savedFilter = .inProgress
+        savedState = .inProgress
         pins = [:]
         // After the engine is gone: stopping it says it changed, and that would count what is no longer anybody's.
         attention = Attention()

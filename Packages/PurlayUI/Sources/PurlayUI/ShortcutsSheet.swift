@@ -72,12 +72,13 @@ struct ShortcutsSheet: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.space3) {
-            HStack {
-                Text("Keyboard shortcuts").font(.title2.bold())
-                Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+        VStack(alignment: .leading, spacing: 0) {
+            SheetHeader(
+                title: "Keyboard Shortcuts", subtitle: "Stay in the flow, from the keyboard.", image: "keyboard"
+            ) {
+                dismiss()
             }
+            Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.space4) {
                     ForEach(groups) { group in
@@ -87,16 +88,19 @@ struct ShortcutsSheet: View {
                                 HStack(alignment: .firstTextBaseline) {
                                     Text(row.what)
                                     Spacer()
-                                    Text(row.keys).font(.body.monospaced()).foregroundStyle(.secondary).fixedSize()
+                                    Text(row.keys).font(.caption.monospaced()).foregroundStyle(.secondary).fixedSize()
+                                        .padding(.horizontal, Spacing.space2).padding(.vertical, Spacing.space1)
+                                        .background(NativePalette.fill.style, in: .rect(cornerRadius: Radius.radiusSm))
                                 }
                             }
                         }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .font(.callout)
+                .padding(Spacing.space5)
             }
         }
-        .padding(Spacing.space5)
-        .frame(width: 520, height: 540)
+        .frame(width: Size.sizePalette, height: Size.sizeDialog + Spacing.space5)
     }
 }

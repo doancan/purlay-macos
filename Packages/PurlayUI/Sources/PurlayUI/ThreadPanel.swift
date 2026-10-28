@@ -8,6 +8,8 @@ import SwiftUI
 struct ThreadPanel: View {
     let model: AppModel
     @State private var marked: Uuid?
+    @State private var atBottom = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let thread = model.thread {
@@ -16,7 +18,7 @@ struct ThreadPanel: View {
                 Divider()
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             if let root = model.threadRoot {
                                 MessageRow(message: root, model: model, inThread: true)
                                 Status(model: model, root: root, replies: thread.replies.count)
@@ -40,18 +42,43 @@ struct ThreadPanel: View {
                             Color.clear.frame(height: 1).id("bottom")
                         }
                     }
+                    .defaultScrollAnchor(.bottom)
+                    .defaultScrollAnchor(.top, for: .alignment)
+                    .onScrollGeometryChange(for: Bool.self) { geometry in
+                        geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 80
+                    } action: { _, bottom in
+                        atBottom = bottom
+                    }
                     .task(id: model.focus) {
                         guard let focus = model.focus, thread.replies.contains(where: { $0.id == focus.message }) else {
                             return
                         }
                         try? await Task.sleep(for: .milliseconds(200))
+                        guard !Task.isCancelled else { return }
                         proxy.scrollTo(focus.message, anchor: .center)
                         marked = focus.message
                         try? await Task.sleep(for: .seconds(2))
                         if marked == focus.message { marked = nil }
                     }
-                    .onChange(of: thread.replies.last?.id) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
-                    .onChange(of: model.threadPending.count) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
+                    .onChange(of: thread.replies.last?.id) { _, _ in
+                        if atBottom && model.focus == nil { proxy.scrollTo("bottom", anchor: .bottom) }
+                    }
+                    .onChange(of: model.threadPending.count) { old, new in
+                        if new > old { proxy.scrollTo("bottom", anchor: .bottom) }
+                    }
+                    .overlay(alignment: .bottom) {
+                        if !atBottom {
+                            Button {
+                                withAnimation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep))
+                                {
+                                    proxy.scrollTo("bottom", anchor: .bottom)
+                                }
+                            } label: {
+                                Label("Jump to Latest", systemImage: "arrow.down")
+                            }
+                            .buttonStyle(.glass).padding(.bottom, Spacing.space3)
+                        }
+                    }
                     .scrollIndicators(.automatic)
                     .scrollEdgeEffectStyle(.soft, for: .bottom)
                     .safeAreaBar(edge: .bottom) {

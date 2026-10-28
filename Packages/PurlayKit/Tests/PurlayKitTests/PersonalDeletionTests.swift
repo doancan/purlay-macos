@@ -27,6 +27,9 @@ struct PersonalDeletionTests {
         let companion = try #require(await h.model.makeConversationWindow(request))
         await h.model.search("private")
         await companion.search("private")
+        await h.model.setSaved(true, message)
+        await h.model.loadSaved(.inProgress)
+        #expect(h.model.savedItems.count == 1)
         try await h.model.setReminder(for: message, at: Date(timeIntervalSince1970: Double(epochMs) / 1_000 + 3_600))
         let reminder = try #require(h.model.reminderItems.first)
         #expect(await companion.deleteForMe(message))
@@ -42,6 +45,10 @@ struct PersonalDeletionTests {
         await h.model.open(channelID)
         await h.model.search("private")
         await h.model.loadReminders()
+        await h.model.reloadSaved()
+        await h.model.loadSaved(.inProgress)
+        #expect(h.model.savedItems.isEmpty)
+        #expect(!h.model.isSaved(message))
         #expect(h.model.window?.message(message.id)?.content == "")
         #expect(h.model.searchResults.isEmpty)
         #expect(h.model.reminderItems.isEmpty)
@@ -83,11 +90,13 @@ struct PersonalDeletionTests {
     func lateResponse() async throws {
         let h = await opened()
         let message = try #require(h.model.window?.messages.first)
-        h.server.edit { $0.hideDelay = 100 }
+        let response = HideResponseGate()
+        h.server.edit { $0.beforeHideResponse = { await response.wait() } }
         let deleting = Task { await h.model.deleteForMe(message) }
         while !h.server.requests.contains(where: { $0.url.path.hasSuffix("/hidden") }) { await Task.yield() }
         #expect(await !h.model.deleteForMe(message))
         await h.model.signOut(.thisDevice)
+        await response.release()
         #expect(await !deleting.value)
         #expect(h.model.chat.hiddenMessages.isEmpty)
         #expect(h.model.window == nil)
@@ -125,5 +134,22 @@ struct PersonalDeletionTests {
             """)
         let effects = state.apply(replay, now: Date())
         #expect(effects.contains(.refresh(.hidden(channel: channelID, message: reply.id, at: reply.createdAt))))
+    }
+}
+
+/// Release the response after sign-out explicitly; wall-clock delays cannot establish that ordering under load.
+private actor HideResponseGate {
+    private var released = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
     }
 }

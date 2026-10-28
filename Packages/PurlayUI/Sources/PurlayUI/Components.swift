@@ -17,10 +17,62 @@ struct SheetHeading: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Spacing.space1) {
                 Text(title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                Text(subtitle).font(.callout).foregroundStyle(.secondary)
+                Text(subtitle).font(.callout).foregroundStyle(NativePalette.secondary.style)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+/// Sheets keep their heading at the top, independently of the height of a list, loading state or empty state below it.
+struct SheetHeader: View {
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    let image: String
+    var closeTitle: LocalizedStringKey = "Done"
+    let close: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.space4) {
+            SheetHeading(title: title, subtitle: subtitle, image: image)
+            Button(closeTitle, action: close)
+                .keyboardShortcut(.cancelAction)
+                .buttonStyle(.glass)
+                .fixedSize()
+        }
+        .padding(Spacing.space5)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Native empty-state layout with explicit reading colours. Default secondary labels become too faint on a dark inspector.
+struct EmptyState: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    let description: Text?
+
+    init(_ title: LocalizedStringKey, systemImage: String, description: Text? = nil) {
+        self.title = title
+        self.systemImage = systemImage
+        self.description = description
+    }
+
+    var body: some View {
+        ContentUnavailableView {
+            Label {
+                Text(title).foregroundStyle(NativePalette.ink.style)
+            } icon: {
+                Image(systemName: systemImage).foregroundStyle(NativePalette.secondary.style)
+            }
+        } description: {
+            if let description { description.foregroundStyle(NativePalette.secondary.style) }
+        }
+    }
+
+    static func search(text: String) -> EmptyState {
+        EmptyState(
+            "No Results", systemImage: "magnifyingglass",
+            description: Text("No matches for “\(text)”. Try another search."))
     }
 }
 

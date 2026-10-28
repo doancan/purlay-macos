@@ -27,6 +27,15 @@ final class ComposerState {
     var isFocused = false
     /// Writing Tools is rewriting or composing in the box: what is there is not final, so it is not sent.
     var isRewriting = false
+
+    /// The editor can be absent while previewing. The draft remains authoritative even after its weak bridge is gone.
+    func replaceText(_ text: String) {
+        self.text = text
+        mention = nil
+        suggestions = []
+        highlighted = 0
+        replaceAll?(text)
+    }
 }
 
 /// The box a message is written in (`UX.md` §5): plain text, GFM, no editor. Enter sends, Shift+Enter is a line break that carries a

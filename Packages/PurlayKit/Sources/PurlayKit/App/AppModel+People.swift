@@ -14,16 +14,23 @@ extension AppModel {
 
     /// Reads the people again: after a failure, or when an `@` finds them missing. Never an error on the screen: a list that is not
     /// there offers nobody, and the next `@` asks again.
-    public func refreshPeople() async {
-        guard let api, let workspace else { return }
+    @discardableResult
+    public func refreshPeople() async -> Bool {
+        guard let api, let workspace else { return false }
+        let session = contextGeneration
+        var loaded = false
         if let members = try? await api.listWorkspaceMembers(workspaceId: workspace.id.value) {
+            guard session == contextGeneration else { return false }
             workspacePeople = members.map(\.user)
+            loaded = true
         }
         if let channelID = selectedChannel, chat.channels[channelID]?.type == .private,
             let members = try? await api.listChannelMembers(channelId: channelID.value)
         {
+            guard session == contextGeneration else { return false }
             channelPeople[channelID] = members.map(\.user)
         }
+        return loaded
     }
 }
 

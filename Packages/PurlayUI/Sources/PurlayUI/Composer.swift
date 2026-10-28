@@ -75,13 +75,13 @@ struct ComposerView: View {
             // while the view is made: a view that writes to what it watches is drawn again, and again.
             if let words = model.takeHandedBack(channel: channel, parent: parent) {
                 let merged = state.text.isEmpty ? words : words + "\n\n" + state.text
-                if let replace = state.replaceAll { replace(merged) } else { state.text = merged }
+                state.replaceText(merged)
             }
         }
         .onChange(of: state.text) { _, text in remember(text) }
         .onChange(of: model.handedBackCount) {
             guard let words = model.takeHandedBack(channel: channel, parent: parent) else { return }
-            state.replaceAll?(state.text.isEmpty ? words : words + "\n\n" + state.text)
+            state.replaceText(state.text.isEmpty ? words : words + "\n\n" + state.text)
         }
         .onDisappear {
             saving?.cancel()
@@ -102,6 +102,15 @@ struct ComposerView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
             if previewing {
+                HStack {
+                    Label("Preview", systemImage: "eye").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Back to Editing") { previewing = false }
+                        .buttonStyle(.link)
+                        .keyboardShortcut("p", modifiers: [.command, .shift])
+                }
+                .padding(.horizontal, Spacing.space3)
+                .padding(.top, Spacing.space2)
                 MessageBody(text: state.text.isEmpty ? " " : state.text)
                     .padding(.horizontal, Spacing.space3)
                     .padding(.vertical, Spacing.space2)
@@ -111,6 +120,7 @@ struct ComposerView: View {
                     state: state, placeholder: placeholder, candidates: { model.mentionCandidates }, onSend: send,
                     onPeopleMissing: { Task { await model.refreshPeople() } },
                     onCancel: { model.dismissTopmost() },
+                    takesFocus: true,
                     onEditLast: parent == nil ? { _ = model.editLastMessage() } : nil, onFiles: { files in add(files) },
                     minRows: compact ? 2 : 3
                 )
@@ -144,6 +154,7 @@ struct ComposerView: View {
             }
             .help("Mention someone")
             .accessibilityLabel("Mention someone")
+            .disabled(previewing)
             Button {
                 state.showEmoji?()
             } label: {
@@ -151,6 +162,7 @@ struct ComposerView: View {
                     width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
             }
             .help("Emoji and Symbols").accessibilityLabel("Emoji and Symbols")
+            .disabled(previewing)
             Toggle(isOn: $formatting) {
                 Image(systemName: "textformat").frame(width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg)
             }
@@ -242,7 +254,7 @@ struct ComposerView: View {
         guard parent == nil ? model.send(state.text) : model.sendReply(state.text) else { return }
         saving?.cancel()
         state.notice = nil
-        state.replaceAll?("")
+        state.replaceText("")
     }
 }
 
@@ -282,6 +294,7 @@ private struct FormatRow: View {
         .buttonStyle(.borderless)
         .help(help)
         .accessibilityLabel(help)
+        .disabled(previewing)
     }
 }
 

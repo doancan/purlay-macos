@@ -7,11 +7,17 @@ import Testing
 
 final class MemorySessions: SessionStore {
     private let state = Mutex<[String: StoredSession]>([:])
+    private let deletionRefused = Mutex(false)
+    struct Refused: Error {}
+    func refuseDeletion(_ refused: Bool) { deletionRefused.withLock { $0 = refused } }
     func load(for server: ServerAddress) throws -> StoredSession? { state.withLock { $0[server.description] } }
     func save(_ session: StoredSession, for server: ServerAddress) throws {
         state.withLock { $0[server.description] = session }
     }
-    func delete(for server: ServerAddress) throws { state.withLock { $0[server.description] = nil } }
+    func delete(for server: ServerAddress) throws {
+        if deletionRefused.withLock({ $0 }) { throw Refused() }
+        state.withLock { $0[server.description] = nil }
+    }
 }
 
 final class MemoryPreferences: PreferenceStore {

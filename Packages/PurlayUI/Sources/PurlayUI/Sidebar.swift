@@ -42,24 +42,63 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
-                    .badge(model.attentionCount)
-                    .tag(SidebarSelection.inbox)
-                Label("Open Topics", systemImage: "bubble.left.and.text.bubble.right")
-                    .tag(SidebarSelection.unresolved)
+                DestinationRow(
+                    title: "Inbox",
+                    systemImage: model.attentionCount > 0 ? "tray.full.fill" : "tray",
+                    nativeSelection: true,
+                    selected: model.inboxOpen && !model.savedOpen && !model.draftsOpen,
+                    count: model.attentionCount, shortcut: "⇧⌘I"
+                ) { selection = .inbox }
+                .tag(SidebarSelection.inbox)
+                DestinationRow(
+                    title: "Open Topics", systemImage: "bubble.left.and.text.bubble.right",
+                    nativeSelection: true, selected: model.unresolvedOpen, shortcut: "⌥⌘U"
+                ) { selection = .unresolved }
+                .tag(SidebarSelection.unresolved)
                 if model.supportsReminders {
-                    DestinationRow(title: "Reminders", systemImage: "bell.badge", count: model.reminderItems.count) {
-                        model.remindersOpen = true
-                    }
+                    DestinationRow(
+                        title: "Reminders", systemImage: "bell.badge", selected: model.remindersOpen,
+                        count: model.reminderItems.count
+                    ) { model.remindersOpen = true }
                 }
                 if model.supportsScheduling {
-                    DestinationRow(title: "Scheduled", systemImage: "clock") { model.scheduledOpen = true }
+                    DestinationRow(title: "Scheduled", systemImage: "clock", selected: model.scheduledOpen) {
+                        model.scheduledOpen = true
+                    }
                 }
-                DestinationRow(title: "Saved", systemImage: "bookmark") { model.savedOpen = true }
-                DestinationRow(title: "Drafts", systemImage: "square.and.pencil", count: draftCount) {
+                DestinationRow(
+                    title: "Saved Messages", systemImage: "bookmark",
+                    selected: model.savedOpen, count: model.savedIDs.count
+                ) { model.savedOpen = true }
+                DestinationRow(
+                    title: "Drafts", systemImage: "square.and.pencil",
+                    selected: model.draftsOpen, count: draftCount, shortcut: "⌥⇧⌘D"
+                ) {
                     model.draftsOpen = true
                 }
-                DestinationRow(title: "Browse Channels", systemImage: "rectangle.stack") { sheet = .browse }
+            }
+            .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+            .listRowBackground(Color.clear)
+            Section {
+                Button {
+                    sheet = .browse
+                } label: {
+                    HStack(spacing: Spacing.space2) {
+                        Image(systemName: "rectangle.stack")
+                            .frame(width: Size.sizeIconLg)
+                            .foregroundStyle(NativePalette.secondary.style)
+                        Text("Browse Channels")
+                        Spacer(minLength: Spacing.space1)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(NativePalette.ink.style)
+                    .frame(minHeight: Size.sizeControl)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Discover public channels  ⇧⌘O")
             }
             ForEach(model.sidebar) { section in
                 if !visible(section.channels).isEmpty || (section.channels.isEmpty && query.isEmpty && !unreadOnly) {
@@ -104,6 +143,7 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .scrollIndicators(.automatic)
+        .accessibilityLabel("Workspace navigation")
         .environment(\.defaultMinListRowHeight, Size.sizeRow + Spacing.space1)
         .safeAreaBar(edge: .top, spacing: 0) {
             VStack(spacing: Spacing.space2) {
@@ -116,9 +156,13 @@ struct SidebarView: View {
                             Image(systemName: "magnifyingglass")
                             Text("Search Purlay")
                             Spacer(minLength: Spacing.space1)
-                            Text("⌘K").font(.caption.monospaced())
+                            Text("⌘K")
+                                .font(.caption2.monospaced())
+                                .padding(.horizontal, Spacing.space1)
+                                .padding(.vertical, Stroke.strokeFocus)
+                                .background(.fill.tertiary, in: .rect(cornerRadius: Radius.radiusSm))
                         }
-                        .font(.callout).foregroundStyle(.secondary)
+                        .font(.system(size: 13)).foregroundStyle(NativePalette.secondary.style)
                         .padding(.leading, Spacing.space3)
                         .frame(maxWidth: .infinity, minHeight: Size.sizeControl + Spacing.space1)
                         .contentShape(.rect)
@@ -156,7 +200,12 @@ struct SidebarView: View {
                     .padding(.trailing, Spacing.space2)
                     .help("Filter and organize channels").accessibilityLabel("Filter and organize channels")
                 }
-                .background(.fill.quaternary, in: .rect(cornerRadius: Radius.radiusLg))
+                .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusLg))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Radius.radiusLg)
+                        .strokeBorder(NativePalette.divider.style, lineWidth: Stroke.strokeHairline)
+                        .allowsHitTesting(false)
+                }
                 if filtering {
                     HStack(spacing: Spacing.space2) {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -207,29 +256,59 @@ struct SidebarView: View {
     private var folded: Set<String> { Set(foldedStorage.split(separator: ",").map(String.init)) }
 }
 
-/// A place the person goes to rather than a channel they read: a button, so it never becomes the sidebar's selection.
+/// Clear, single-line destinations. The selected row uses white ink on the accent; inactive rows retain full reading contrast.
 private struct DestinationRow: View {
     let title: LocalizedStringKey
     let systemImage: String
+    /// The List's selected row includes its own insets; the custom surface covers that same footprint.
+    var nativeSelection = false
+    var selected = false
     var count = 0
-    var hint: String?
+    var shortcut: String?
     let action: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack {
-                Label(title, systemImage: systemImage).foregroundStyle(.primary)
+            HStack(spacing: Spacing.space3) {
+                Image(systemName: systemImage)
+                    .font(.system(size: Size.sizeIconMd, weight: .medium))
+                    .symbolVariant(selected ? .fill : .none)
+                    .foregroundStyle(selected ? Colors.onAccent.style : NativePalette.secondary.style)
+                    .frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.system(size: 13, weight: selected ? .semibold : .medium))
+                    .foregroundStyle(selected ? Colors.onAccent.style : NativePalette.ink.style)
+                    .lineLimit(1)
                 Spacer(minLength: Spacing.space2)
                 if count > 0 {
-                    Text(count, format: .number).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                } else if let hint {
-                    Text(hint).typeStyle(Typography.caption).foregroundStyle(.secondary)
+                    Text(count > 99 ? "99+" : count.formatted())
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(selected ? Colors.onAccent.style : NativePalette.secondary.style)
+                        .padding(.horizontal, Spacing.space1 + Stroke.strokeFocus)
+                        .frame(minWidth: Size.sizeBadge, minHeight: Size.sizeBadge)
+                        .background(selected ? Color.white.opacity(0.18) : Color.primary.opacity(0.06), in: .capsule)
                 }
             }
+            .padding(.horizontal, Spacing.space3)
+            .frame(minHeight: Size.sizeControl + Spacing.space1)
             .contentShape(.rect)
+            .background {
+                RoundedRectangle(cornerRadius: nativeSelection ? Radius.radiusLg : Radius.radiusXl)
+                    .fill(selected ? Colors.accent.style : NativePalette.fill.style)
+                    .padding(.horizontal, selected && nativeSelection ? -(Spacing.space1 + Stroke.strokeFocus) : 0)
+                    .padding(.vertical, selected && nativeSelection ? -Stroke.strokeFocus : 0)
+                    .opacity(selected || hovering ? 1 : 0)
+            }
         }
         .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(Text("\(Text(title))\(shortcut.map { "  \($0)" } ?? "")"))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
         .accessibilityValue(count > 0 ? Text("\(count) waiting") : Text(""))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
 
@@ -241,7 +320,8 @@ private struct SectionHeader: View {
 
     var body: some View {
         HStack {
-            Text(Words.header(kind)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Text(Words.header(kind)).font(.system(size: 11, weight: .semibold)).foregroundStyle(
+                NativePalette.secondary.style)
             Spacer()
             switch kind {
             case .channels:
@@ -274,6 +354,7 @@ private struct SectionHeader: View {
                     .help("Organize Sidebar")
             }
         }
+        .padding(.top, Spacing.space2)
     }
 }
 
@@ -289,6 +370,7 @@ struct SidebarChannelRow: View {
             HStack(spacing: Spacing.space1) {
                 // Semantic styles, not token colours: the system turns a selected row's text light on the accent only for these.
                 Text(name)
+                    .font(.system(size: 13))
                     .lineLimit(1)
                     .fontWeight(channel.isUnread && !channel.isMuted ? .semibold : .regular)
                     .foregroundStyle(channel.isMuted ? .secondary : .primary)
@@ -382,10 +464,10 @@ private struct WorkspaceHeader: View {
                     .background(Colors.accent.style, in: .rect(cornerRadius: Radius.radiusLg))
                 VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
                     Text(model.workspace?.name ?? "Purlay")
-                        .typeStyle(Typography.title)
-                        .foregroundStyle(.primary).lineLimit(1)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(NativePalette.ink.style).lineLimit(1)
                     Text("Workspace")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.system(size: 11)).foregroundStyle(NativePalette.secondary.style)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
@@ -436,7 +518,7 @@ private struct AccountFooter: View {
                 PresenceAvatar(current: model.me?.user, online: model.connection == .open, size: Size.sizeAvatar)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(model.me?.user.displayName ?? "")
-                        .typeStyle(Typography.label)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(status)

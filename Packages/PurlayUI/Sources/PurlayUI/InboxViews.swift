@@ -82,9 +82,14 @@ struct InboxPage: View {
         case .loaded:
             if model.inboxRows.isEmpty {
                 ContentUnavailableView {
-                    Label(emptyTitle, systemImage: model.inboxHasMore ? "line.3.horizontal.decrease" : "tray")
+                    Label {
+                        Text(emptyTitle).foregroundStyle(NativePalette.ink.style)
+                    } icon: {
+                        Image(systemName: model.inboxHasMore ? "line.3.horizontal.decrease" : "tray")
+                            .foregroundStyle(NativePalette.secondary.style)
+                    }
                 } description: {
-                    Text(emptyDescription)
+                    Text(emptyDescription).foregroundStyle(NativePalette.secondary.style)
                 } actions: {
                     if model.inboxHasMore { loadMore }
                 }

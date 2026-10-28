@@ -20,7 +20,7 @@ struct GlassTabs<Tab: Hashable & Identifiable>: View {
                 } label: {
                     label(tab)
                         .font(.callout.weight(chosen ? .semibold : .regular))
-                        .foregroundStyle(chosen ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(NativePalette.ink.style)
                         .frame(maxWidth: .infinity, minHeight: Size.sizeControl - Spacing.space1)
                         .background {
                             if chosen {

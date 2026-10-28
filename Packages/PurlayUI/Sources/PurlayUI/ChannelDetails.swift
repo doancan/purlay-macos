@@ -120,10 +120,10 @@ struct ChannelDetails: View {
                         systemImage: channel.type == .private
                             ? "lock" : channel.type == .directMessage ? "person.2" : "globe"
                     )
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(NativePalette.secondary.style)
                 }
                 VStack(alignment: .leading, spacing: Spacing.space2) {
-                    Text("TOPIC").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text("TOPIC").font(.caption.weight(.semibold)).foregroundStyle(NativePalette.secondary.style)
                     Text(
                         channel.topic.flatMap { $0.isEmpty ? nil : $0 }
                             ?? String(localized: "No topic has been added yet.")
@@ -144,7 +144,8 @@ struct ChannelDetails: View {
                 }
                 .background(NativePalette.fill.style, in: .rect(cornerRadius: Radius.radius2xl))
                 VStack(alignment: .leading, spacing: Spacing.space2) {
-                    Text("NOTIFICATIONS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text("NOTIFICATIONS").font(.caption.weight(.semibold)).foregroundStyle(
+                        NativePalette.secondary.style)
                     Menu {
                         notificationOption("All Messages", level: .all)
                         notificationOption("Mentions and Replies", level: .mentions)
@@ -198,7 +199,7 @@ struct ChannelDetails: View {
                 Image(systemName: image).foregroundStyle(Colors.accentText.style).frame(width: Size.sizeIconLg)
                 Text(title)
                 Spacer()
-                if let value { Text(value).foregroundStyle(.secondary).monospacedDigit() }
+                if let value { Text(value).foregroundStyle(NativePalette.secondary.style).monospacedDigit() }
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }
             .padding(Spacing.space3).contentShape(.rect)
@@ -210,12 +211,12 @@ struct ChannelDetails: View {
         VStack(spacing: 0) {
             if !loading && !failed && (tab == .members || !files.isEmpty || cursor != nil) {
                 HStack {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    Image(systemName: "magnifyingglass").foregroundStyle(NativePalette.secondary.style)
                     TextField(tab == .members ? "Filter members" : "Filter these files", text: $query)
                         .textFieldStyle(.plain)
                     if !query.isEmpty {
                         Button("Clear Filter", systemImage: "xmark.circle.fill") { query = "" }
-                            .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary)
+                            .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(NativePalette.secondary.style)
                     }
                 }
                 .padding(Spacing.space3)
@@ -266,10 +267,12 @@ struct ChannelDetails: View {
                         VStack(alignment: .leading, spacing: Spacing.space1) {
                             Text(person.displayName).fontWeight(.medium)
                             Text(model.isOnline(person.id) ? "Online" : "Offline").font(.caption).foregroundStyle(
-                                .secondary)
+                                NativePalette.secondary.style)
                         }
                         Spacer()
-                        if person.id == model.me?.user.id { Text("You").font(.caption).foregroundStyle(.secondary) }
+                        if person.id == model.me?.user.id {
+                            Text("You").font(.caption).foregroundStyle(NativePalette.secondary.style)
+                        }
                     }
                     .padding(.vertical, Spacing.space1).contentShape(.rect)
                 }
@@ -281,7 +284,7 @@ struct ChannelDetails: View {
         }
         .listStyle(.plain).scrollContentBackground(.hidden)
         .overlay {
-            if filteredMembers.isEmpty { ContentUnavailableView.search(text: query) }
+            if filteredMembers.isEmpty { EmptyState.search(text: query) }
         }
     }
 
@@ -298,7 +301,7 @@ struct ChannelDetails: View {
                         Text(
                             "\(file.sender.displayName) · \(file.sentAt.date.formatted(date: .abbreviated, time: .omitted))"
                         )
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(NativePalette.secondary.style)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Divider()
@@ -323,7 +326,7 @@ struct ChannelDetails: View {
         }
         .overlay {
             if filteredFiles.isEmpty && cursor == nil {
-                ContentUnavailableView(
+                EmptyState(
                     query.isEmpty ? "No Shared Files" : "No Matching Files", systemImage: "folder",
                     description: Text(
                         query.isEmpty ? "Files shared in this conversation appear here." : "Try another filename."))

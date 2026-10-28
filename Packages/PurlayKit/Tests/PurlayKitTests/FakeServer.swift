@@ -35,6 +35,7 @@ final class FakeServer: HTTPTransport {
         var savedPageSize = 20
         var savedDelays: [String: Int] = [:]
         var saveDelay = 0
+        var savedMutationDelay: Int?
         var saveError: (status: Int, code: String)?
         var pins: [String: [String]] = [:]
         var pinError: (status: Int, code: String)?
@@ -60,7 +61,7 @@ final class FakeServer: HTTPTransport {
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
-        var hideDelay = 0
+        var beforeHideResponse: (@Sendable () async -> Void)?
         var threads: [String: [Message]] = [:]
         var threadPageSize: Int?
         var threadStatus = 200
@@ -460,7 +461,7 @@ final class FakeServer: HTTPTransport {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let q = items.first { $0.name == "q" }?.value ?? ""
-            if let wait = snapshot.searchDelays[q] { try? await Task.sleep(for: .milliseconds(wait)) }
+            if let wait = snapshot.searchDelays[q] { try await Task.sleep(for: .milliseconds(wait)) }
             if snapshot.searchStatus != 200 {
                 return json(snapshot.searchStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
             }
@@ -547,10 +548,15 @@ final class FakeServer: HTTPTransport {
                 return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
             }
             let id = String(path.dropFirst("/api/messages/".count).dropLast("/saved".count))
+            let body = request.body.flatMap { try? JSONDecoder().decode(SaveMessageRequest.self, from: $0) }
+            if let delay = snapshot.savedMutationDelay { try? await Task.sleep(for: .milliseconds(delay)) }
             state.withLock { state in
                 if request.method == "PUT" {
-                    let input = request.body.flatMap { try? JSONDecoder().decode(SaveMessageRequest.self, from: $0) }
-                    state.saved[id] = input?.state?.rawValue ?? state.saved[id] ?? "in_progress"
+                    if let wanted = body?.state {
+                        state.saved[id] = wanted.rawValue
+                    } else if state.saved[id] == nil {
+                        state.saved[id] = "in_progress"
+                    }
                 } else {
                     state.saved[id] = nil
                 }
@@ -621,7 +627,7 @@ final class FakeServer: HTTPTransport {
             return HTTPResponse(status: 200, headers: ["Content-Type": "application/octet-stream"], body: data)
         case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/hidden"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            if snapshot.hideDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.hideDelay)) }
+            await snapshot.beforeHideResponse?()
             if snapshot.mutationStatus != 200 {
                 return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
             }

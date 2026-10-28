@@ -5,7 +5,7 @@ import SwiftUI
 /// The window's content: one screen for each phase the model can be in, and no other.
 public struct RootView: View {
     private let model: AppModel
-    @AppStorage("appearance") private var appearance = AppAppearance.system
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(model: AppModel) {
         self.model = model
@@ -37,11 +37,11 @@ public struct RootView: View {
         }
         .transition(.opacity)
         // Each phase fades into the next instead of cutting: connecting, signing in, loading, the workspace.
-        .animation(Motion.easingStandard.animation(Motion.durationStep), value: phaseKey)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep), value: phaseKey)
         .frame(minWidth: 520, minHeight: 360)
         // One accent: the system's prominent buttons, selections and toggles take the brand's blue, as the token views do.
         .tint(Colors.accent.color)
-        .preferredColorScheme(appearance.scheme)
+        .modifier(AppearancePreference())
         .focusedSceneValue(\.purlayModel, model)
     }
 }

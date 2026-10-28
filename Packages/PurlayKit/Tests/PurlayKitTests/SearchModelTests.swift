@@ -217,6 +217,40 @@ struct SearchModelTests {
         #expect(h.model.searchSenderID == nil)
     }
 
+    @Test("cancelling a running read is quiet, and reopening the same query resumes it")
+    func cancellationAndReopen() async {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        h.server.edit { $0.searchDelays["migration"] = 120 }
+        let read = Task { await h.model.search("migration") }
+        try? await Task.sleep(for: .milliseconds(20))
+        read.cancel()
+        await read.value
+        #expect(h.model.searchStatus == .idle)
+        #expect(h.model.searchQuery == "migration")
+        h.server.edit { $0.searchDelays = [:] }
+        h.model.openSearch()
+        await h.settle()
+        #expect(h.model.searchStatus == .done)
+        #expect(h.model.searchResults.map(\.content) == ["migration"])
+    }
+
+    @Test("closing search immediately releases its loading state, and its late read cannot replace a resumed query")
+    func closeDuringRead() async {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        h.server.edit { $0.searchDelays["migration"] = 120 }
+        let read = Task { await h.model.search("migration") }
+        try? await Task.sleep(for: .milliseconds(20))
+        h.model.cancelSearch()
+        #expect(h.model.searchStatus == .idle)
+        h.server.edit { $0.searchDelays = [:] }
+        h.model.openSearch()
+        await h.settle()
+        #expect(h.model.searchStatus == .done)
+        await read.value
+        #expect(h.model.searchStatus == .done)
+        #expect(h.model.searchResults.map(\.content) == ["migration"])
+    }
+
     @Test("a result is opened in its channel with the feed read around it, and it is the one the feed is told to show")
     func opensMessage() async {
         let found = msg(1_000, "old migration note", channelN: 2)

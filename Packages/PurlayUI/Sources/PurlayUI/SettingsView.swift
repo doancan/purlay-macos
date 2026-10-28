@@ -51,7 +51,7 @@ public struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 760, height: 560)
-        .preferredColorScheme(appearance.scheme)
+        .modifier(AppearancePreference())
         .onAppear {
             model.refreshLoginItem()
             validateSelection()
