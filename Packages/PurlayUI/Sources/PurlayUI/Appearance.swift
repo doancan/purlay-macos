@@ -14,11 +14,11 @@ enum AppAppearance: String, CaseIterable, Identifiable {
         case .dark: "Dark"
         }
     }
-    var scheme: ColorScheme? {
+    var native: NSAppearance? {
         switch self {
         case .system: nil
-        case .light: .light
-        case .dark: .dark
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
         }
     }
 }
@@ -60,7 +60,7 @@ struct SidebarSurface: ViewModifier {
         content
             .scrollContentBackground(opaque ? .hidden : .automatic)
             .background {
-                if opaque { Color(nsColor: .windowBackgroundColor).ignoresSafeArea() }
+                if opaque { NativePalette.sidebar.color.ignoresSafeArea() }
             }
     }
 }
