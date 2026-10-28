@@ -332,7 +332,12 @@ public final class AppModel {
     public static func title(_ channel: Channel) -> String { channel.title }
 
     /// What the sidebar lists: starred, channels and conversations the person is in.
-    public var sidebar: [SidebarSection] { Sidebar.sections(Array(chat.channels.values)) }
+    private var sessionSidebarLayout = SidebarLayout()
+    public internal(set) var sidebarLayout: SidebarLayout {
+        get { sessionOwner?.sidebarLayout ?? sessionSidebarLayout }
+        set { if let sessionOwner { sessionOwner.sidebarLayout = newValue } else { sessionSidebarLayout = newValue } }
+    }
+    public var sidebar: [SidebarSection] { sidebarLayout.sections(Array(chat.channels.values)) }
 
     /// Public channels the person could join: what Browse lists.
     public var joinableChannels: [Channel] { Sidebar.joinable(Array(chat.channels.values)) }
@@ -602,6 +607,7 @@ public final class AppModel {
                 return
             }
             workspace = membership.workspace
+            loadSidebarLayout()
             environment.preferences.set(membership.workspace.slug, for: "workspace")
             let engine = makeEngine(me: me, client: client, api: api, origin: origin, manager: manager)
             self.engine = engine
@@ -759,6 +765,7 @@ public final class AppModel {
         channelPeople = [:]
         settingsPage = .general
         workspace = nil
+        sidebarLayout = SidebarLayout()
         selectedChannel = nil
         chat = ChatState()
         pending = []
@@ -850,7 +857,7 @@ public final class AppModel {
             ("selectedChannel", selectedChannel == nil ? 0 : 1), ("me", me == nil ? 0 : 1),
             ("workspace", workspace == nil ? 0 : 1), ("keyboardRow", keyboardRow == nil ? 0 : 1),
             ("focus", focus == nil ? 0 : 1), ("editing", editing == nil ? 0 : 1),
-            ("refreshRetry", refreshRetry.count),
+            ("refreshRetry", refreshRetry.count), ("sidebarGroups", sidebarLayout.groups.count),
         ]
     }
 

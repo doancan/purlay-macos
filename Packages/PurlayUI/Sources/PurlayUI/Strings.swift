@@ -157,6 +157,7 @@ enum Words {
 
     static func header(_ kind: SidebarSection.Kind) -> String {
         switch kind {
+        case .custom(_, let name): return name
         case .starred: return String(localized: "Starred")
         case .channels: return String(localized: "Channels")
         case .conversations: return String(localized: "Conversations")

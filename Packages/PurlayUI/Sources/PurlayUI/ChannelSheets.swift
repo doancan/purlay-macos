@@ -31,6 +31,31 @@ struct ChannelMenu: View {
             Label("Notifications", systemImage: channel.isMuted ? "bell.slash" : "bell")
         }
         .pickerStyle(.menu)
+        if channel.state != nil {
+            Menu("Move to Group", systemImage: "folder") {
+                Button {
+                    model.moveToSidebarGroup(nil, channel: channel.id)
+                } label: {
+                    Label(
+                        "Default Section",
+                        systemImage: model.sidebarLayout.group(for: channel.id) == nil ? "checkmark" : "sidebar.left")
+                }
+                ForEach(model.sidebarLayout.groups) { group in
+                    Button {
+                        model.moveToSidebarGroup(group.id, channel: channel.id)
+                    } label: {
+                        Label(
+                            group.name,
+                            systemImage: model.sidebarLayout.group(for: channel.id) == group.id ? "checkmark" : "folder"
+                        )
+                    }
+                }
+            }
+            Button("Move Up", systemImage: "arrow.up") { model.moveSidebarChannel(channel.id, by: -1) }
+                .disabled(position == 0)
+            Button("Move Down", systemImage: "arrow.down") { model.moveSidebarChannel(channel.id, by: 1) }
+                .disabled(position >= sectionCount - 1)
+        }
         if let showDetails {
             Divider()
             Button("Channel Details", systemImage: "info.circle") { showDetails(.about) }
@@ -58,6 +83,12 @@ struct ChannelMenu: View {
             }
         }
     }
+
+    private var sectionChannels: [Channel] {
+        model.sidebar.first { $0.channels.contains { $0.id == channel.id } }?.channels ?? []
+    }
+    private var position: Int { sectionChannels.firstIndex { $0.id == channel.id } ?? 0 }
+    private var sectionCount: Int { sectionChannels.count }
 
     /// The level as the menu shows it; choosing one asks the server, and a refusal is heard rather than shown as chosen.
     private var notificationLevel: Binding<NotificationLevel> {

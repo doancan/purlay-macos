@@ -72,6 +72,12 @@ source session so identical channel IDs cannot open a different server. Sign-out
 conversation window for that server, leaving other servers connected. Workspaces visited in the switcher reopen
 on launch. The keychain still keeps one account per server address.
 
+The sidebar filter menu opens Organize Sidebar. Custom groups can be added, renamed, reordered and removed;
+removing a group returns its conversations to their default sections. Channel menus move conversations between
+groups or up/down within a section; dragging reorders an unfiltered section. A section's context menu resets its
+conversation order. The arrangement is local to this Mac and scoped by server, account and workspace. It is shared
+by companion windows and never changes membership, permissions, or server-side starred state.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

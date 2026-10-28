@@ -24,6 +24,7 @@ struct SidebarView: View {
     @State private var query = ""
     @State private var unreadOnly = false
     @State private var filtering = false
+    @State private var organizing = false
     @FocusState private var filterFocused: Bool
 
     private var quiet: Bool { model.deepWorkEnds != nil }
@@ -53,15 +54,25 @@ struct SidebarView: View {
                 DestinationRow(title: "Browse Channels", systemImage: "rectangle.stack") { sheet = .browse }
             }
             ForEach(model.sidebar) { section in
-                if !visible(section.channels).isEmpty {
+                if !visible(section.channels).isEmpty || (section.channels.isEmpty && query.isEmpty && !unreadOnly) {
                     Section(isExpanded: expanded(section.id)) {
                         ForEach(visible(section.channels), id: \.id) { channel in
                             SidebarChannelRow(model: model, channel: channel, quiet: quiet)
                                 .tag(SidebarSelection.channel(channel.id))
                                 .contextMenu { ChannelMenu(model: model, channel: channel, leaving: $leaving) }
                         }
+                        .onMove { from, to in model.reorderSidebarChannels(in: section.id, from: from, to: to) }
+                        .moveDisabled(unreadOnly || !query.isEmpty)
+                        if section.channels.isEmpty {
+                            Text("Move conversations here using their menu.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     } header: {
-                        SectionHeader(kind: section.kind, sheet: $sheet)
+                        SectionHeader(kind: section.kind, sheet: $sheet, organize: { organizing = true })
+                            .contextMenu {
+                                Button("Organize Sidebar…") { organizing = true }
+                                Button("Reset Conversation Order") { model.resetSidebarChannelOrder(in: section.id) }
+                            }
                     }
                 }
             }
@@ -123,6 +134,8 @@ struct SidebarView: View {
                                 filtering = false
                             }
                         }
+                        Divider()
+                        Button("Organize Sidebar…", systemImage: "folder") { organizing = true }
                     } label: {
                         Image(
                             systemName: unreadOnly
@@ -133,7 +146,7 @@ struct SidebarView: View {
                     }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     .padding(.trailing, Spacing.space2)
-                    .help("Filter channels").accessibilityLabel("Filter channels")
+                    .help("Filter and organize channels").accessibilityLabel("Filter and organize channels")
                 }
                 .background(.fill.quaternary, in: .rect(cornerRadius: Radius.radiusLg))
                 if filtering {
@@ -170,6 +183,7 @@ struct SidebarView: View {
         }
         .safeAreaBar(edge: .bottom) { AccountFooter(model: model) }
         .modifier(SidebarSurface())
+        .sheet(isPresented: $organizing) { SidebarOrganizer(model: model) }
     }
 
     private func expanded(_ id: String) -> Binding<Bool> {
@@ -215,6 +229,7 @@ private struct DestinationRow: View {
 private struct SectionHeader: View {
     let kind: SidebarSection.Kind
     @Binding var sheet: ChannelSheet?
+    let organize: () -> Void
 
     var body: some View {
         HStack {
@@ -245,6 +260,10 @@ private struct SectionHeader: View {
                 .accessibilityLabel("New conversation")
             case .starred:
                 EmptyView()
+            case .custom:
+                Button("Organize Group", systemImage: "ellipsis", action: organize)
+                    .labelStyle(.iconOnly).buttonStyle(.borderless)
+                    .help("Organize Sidebar")
             }
         }
     }

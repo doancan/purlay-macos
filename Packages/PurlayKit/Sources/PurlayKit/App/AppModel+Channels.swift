@@ -75,7 +75,7 @@ extension AppModel {
         engine?.lose([channel.id])
         await reloadChannels()
         if selectedChannel == channel.id {
-            if let next = sidebar.first?.channels.first?.id {
+            if let next = sidebar.flatMap(\.channels).first?.id {
                 await open(next)
             } else {
                 closeThread()

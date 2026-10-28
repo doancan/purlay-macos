@@ -4,6 +4,7 @@ import PurlayContract
 public struct SidebarSection: Equatable, Sendable, Identifiable {
     public enum Kind: Sendable, Equatable {
         case starred, channels, conversations
+        case custom(id: UUID, name: String)
     }
 
     public let kind: Kind
@@ -13,6 +14,7 @@ public struct SidebarSection: Equatable, Sendable, Identifiable {
         case .starred: return "starred"
         case .channels: return "channels"
         case .conversations: return "conversations"
+        case .custom(let id, _): return "group.\(id.uuidString)"
         }
     }
 }
