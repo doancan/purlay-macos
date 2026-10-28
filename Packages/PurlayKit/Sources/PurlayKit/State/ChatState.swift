@@ -30,6 +30,7 @@ public enum Refresh: Sendable, Hashable {
     case thread(root: Uuid)
     /// Every thread that is held: threads are held by their root, which names no channel.
     case threads
+    case unresolved
     /// A channel's messages, whole: what a feed read before a subscription was answered may have missed, or a hole a replay could not fill.
     case messages(channel: Uuid)
     case files(channel: Uuid)
@@ -106,7 +107,7 @@ public struct ChatState: Sendable, Equatable {
                 $0.deletedAt = data.deletedAt
                 $0.mentions = data.mentions
             }
-            return []
+            return [.refresh(.unresolved)]
 
         case .reactionsUpdated(let updated):
             let data = updated.data
@@ -120,7 +121,7 @@ public struct ChatState: Sendable, Equatable {
             // A thread summary and a reaction set are ordered separately, though they share a counter.
             guard isNewest("thread", data.messageId, updated.version) else { return [] }
             windows[data.channelId]?.update(data.messageId) { $0.thread = data.thread }
-            return []
+            return [.refresh(.unresolved)]
 
         case .channelState(let changed):
             let data = changed.data

@@ -55,6 +55,10 @@ Saved messages can be completed, archived or moved back to In Progress from thei
 supports pagination, loading and retry. State changes use the existing saved-message API and refresh across
 devices; an in-flight operation cannot restore another session's data after sign-out.
 
+Open Topics (Option-Command-U) collects unresolved conversations across the workspace, with channel filtering,
+pagination, retry and direct resolution. Opening a row takes you to its channel and thread. Thread updates
+refresh the page while it is open. Viewing Inbox or Open Topics does not mark the hidden channel as read.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

@@ -33,6 +33,9 @@ final class FakeServer: HTTPTransport {
         var pins: [String: [String]] = [:]
         var pinError: (status: Int, code: String)?
         var searchStatus = 200
+        var unresolvedStatus = 200
+        var unresolvedPageSize = 20
+        var unresolvedDelay = 0
         /// What the person was told, newest first, as the server keeps it; reading one sets its time.
         var notifications: [PurlayContract.Notification] = []
         var notificationsStatus = 200
@@ -287,7 +290,34 @@ final class FakeServer: HTTPTransport {
                 ThreadSummary.self,
                 "{\"lastReplyAt\":null,\"replyCount\":\(snapshot.threads[id]?.count ?? 0),\"resolvedAt\":\(resolved ? "\"2026-10-09T14:00:00.000Z\"" : "null"),\"resolvedBy\":\(resolved ? who : "null")}"
             )
+            let updatedRoot = root
+            state.withLock { state in
+                if let at = state.messages[root.channelId.value]?.firstIndex(where: { $0.id == root.id }) {
+                    state.messages[root.channelId.value]?[at] = updatedRoot
+                }
+            }
             return json(200, Self.encoded(root))
+        case ("GET", "/api/workspaces/\(Self.workspaceID)/unresolved"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.unresolvedDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.unresolvedDelay)) }
+            if snapshot.unresolvedStatus != 200 {
+                return json(snapshot.unresolvedStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let query = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let before = query.first { $0.name == "before" }?.value
+            let inChannel = query.first { $0.name == "channelId" }?.value
+            let found = snapshot.messages.values.joined().filter {
+                $0.parentId == nil && $0.deletedAt == nil && ($0.thread?.replyCount ?? 0) > 0
+                    && $0.thread?.resolvedAt == nil
+                    && (before == nil || $0.id.value < (before ?? ""))
+                    && (inChannel == nil || $0.channelId.value == inChannel)
+            }.sorted { $0.id > $1.id }
+            let items = Array(found.prefix(snapshot.unresolvedPageSize))
+            return json(
+                200,
+                Self.encoded(
+                    UnresolvedPage(
+                        data: items, nextCursor: found.count > items.count ? items.last?.id : nil)))
         case ("GET", "/api/notifications"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []

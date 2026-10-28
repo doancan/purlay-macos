@@ -84,13 +84,14 @@ struct MainView: View {
             forward = position(new) >= position(shown)
             switch new {
             case .inbox: Task { await model.openInbox() }
+            case .unresolved: Task { await model.openUnresolved() }
             case .channel(let id): Task { await model.showChannel(id) }
             }
         }
         // The model moves too (a notice clicked, a search result opened): the sidebar follows it.
         .onChange(of: shown) { _, new in
             if new != selection { selection = new }
-            if model.inboxOpen { detailsOpen = false }
+            if model.inboxOpen || model.unresolvedOpen { detailsOpen = false }
         }
         .onChange(of: model.thread?.root) { _, new in
             if new != nil { detailsOpen = false }
@@ -100,6 +101,7 @@ struct MainView: View {
     /// What the window shows, as the sidebar would name it.
     private var shown: SidebarSelection? {
         if model.inboxOpen { return .inbox }
+        if model.unresolvedOpen { return .unresolved }
         return model.selectedChannel.map(SidebarSelection.channel)
     }
 
@@ -112,6 +114,8 @@ struct MainView: View {
         Group {
             if model.inboxOpen {
                 InboxPage(model: model)
+            } else if model.unresolvedOpen {
+                UnresolvedPageView(model: model)
             } else if let id = model.selectedChannel, let channel = model.chat.channels[id] {
                 // Each channel its own scroll view: one that was scrolled far down a long feed keeps its place in a short one.
                 ChannelView(model: model, channel: channel).id(id)

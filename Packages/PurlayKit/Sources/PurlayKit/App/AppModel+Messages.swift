@@ -83,6 +83,7 @@ extension AppModel {
     /// goes through `open` and leaves the page where it is.
     public func showChannel(_ channelID: Uuid) async {
         inboxOpen = false
+        unresolvedOpen = false
         await open(channelID)
     }
 

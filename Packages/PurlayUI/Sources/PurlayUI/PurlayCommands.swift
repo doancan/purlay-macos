@@ -29,7 +29,7 @@ public struct PurlayCommands: Commands {
 
     private var ready: Bool { model.phase == .ready }
     private var channel: Channel? {
-        guard ready, !model.inboxOpen else { return nil }
+        guard ready, !model.inboxOpen, !model.unresolvedOpen else { return nil }
         return model.selectedChannel.flatMap { model.chat.channels[$0] }
     }
     /// The message the keyboard is on in the feed (↑ ↓): what the Message menu acts on.
@@ -147,6 +147,9 @@ public struct PurlayCommands: Commands {
             .keyboardShortcut("i", modifiers: [.command, .shift])
             .disabled(!ready)
         Button("Saved Messages") { model.savedOpen = true }.disabled(!ready)
+        Button("Open Topics") { Task { await model.openUnresolved() } }
+            .keyboardShortcut("u", modifiers: [.command, .option])
+            .disabled(!ready)
         Button("Pinned Messages") { model.pinsOpen = true }.disabled(channel == nil)
         // ⌥⌘D is the system's Dock hiding, which takes the key first; Drafts adds Shift.
         Button("Drafts") { model.draftsOpen = true }

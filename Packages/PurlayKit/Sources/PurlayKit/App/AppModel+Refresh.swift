@@ -11,6 +11,13 @@ extension AppModel {
     static let refreshRetries = [5_000, 15_000, 45_000]
 
     func handle(_ refresh: Refresh) {
+        if unresolvedOpen {
+            switch refresh {
+            case .thread, .threads, .channels, .unresolved:
+                Task { await self.loadUnresolved() }
+            default: break
+            }
+        }
         switch refresh {
         case .channels(let id) where id == workspace?.id:
             reread(refresh) { await $0.reloadChannels() }

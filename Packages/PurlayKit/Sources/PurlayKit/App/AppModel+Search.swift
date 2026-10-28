@@ -156,11 +156,14 @@ extension AppModel {
     /// the one shown there. A message that cannot be read changes nothing.
     public func openMessage(_ message: Message) async {
         guard let api, let engine else { return }
+        let context = contextGeneration
         do {
             let around = try await api.getMessagesAround(messageId: message.id.value)
+            guard context == contextGeneration else { return }
             let channelID = around.target.channelId
             if thread?.channel != channelID { closeThread() }
             inboxOpen = false
+            unresolvedOpen = false
             selectedChannel = channelID
             if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
             var window = ChannelWindow()
@@ -174,6 +177,7 @@ extension AppModel {
             focus = Focus(message: around.target.id, sequence: focusSequence)
             sync()
         } catch {
+            guard context == contextGeneration else { return }
             say(.loadFailed)
         }
     }

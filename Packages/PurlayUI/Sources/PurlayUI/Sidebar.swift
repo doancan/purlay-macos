@@ -9,6 +9,7 @@ import SwiftUI
 /// What the sidebar has chosen: the inbox page, or a channel.
 enum SidebarSelection: Hashable {
     case inbox
+    case unresolved
     case channel(Uuid)
 }
 
@@ -43,6 +44,8 @@ struct SidebarView: View {
                 Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
                     .badge(model.attentionCount)
                     .tag(SidebarSelection.inbox)
+                Label("Open Topics", systemImage: "bubble.left.and.text.bubble.right")
+                    .tag(SidebarSelection.unresolved)
                 DestinationRow(title: "Saved", systemImage: "bookmark") { model.savedOpen = true }
                 DestinationRow(title: "Drafts", systemImage: "square.and.pencil", count: draftCount) {
                     model.draftsOpen = true

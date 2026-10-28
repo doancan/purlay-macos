@@ -154,6 +154,14 @@ public final class AppModel {
     }
 
     public var inboxOpen = false
+    public internal(set) var unresolvedOpen = false
+    public internal(set) var unresolvedChannelID: Uuid?
+    public internal(set) var unresolvedItems: [Message] = []
+    public internal(set) var unresolvedLoading = false
+    public internal(set) var unresolvedFailed = false
+    public internal(set) var unresolvedUpdating: Set<Uuid> = []
+    var unresolvedCursor: Uuid?
+    var unresolvedGeneration = 0
     public internal(set) var inboxFilter: InboxFilter = .all
     public internal(set) var inboxCategory: Inbox.Category = .all
     public internal(set) var inboxStatus: InboxStatus = .idle
@@ -632,6 +640,7 @@ public final class AppModel {
         keyboardRow = nil
         problems = ProblemLog()
         clearInbox()
+        clearUnresolved()
         uploadBytes = [:]
         attachmentCache = [:]
         attachmentCacheOrder = []
@@ -697,7 +706,8 @@ public final class AppModel {
     /// view, and the window reaches the present. Nothing is marked read from a window short of the present, and a message already read
     /// is not marked again.
     private func markReadIfSeen() {
-        guard isActive, atBottom, let channel = selectedChannel, let window = chat.windows[channel],
+        guard isActive, atBottom, !inboxOpen, !unresolvedOpen, let channel = selectedChannel,
+            let window = chat.windows[channel],
             window.reachesNewest,
             let newest = window.messages.last?.id, let api, engine != nil, !marking.contains(channel),
             (readRetryAfter[channel] ?? .distantPast) <= environment.clock()
