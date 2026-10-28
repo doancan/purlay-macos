@@ -1,4 +1,5 @@
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// The quiet bar that says Deep Work is on, until when, with End (`UX.md` §8: a mode you can forget you are in is a mode that loses you
@@ -10,8 +11,8 @@ struct DeepWorkBar: View {
         if let end = model.deepWorkEnds {
             // The minutes are asked when drawn, and drawn again each half minute, and at the instant it ends the bar is gone.
             TimelineView(.periodic(from: .now, by: 30)) { _ in
-                HStack(spacing: 8) {
-                    Image(systemName: "moon.fill")
+                HStack(spacing: Spacing.space2) {
+                    Image(systemName: "moon.fill").foregroundStyle(.indigo)
                     Text("Deep Work until \(end, style: .time)")
                     Text("·").foregroundStyle(.secondary)
                     Text("\(model.deepWorkMinutesLeft) min left").foregroundStyle(.secondary)
@@ -19,9 +20,9 @@ struct DeepWorkBar: View {
                     Button("End") { Task { await model.endDeepWork() } }.controlSize(.small)
                 }
                 .font(.callout)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(Color.indigo.opacity(0.18))
+                .padding(.horizontal, Spacing.space4)
+                .padding(.vertical, Spacing.space1 + Stroke.strokeFocus)
+                .background(.bar)
                 .accessibilityElement(children: .combine)
             }
         }

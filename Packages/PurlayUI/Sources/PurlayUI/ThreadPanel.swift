@@ -138,10 +138,11 @@ private struct Status: View {
     let model: AppModel
     let root: Message
     let replies: Int
+    @State private var changing = false
 
     var body: some View {
         let resolved = root.thread?.resolvedAt != nil
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.space2) {
             HStack {
                 if resolved, let by = root.thread?.resolvedBy {
                     Label("Resolved by \(by.displayName)", systemImage: "checkmark.circle.fill")
@@ -151,20 +152,27 @@ private struct Status: View {
                 }
                 Spacer()
                 Button(resolved ? "Reopen" : "Resolve", systemImage: resolved ? "arrow.uturn.backward" : "checkmark") {
-                    Task { _ = resolved ? await model.reopenThread() : await model.resolveThread() }
+                    changing = true
+                    Task {
+                        _ = resolved ? await model.reopenThread() : await model.resolveThread()
+                        changing = false
+                    }
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
+                .disabled(changing)
                 .keyboardShortcut("r", modifiers: [.command, .shift])
+                .help(resolved ? "Reopen this thread  ⇧⌘R" : "Mark this thread resolved  ⇧⌘R")
             }
             .font(.callout)
             HStack {
                 VStack { Divider() }
-                Text("\(replies) replies").font(.caption).foregroundStyle(.secondary)
+                Text(replies == 1 ? String(localized: "1 reply") : String(localized: "\(replies) replies"))
+                    .font(.caption).foregroundStyle(NativePalette.secondary.style).fixedSize()
                 VStack { Divider() }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.space4)
+        .padding(.vertical, Spacing.space2)
     }
 }

@@ -31,7 +31,11 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
             let content = UNMutableNotificationContent()
             content.title = AttentionWords.title(notice)
             content.body = AttentionWords.body(notice)
-            if case .place(let channel, _, _) = notice.content { content.userInfo = ["channel": channel.value] }
+            if case .place(let channel, _, _) = notice.content {
+                content.userInfo = ["channel": channel.value]
+                // Notification Center stacks a conversation's notices together.
+                content.threadIdentifier = channel.value
+            }
             // One per conversation: the next replaces the last, which the identifier does.
             do {
                 try await center.add(UNNotificationRequest(identifier: notice.id, content: content, trigger: nil))

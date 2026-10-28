@@ -31,40 +31,12 @@ struct ControlSurface: ViewModifier {
     func body(content: Content) -> some View {
         if reduceTransparency {
             content
-                .background(Colors.surface100.style, in: .rect(cornerRadius: radius))
+                .background(NativePalette.raised.style, in: .rect(cornerRadius: radius))
                 .overlay {
-                    RoundedRectangle(cornerRadius: radius).strokeBorder(Colors.borderSubtle.style)
+                    RoundedRectangle(cornerRadius: radius).strokeBorder(NativePalette.border.style)
                 }
         } else {
             content.glassEffect(.regular, in: .rect(cornerRadius: radius))
-        }
-    }
-}
-
-/// Samples the desktop behind the window instead of tinting the sidebar with the content's grey background.
-struct SidebarMaterial: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = SidebarEffectView()
-        view.blendingMode = .behindWindow
-        view.material = .sidebar
-        view.state = .followsWindowActiveState
-        return view
-    }
-
-    // AppKit owns the material's layers and active state; scrolling never rebuilds that compositing surface.
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
-}
-
-struct SidebarSurface: View {
-    @AppStorage("sidebar.translucent") private var translucent = true
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    var body: some View {
-        if translucent && !reduceTransparency {
-            SidebarMaterial()
-                .overlay(NativePalette.sidebarWash.color.opacity(0.18))
-        } else {
-            NativePalette.sidebarSolid.color
         }
     }
 }
@@ -75,21 +47,14 @@ struct WindowHeading: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.headline).foregroundStyle(NativePalette.onToolbar.style)
+            // Semantic styles: on the toolbar's glass the system gives them vibrancy, as it does a window's own title.
+            Text(title).font(.headline).foregroundStyle(.primary)
             if !subtitle.isEmpty {
-                Text(subtitle).font(.caption).foregroundStyle(NativePalette.toolbarDetail.style)
+                Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
             }
         }
         .lineLimit(1)
-        .frame(maxWidth: 320, alignment: .leading)
+        .frame(maxWidth: Size.sizeAttachment, alignment: .leading)
         .accessibilityElement(children: .combine)
-    }
-}
-
-private final class SidebarEffectView: NSVisualEffectView {
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        window?.isOpaque = false
-        window?.backgroundColor = .clear
     }
 }

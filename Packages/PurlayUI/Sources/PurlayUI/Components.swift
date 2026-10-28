@@ -13,7 +13,7 @@ struct SheetHeading: View {
             Image(systemName: image)
                 .font(.title3.weight(.medium)).foregroundStyle(Colors.accentText.style)
                 .frame(width: Size.sizeRailItem, height: Size.sizeRailItem)
-                .background(Colors.accentSubtle.style, in: .rect(cornerRadius: Radius.radius2xl))
+                .background(NativePalette.selection.style, in: .rect(cornerRadius: Radius.radius2xl))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Spacing.space1) {
                 Text(title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
@@ -54,10 +54,13 @@ struct Avatar: View {
             Circle().fill(background.style)
             Text(initials)
                 .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                .foregroundStyle(Colors.ink.style)
+                .foregroundStyle(NativePalette.ink.style)
                 .minimumScaleFactor(0.5)
             if let url = pictureURL {
-                AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.15))) { phase in
+                AsyncImage(
+                    url: url,
+                    transaction: Transaction(animation: Motion.easingStandard.animation(Motion.durationOverlay))
+                ) { phase in
                     if let image = phase.image { image.resizable().scaledToFill() }
                 }
                 .clipShape(Circle())
@@ -119,9 +122,9 @@ struct PresenceAvatar: View {
         avatar
             .overlay(alignment: .bottomTrailing) {
                 Circle()
-                    .fill(online ? Colors.success.style : Colors.borderStrong.style)
+                    .fill(online ? Colors.success.style : NativePalette.tertiary.style)
                     .frame(width: size * 0.36, height: size * 0.36)
-                    .overlay(Circle().stroke(Colors.navSurface.style, lineWidth: Stroke.strokeFocus))
+                    .overlay(Circle().stroke(NativePalette.canvas.style, lineWidth: Stroke.strokeFocus))
                     .offset(x: Stroke.strokeHairline, y: Stroke.strokeHairline)
             }
     }
@@ -152,10 +155,8 @@ struct DayDivider: View {
             Text(label)
                 .typeStyle(Typography.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(Colors.inkMuted.style)
-                .padding(.horizontal, Spacing.space3)
-                .padding(.vertical, Spacing.space1)
-                .background(NativePalette.raised.style, in: Capsule())
+                .foregroundStyle(NativePalette.secondary.style)
+                .fixedSize()
             rule
         }
         .padding(.vertical, Spacing.space2)
@@ -190,5 +191,54 @@ struct NewDivider: View {
         .padding(.horizontal, Spacing.space4)
         .padding(.vertical, Spacing.space1)
         .accessibilityLabel(Text("New messages"))
+    }
+}
+
+/// Lays its children out in rows, wrapping to the next when a row is full: reactions on a narrow window, tags, chips.
+struct FlowLayout: Layout {
+    var spacing: Double = Spacing.space1
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(subviews, width: proposal.width ?? .infinity)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * Double(max(rows.count - 1, 0))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(subviews, width: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: Double = 0
+        var height: Double = 0
+    }
+
+    private func arrange(_ subviews: Subviews, width: Double) -> [Row] {
+        var rows: [Row] = [Row()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed =
+                rows[rows.count - 1].indices.isEmpty ? size.width : rows[rows.count - 1].width + spacing + size.width
+            if needed > width && !rows[rows.count - 1].indices.isEmpty {
+                rows.append(Row())
+            }
+            var row = rows[rows.count - 1]
+            row.width = row.indices.isEmpty ? size.width : row.width + spacing + size.width
+            row.height = max(row.height, size.height)
+            row.indices.append(index)
+            rows[rows.count - 1] = row
+        }
+        return rows.filter { !$0.indices.isEmpty }
     }
 }

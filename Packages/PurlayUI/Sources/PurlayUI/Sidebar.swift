@@ -4,8 +4,8 @@ import PurlayTokens
 import SwiftUI
 
 /// The sidebar (§12.3): the workspace and what it holds for the person, then where they can go (Inbox, Saved, Search), then
-/// Starred, Channels and Conversations, and at the foot who they are. It is the system's sidebar, so it is glass by itself;
-/// its material samples behind the window rather than drawing a flat grey surface.
+/// Starred, Channels and Conversations, and at the foot who they are. It is the system's sidebar, so it is Liquid Glass by
+/// itself: nothing is drawn behind the list, and the text takes semantic styles so the glass can give it vibrancy.
 /// What the sidebar has chosen: the inbox page, or a channel.
 enum SidebarSelection: Hashable {
     case inbox
@@ -41,7 +41,6 @@ struct SidebarView: View {
         List(selection: $selection) {
             Section {
                 Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
-                    .foregroundStyle(selection == .inbox ? Color.primary : NativePalette.ink.color)
                     .badge(model.attentionCount)
                     .tag(SidebarSelection.inbox)
                 DestinationRow(title: "Saved", systemImage: "bookmark") { model.savedOpen = true }
@@ -98,7 +97,7 @@ struct SidebarView: View {
                             Spacer(minLength: Spacing.space1)
                             Text("⌘K").font(.caption.monospaced())
                         }
-                        .font(.callout).foregroundStyle(NativePalette.secondary.style)
+                        .font(.callout).foregroundStyle(.secondary)
                         .padding(.leading, Spacing.space3)
                         .frame(maxWidth: .infinity, minHeight: Size.sizeControl + Spacing.space1)
                         .contentShape(.rect)
@@ -106,7 +105,7 @@ struct SidebarView: View {
                     .buttonStyle(.plain)
                     .help("Search messages, channels and people  ⌘K")
                     .accessibilityLabel("Search Purlay")
-                    Rectangle().fill(NativePalette.divider.style)
+                    Rectangle().fill(.separator)
                         .frame(width: Stroke.strokeHairline, height: Size.sizeIconMd)
                         .padding(.horizontal, Spacing.space2)
                     Menu {
@@ -127,19 +126,14 @@ struct SidebarView: View {
                             systemName: unreadOnly
                                 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease"
                         )
-                        .foregroundStyle(NativePalette.secondary.style)
+                        .foregroundStyle(.secondary)
                         .frame(width: Size.sizeIconLg, height: Size.sizeControl)
                     }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     .padding(.trailing, Spacing.space2)
                     .help("Filter channels").accessibilityLabel("Filter channels")
                 }
-                .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusLg))
-                .overlay {
-                    RoundedRectangle(cornerRadius: Radius.radiusLg)
-                        .strokeBorder(NativePalette.border.style, lineWidth: Stroke.strokeHairline)
-                        .allowsHitTesting(false)
-                }
+                .background(.fill.quaternary, in: .rect(cornerRadius: Radius.radiusLg))
                 if filtering {
                     HStack(spacing: Spacing.space2) {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -156,7 +150,7 @@ struct SidebarView: View {
                         .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary)
                     }
                     .font(.callout).padding(Spacing.space2)
-                    .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: Radius.radiusLg))
+                    .background(.fill.quaternary, in: .rect(cornerRadius: Radius.radiusLg))
                 }
                 if unreadOnly {
                     HStack {
@@ -173,9 +167,6 @@ struct SidebarView: View {
             .padding(.bottom, Spacing.space2)
         }
         .safeAreaBar(edge: .bottom) { AccountFooter(model: model) }
-        .background {
-            SidebarSurface().ignoresSafeArea()
-        }
     }
 
     private func expanded(_ id: String) -> Binding<Bool> {
@@ -202,7 +193,7 @@ private struct DestinationRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Label(title, systemImage: systemImage).foregroundStyle(NativePalette.ink.style)
+                Label(title, systemImage: systemImage).foregroundStyle(.primary)
                 Spacer(minLength: Spacing.space2)
                 if count > 0 {
                     Text(count, format: .number).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -224,7 +215,7 @@ private struct SectionHeader: View {
 
     var body: some View {
         HStack {
-            Text(Words.header(kind)).font(.caption.weight(.semibold)).foregroundStyle(NativePalette.secondary.style)
+            Text(Words.header(kind)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             Spacer()
             switch kind {
             case .channels:
@@ -352,14 +343,14 @@ private struct WorkspaceHeader: View {
                 VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
                     Text(model.workspace?.name ?? "Purlay")
                         .typeStyle(Typography.title)
-                        .foregroundStyle(NativePalette.ink.style).lineLimit(1)
+                        .foregroundStyle(.primary).lineLimit(1)
                     Text("Workspace")
-                        .font(.caption).foregroundStyle(NativePalette.secondary.style)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
                     .imageScale(.small)
-                    .foregroundStyle(NativePalette.secondary.style)
+                    .foregroundStyle(.secondary)
             }
             .contentShape(.rect)
         }
@@ -382,6 +373,7 @@ private struct WorkspaceHeader: View {
 /// what belongs to the person (profile, Deep Work, settings, signing out).
 private struct AccountFooter: View {
     let model: AppModel
+    @State private var confirmingEverywhere = false
     @Environment(\.openURL) private var openURL
     @Environment(\.openSettings) private var openSettings
 
@@ -398,7 +390,7 @@ private struct AccountFooter: View {
             }
             Section {
                 Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
-                Button("Sign Out Everywhere…") { Task { await model.signOut(.everywhere) } }
+                Button("Sign Out Everywhere…") { confirmingEverywhere = true }
                 Button("Use Another Server…") { Task { await model.chooseAnotherServer() } }
             }
         } label: {
@@ -407,16 +399,16 @@ private struct AccountFooter: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(model.me?.user.displayName ?? "")
                         .typeStyle(Typography.label)
-                        .foregroundStyle(NativePalette.ink.style)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(status)
                         .typeStyle(Typography.caption)
-                        .foregroundStyle(NativePalette.secondary.style)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption).foregroundStyle(NativePalette.secondary.style)
+                    .font(.caption).foregroundStyle(.secondary)
             }
             .padding(Spacing.space2)
             .contentShape(.rect)
@@ -426,6 +418,11 @@ private struct AccountFooter: View {
         .menuIndicator(.hidden)
         .modifier(ControlSurface())
         .padding(Spacing.space3)
+        .confirmationDialog("Sign out on every device?", isPresented: $confirmingEverywhere) {
+            Button("Sign Out Everywhere", role: .destructive) { Task { await model.signOut(.everywhere) } }
+        } message: {
+            Text("Every Mac, phone and browser signed in to this account will need to sign in again.")
+        }
         .accessibilityLabel(Text("Account, \(model.me?.user.displayName ?? ""), \(status)"))
     }
 

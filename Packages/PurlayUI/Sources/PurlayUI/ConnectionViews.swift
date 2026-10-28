@@ -1,5 +1,6 @@
 import PurlayContract
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// What the connection is doing, said only when it is not simply working: a bar above the messages (§8).
@@ -10,14 +11,14 @@ struct ConnectionBar: View {
 
     var body: some View {
         if let text {
-            HStack(spacing: 8) {
+            HStack(spacing: Spacing.space2) {
                 if status == .waiting || status == .connecting { ProgressView().controlSize(.small) }
                 Text(text).font(.callout)
                 Spacer()
                 if degradedCount > 0 { Button("Retry", action: retry).buttonStyle(.link) }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, Spacing.space3)
+            .padding(.vertical, Spacing.space1 + Stroke.strokeFocus)
             .background(.bar)
             .accessibilityElement(children: .combine)
         }
@@ -43,11 +44,11 @@ struct NoticeBanner: View {
         HStack(alignment: .firstTextBaseline) {
             Text(Words.notice(notice.kind)).font(.callout)
             Spacer()
-            Button("Dismiss", action: dismiss).buttonStyle(.link)
+            Button("Dismiss", action: dismiss).buttonStyle(.link).help("Dismiss this notice")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.thinMaterial)
+        .padding(.horizontal, Spacing.space3)
+        .padding(.vertical, Spacing.space2)
+        .background(.bar)
         .accessibilityElement(children: .combine)
     }
 }

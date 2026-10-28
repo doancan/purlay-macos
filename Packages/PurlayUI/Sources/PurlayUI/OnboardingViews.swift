@@ -60,10 +60,10 @@ struct OnboardingCard<Content: View>: View {
     private var form: some View {
         VStack(alignment: .leading, spacing: Spacing.space6) {
             VStack(alignment: .leading, spacing: Spacing.space2) {
-                Text(title).typeStyle(Typography.display).foregroundStyle(Colors.ink.style)
+                Text(title).typeStyle(Typography.display).foregroundStyle(NativePalette.ink.style)
                     .accessibilityAddTraits(.isHeader)
                 if let subtitle {
-                    Text(subtitle).typeStyle(Typography.body).foregroundStyle(Colors.inkMuted.style)
+                    Text(subtitle).typeStyle(Typography.body).foregroundStyle(NativePalette.secondary.style)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -93,10 +93,10 @@ struct ServerAddressView: View {
                     .typeStyle(Typography.title)
                     .padding(Spacing.space3)
                     .accessibilityLabel("Server address")
-                    .background(Colors.surface100.style, in: .rect(cornerRadius: Radius.radiusXl))
+                    .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusXl))
                     .overlay {
                         RoundedRectangle(cornerRadius: Radius.radiusXl)
-                            .strokeBorder(focused ? Colors.focusRing.style : Colors.borderSubtle.style)
+                            .strokeBorder(focused ? Colors.focusRing.style : NativePalette.border.style)
                     }
                     .autocorrectionDisabled()
                     .focused($focused)
@@ -146,7 +146,7 @@ struct ProblemView: View {
                 if let server = model.server {
                     Label(server.description, systemImage: "server.rack")
                         .typeStyle(Typography.code)
-                        .foregroundStyle(Colors.inkMuted.style)
+                        .foregroundStyle(NativePalette.secondary.style)
                 }
                 HStack(spacing: Spacing.space2) {
                     Button("Choose Another Server") { Task { await model.chooseAnotherServer() } }
@@ -180,7 +180,7 @@ struct SignInView: View {
                 if let server = model.server {
                     Label(server.description, systemImage: "server.rack")
                         .typeStyle(Typography.code)
-                        .foregroundStyle(Colors.inkMuted.style)
+                        .foregroundStyle(NativePalette.secondary.style)
                 }
                 Button {
                     Task { await model.signIn() }

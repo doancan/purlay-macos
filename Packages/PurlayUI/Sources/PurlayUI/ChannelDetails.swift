@@ -57,13 +57,9 @@ struct ChannelDetails: View {
                     .help("Close channel details")
             }
             .padding(Spacing.space4)
-            Picker("Details", selection: tabSelection) {
-                ForEach(ChannelDetailTab.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, Spacing.space4)
-            .padding(.bottom, Spacing.space3)
+            GlassTabs(tabs: ChannelDetailTab.allCases, selection: tabSelection, title: \.title)
+                .padding(.horizontal, Spacing.space4)
+                .padding(.bottom, Spacing.space3)
             Divider()
             ZStack {
                 Group {
@@ -75,7 +71,7 @@ struct ChannelDetails: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
-        .background(Colors.surface050.style)
+        .background(NativePalette.canvas.style)
         .onExitCommand(perform: close)
         .task(id: "\(tab.rawValue)-\(refreshRevision)") {
             query = ""
@@ -146,7 +142,7 @@ struct ChannelDetails: View {
                         Task { await model.setStarred(!channel.starred, channel) }
                     }
                 }
-                .background(Colors.surface100.style, in: .rect(cornerRadius: Radius.radius2xl))
+                .background(NativePalette.fill.style, in: .rect(cornerRadius: Radius.radius2xl))
                 VStack(alignment: .leading, spacing: Spacing.space2) {
                     Text("NOTIFICATIONS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     Menu {
@@ -223,7 +219,7 @@ struct ChannelDetails: View {
                     }
                 }
                 .padding(Spacing.space3)
-                .background(Colors.surface100.style, in: .rect(cornerRadius: Radius.radiusXl))
+                .background(.fill.quaternary, in: .rect(cornerRadius: Radius.radiusLg))
                 .padding(Spacing.space3)
             }
             if loading {
@@ -392,7 +388,7 @@ struct ChannelEmblem: View {
                     .font(.system(size: size * 0.45, weight: .semibold))
                     .foregroundStyle(Colors.accentText.style)
                     .frame(width: size, height: size)
-                    .background(Colors.accentSubtle.style, in: .rect(cornerRadius: size * 0.28))
+                    .background(NativePalette.selection.style, in: .rect(cornerRadius: size * 0.28))
             }
         }
         .accessibilityHidden(true)

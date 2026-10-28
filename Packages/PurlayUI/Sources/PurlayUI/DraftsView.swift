@@ -33,10 +33,9 @@ struct DraftsSheet: View {
             } else {
                 List(channels, id: \.id) { channel in
                     Button {
-                        Task {
-                            await model.showChannel(channel.id)
-                            dismiss()
-                        }
+                        // The sheet goes at once; the channel opens behind it.
+                        dismiss()
+                        Task { await model.showChannel(channel.id) }
                     } label: {
                         HStack(alignment: .top, spacing: Spacing.space3) {
                             ChannelEmblem(channel: channel)

@@ -22,7 +22,7 @@ private struct BlockList: View {
     let blocks: [MarkdownBlock]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.space2) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in BlockView(block: block) }
         }
     }
@@ -36,19 +36,20 @@ private struct BlockView: View {
         case .paragraph(let inlines):
             Text(MarkdownText.attributed(inlines)).textSelection(.enabled)
         case .heading(let inlines):
-            Text(MarkdownText.attributed(inlines)).bold().textSelection(.enabled)
-        case .code(_, let value):
-            CodeBlock(text: value)
+            Text(MarkdownText.attributed(inlines)).fontWeight(.semibold).textSelection(.enabled)
+                .accessibilityAddTraits(.isHeader)
+        case .code(let language, let value):
+            CodeBlock(language: language, text: value)
         case .quote(let children):
-            HStack(alignment: .top, spacing: 8) {
-                Capsule().fill(.quaternary).frame(width: 3)
-                BlockList(blocks: children).foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: Spacing.space3) {
+                Capsule().fill(NativePalette.border.style).frame(width: Stroke.strokeMarker + Stroke.strokeHairline)
+                BlockList(blocks: children).foregroundStyle(NativePalette.secondary.style)
             }
             .fixedSize(horizontal: false, vertical: true)
         case .list(let start, let items):
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Spacing.space1) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
                         Marker(start: start, index: index, checked: item.checked)
                         BlockList(blocks: item.blocks)
                     }
@@ -57,7 +58,8 @@ private struct BlockView: View {
         case .table(let alignments, let rows):
             TableBlock(alignments: alignments, rows: rows)
         case .rule:
-            Divider()
+            Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
+                .padding(.vertical, Spacing.space1)
         }
     }
 }
@@ -70,7 +72,7 @@ private struct Marker: View {
     var body: some View {
         if let checked {
             Image(systemName: checked ? "checkmark.square.fill" : "square")
-                .foregroundStyle(checked ? Color.accentColor : .secondary)
+                .foregroundStyle(checked ? AnyShapeStyle(Colors.accent.style) : AnyShapeStyle(.secondary))
                 .accessibilityLabel(checked ? Text("Done") : Text("Not done"))
         } else if let start {
             Text("\(start + index).").monospacedDigit().foregroundStyle(.secondary)
@@ -80,17 +82,109 @@ private struct Marker: View {
     }
 }
 
+/// A fenced block: a quiet well with its language and a copy button in a slim header, SF Mono at the code size, scrolling
+/// sideways rather than wrapping, and folded past a screenful with the way to see the rest.
 private struct CodeBlock: View {
+    let language: String?
     let text: String
+    @State private var expanded = false
+    @State private var copied = false
+    @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var lines: Int { text.reduce(into: 1) { count, character in if character == "\n" { count += 1 } } }
+    /// Long enough that folding it saves the reader a scroll through the feed.
+    private var foldable: Bool { lines > Int(Size.sizeCodeClamp / Typography.code.lineHeightPoints) + 2 }
+    private var folded: Bool { foldable && !expanded }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Text(text)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .padding(10)
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            ScrollView(.horizontal) {
+                Text(text)
+                    .typeStyle(Typography.code)
+                    .foregroundStyle(NativePalette.ink.style)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, Spacing.space3)
+                    .padding(.bottom, Spacing.space3)
+            }
+            .scrollIndicators(.automatic)
+            .frame(maxHeight: folded ? Size.sizeCodeClamp : nil, alignment: .top)
+            .clipped()
+            .overlay(alignment: .bottom) {
+                if folded {
+                    LinearGradient(
+                        colors: [NativePalette.codeSurface.color.opacity(0), NativePalette.codeSurface.color],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: Size.sizeHeader)
+                    .allowsHitTesting(false)
+                }
+            }
+            if foldable {
+                Button {
+                    withAnimation(reduceMotion ? nil : NavigationMotion.animation(reduceMotion: false)) {
+                        expanded.toggle()
+                    }
+                } label: {
+                    Label(
+                        expanded ? "Show Less" : "Show All \(lines) Lines",
+                        systemImage: expanded ? "chevron.up" : "chevron.down"
+                    )
+                    .typeStyle(Typography.caption)
+                    .frame(maxWidth: .infinity, minHeight: Size.sizeControl - Spacing.space1)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(NativePalette.secondary.style)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
+                }
+            }
         }
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .background(NativePalette.codeSurface.style, in: .rect(cornerRadius: Radius.radiusLg))
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.radiusLg)
+                .strokeBorder(NativePalette.divider.style, lineWidth: Stroke.strokeHairline)
+        }
+        .onHover { hovering = $0 }
+        .task(id: copied) {
+            guard copied else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(language.map { "\($0) code" } ?? String(localized: "Code")))
+    }
+
+    private var header: some View {
+        HStack(spacing: Spacing.space2) {
+            Text(language?.lowercased() ?? "")
+                .typeStyle(Typography.caption)
+                .foregroundStyle(NativePalette.secondary.style)
+            Spacer(minLength: Spacing.space2)
+            Button {
+                Clipboard.copy(text)
+                copied = true
+            } label: {
+                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    .typeStyle(Typography.caption)
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(
+                copied ? AnyShapeStyle(Colors.successText.style) : AnyShapeStyle(NativePalette.secondary.style)
+            )
+            .opacity(hovering || copied ? 1 : 0)
+            .allowsHitTesting(hovering || copied)
+            .help("Copy code")
+            .accessibilityLabel(copied ? "Copied" : "Copy code")
+        }
+        .frame(minHeight: Size.sizeControl - Spacing.space1)
+        .padding(.horizontal, Spacing.space3)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: hovering)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: copied)
     }
 }
 
@@ -99,7 +193,17 @@ private struct TableBlock: View {
     let rows: [[[MarkdownInline]]]
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
+        ScrollView(.horizontal) { grid }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.radiusLg)
+                    .strokeBorder(NativePalette.divider.style, lineWidth: Stroke.strokeHairline)
+            }
+    }
+
+    /// A wide table scrolls sideways in its frame rather than pushing the feed wider than the window.
+    private var grid: some View {
+        Grid(alignment: .leading, horizontalSpacing: Spacing.space4, verticalSpacing: Spacing.space1) {
             ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                 GridRow {
                     ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
@@ -109,11 +213,13 @@ private struct TableBlock: View {
                             .textSelection(.enabled)
                     }
                 }
-                if index == 0 { Divider().gridCellColumns(max(row.count, 1)) }
+                if index == 0 {
+                    Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
+                        .gridCellColumns(max(row.count, 1))
+                }
             }
         }
-        .padding(8)
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+        .padding(Spacing.space3)
     }
 
     private func alignment(_ column: Int) -> HorizontalAlignment {
@@ -138,7 +244,7 @@ enum MarkdownText {
     {
         switch inline {
         case .text(let value): styled(value, intent, link)
-        case .code(let value): styled(value, intent.union(.code), link)
+        case .code(let value): code(value, link)
         case .lineBreak: AttributedString("\n")
         case .emphasis(let children): joined(children, intent.union(.emphasized), link)
         case .strong(let children): joined(children, intent.union(.stronglyEmphasized), link)
@@ -153,6 +259,16 @@ enum MarkdownText {
         var out = AttributedString()
         for child in children { out.append(piece(child, intent: intent, link: link)) }
         return out
+    }
+
+    /// Inline code as a chip in the sentence: SF Mono a step under the body, on its own tint, with a hair of room either side
+    /// (narrow no-break spaces, so the chip never breaks from its words).
+    private static func code(_ value: String, _ link: URL?) -> AttributedString {
+        var run = AttributedString("\u{202F}\(value)\u{202F}")
+        run.font = .system(size: Typography.code.size - 1, weight: .regular, design: .monospaced)
+        run.backgroundColor = NativePalette.codeChip.color
+        if let link { run.link = link }
+        return run
     }
 
     private static func styled(_ value: String, _ intent: InlinePresentationIntent, _ link: URL?) -> AttributedString {

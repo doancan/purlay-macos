@@ -175,6 +175,9 @@ enum Words {
 /// What a system notice says: where and why, never what was said, because a notice is read over a shoulder and stays in the notification
 /// centre (D-126 §2).
 public enum AttentionWords {
+    /// A channel's name as the app shows it, for the Dock menu.
+    public static func place(_ channel: Channel) -> String { Words.channelLabel(channel) }
+
     public static func title(_ notice: AttentionNotice) -> String {
         switch notice.content {
         case .place(_, let label, _): label

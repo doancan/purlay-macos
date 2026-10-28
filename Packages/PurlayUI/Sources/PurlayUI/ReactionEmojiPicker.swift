@@ -118,7 +118,7 @@ private struct ReactionEmojiButton: View {
                 .frame(maxWidth: .infinity, minHeight: 34)
                 .background {
                     RoundedRectangle(cornerRadius: Radius.radiusMd)
-                        .fill(selected ? Colors.accentSubtle.style : NativePalette.hover.style)
+                        .fill(selected ? NativePalette.selection.style : NativePalette.hover.style)
                         .opacity(selected || hovering ? 1 : 0)
                 }
                 .overlay {

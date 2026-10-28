@@ -15,12 +15,12 @@ struct MainView: View {
     @State private var forward = true
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model, selection: $selection, sheet: $sheet, leaving: $leaving)
-                .navigationSplitViewColumnWidth(min: 220, ideal: Size.sizeSidebar, max: 360)
+                .navigationSplitViewColumnWidth(
+                    min: Size.sizeMembers + Spacing.space5, ideal: Size.sizeSidebar, max: Size.sizeField)
         } detail: {
             detail
                 .inspector(isPresented: inspectorShown) {
@@ -32,14 +32,11 @@ struct MainView: View {
                                 .id(id)
                         }
                     }
-                    .inspectorColumnWidth(min: 300, ideal: 350, max: 480)
+                    .inspectorColumnWidth(
+                        min: Size.sizeMembers + Spacing.space16 + Spacing.space10, ideal: Size.sizeField,
+                        max: Size.sizeThread + Spacing.space10)
                 }
         }
-        // A clear window lets the sidebar's behind-window material sample the desktop. The feed stays an opaque reading surface.
-        .containerBackground(.clear, for: .window)
-        .toolbarBackground(NativePalette.toolbar.style, for: .windowToolbar)
-        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
-        .toolbarColorScheme(colorScheme, for: .windowToolbar)
         .toolbar(removing: .title)
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -48,7 +45,7 @@ struct MainView: View {
                     Button("New Channel…", systemImage: "number") { sheet = .newChannel }
                     Button("Browse Channels…", systemImage: "rectangle.stack") { sheet = .browse }
                 } label: {
-                    Label("New", systemImage: "square.and.pencil").foregroundStyle(NativePalette.toolbarControl.style)
+                    Label("New", systemImage: "square.and.pencil")
                 }
                 .help("New conversation or channel")
             }
@@ -64,6 +61,19 @@ struct MainView: View {
             .sharedBackgroundVisibility(.hidden)
         }
         .modifier(MainSheets(model: model, sheet: $sheet, leaving: $leaving))
+        .focusedSceneValue(
+            \.windowActions,
+            WindowActions(
+                newConversation: { sheet = .conversation },
+                newChannel: { sheet = .newChannel },
+                browse: { sheet = .browse },
+                showDetails: { tab in
+                    model.closeThread()
+                    detailsTab = tab
+                    detailsOpen = true
+                },
+                leave: { leaving = $0 })
+        )
         .onExitCommand {
             if model.paletteOpen {
                 model.paletteOpen = false
@@ -134,15 +144,22 @@ struct MainView: View {
         }
         .modifier(ChannelEntrance(forward: forward))
         .id(shown)
+        // Room for the feed and the composer however wide the sidebar and the inspector are.
+        .frame(minWidth: Size.sizeField)
         .safeAreaBar(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
                 DeepWorkBar(model: model)
                 ForEach(model.notices) { notice in
                     NoticeBanner(notice: notice) { model.dismiss(notice) }
+                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                 }
             }
-            .animation(Motion.easingStandard.animation(Motion.durationOverlay), value: model.notices.count)
+            .animation(
+                reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay),
+                value: BarState(
+                    notices: model.notices.map(\.id), connection: "\(model.connection)",
+                    degraded: model.degraded.count, deepWork: model.deepWorkEnds))
         }
         .background(NativePalette.canvas.style)
     }
@@ -179,7 +196,6 @@ private struct ChannelToolbar: ToolbarContent {
                     model.deepWorkEnds == nil ? "Focus" : "Focusing",
                     systemImage: model.deepWorkEnds == nil ? "moon" : "moon.fill"
                 )
-                .foregroundStyle(NativePalette.toolbarControl.style)
             }
             .help("Deep Work  ⇧⌘D")
         }
@@ -190,21 +206,19 @@ private struct ChannelToolbar: ToolbarContent {
                 detailsTab = .members
                 detailsOpen = true
             } label: {
-                Label("\(channel.memberCount)", systemImage: "person.2").foregroundStyle(
-                    NativePalette.toolbarControl.style)
+                Label("\(channel.memberCount)", systemImage: "person.2")
             }
             .help("Channel members")
             Button {
                 Task { await model.setStarred(!channel.starred, channel) }
             } label: {
                 Label(channel.starred ? "Unstar" : "Star", systemImage: channel.starred ? "star.fill" : "star")
-                    .foregroundStyle(NativePalette.toolbarControl.style)
             }
             .help(channel.starred ? "Remove from Starred" : "Add to Starred")
             Button {
                 model.pinsOpen = true
             } label: {
-                Label("Pinned", systemImage: "pin").foregroundStyle(NativePalette.toolbarControl.style)
+                Label("Pinned", systemImage: "pin")
             }
             .help("Pinned messages")
         }
@@ -213,15 +227,14 @@ private struct ChannelToolbar: ToolbarContent {
             Button {
                 Task { await model.openInbox() }
             } label: {
-                Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray").foregroundStyle(
-                    NativePalette.toolbarControl.style)
+                Label("Inbox", systemImage: model.attentionCount > 0 ? "tray.full" : "tray")
             }
             .badge(model.attentionCount)
             .help("Inbox  ⇧⌘I")
             Button {
                 model.openSearch(channel.type == .directMessage ? nil : "in:\(channel.name ?? channel.title) ")
             } label: {
-                Label("Search", systemImage: "magnifyingglass").foregroundStyle(NativePalette.toolbarControl.style)
+                Label("Search", systemImage: "magnifyingglass")
             }
             .help("Search this conversation")
             Button {
@@ -229,21 +242,17 @@ private struct ChannelToolbar: ToolbarContent {
                 detailsTab = .about
                 detailsOpen.toggle()
             } label: {
-                Label("Channel Details", systemImage: "sidebar.right").foregroundStyle(
-                    NativePalette.toolbarControl.style)
+                Label("Channel Details", systemImage: "sidebar.right")
             }
             .help("Channel details, members and files")
             Menu {
-                Button("Open in Browser", systemImage: "safari") {
-                    if let url = model.webURL(.channel(channel.id)) { openURL(url) }
+                ChannelMenu(model: model, channel: channel, leaving: $leaving) { tab in
+                    model.closeThread()
+                    detailsTab = tab
+                    detailsOpen = true
                 }
-                Button("Copy Link", systemImage: "link") {
-                    if let url = model.webURL(.channel(channel.id)) { Clipboard.copy(url.absoluteString) }
-                }
-                Divider()
-                ChannelMenu(model: model, channel: channel, leaving: $leaving)
             } label: {
-                Label("More", systemImage: "ellipsis").foregroundStyle(NativePalette.toolbarControl.style)
+                Label("More", systemImage: "ellipsis")
             }
             .help("More for this channel")
         }
@@ -297,6 +306,14 @@ private struct MainSheets: ViewModifier {
     }
 }
 
+/// What the bars over the feed show, as one value: a change to any of them animates the bars in and out together.
+private struct BarState: Equatable {
+    let notices: [Int]
+    let connection: String
+    let degraded: Int
+    let deepWork: Date?
+}
+
 /// A channel's messages, newest at the bottom, with the composer floating over the feed's foot so the feed scrolls under it
 /// (§12.2 rule 3).
 struct ChannelView: View {
@@ -314,11 +331,20 @@ struct ChannelView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if let window = model.window, !window.reachesOldest {
-                        Button("Load Earlier Messages") { Task { await model.loadOlder() } }
-                            .buttonStyle(.glass)
-                            .controlSize(.small)
-                            .padding(Spacing.space3)
-                            .frame(maxWidth: .infinity)
+                        Button {
+                            Task { await model.loadOlder() }
+                        } label: {
+                            if model.loadingOlder {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Text("Load Earlier Messages")
+                            }
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
+                        .disabled(model.loadingOlder)
+                        .padding(Spacing.space3)
+                        .frame(maxWidth: .infinity)
                     }
                     if let window = model.window {
                         if window.reachesOldest {
@@ -389,7 +415,9 @@ struct ChannelView: View {
                     withAnimation(scrollAnimation) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
             }
-            .onChange(of: model.selectedPending.count) { _, _ in
+            // Only a message the person just sent takes them down; a confirmation or a discard leaves them where they read.
+            .onChange(of: model.selectedPending.count) { old, new in
+                guard new > old else { return }
                 withAnimation(scrollAnimation) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .overlay(alignment: .bottom) {
@@ -401,10 +429,10 @@ struct ChannelView: View {
                     }
                     .buttonStyle(.glass)
                     .padding(.bottom, Spacing.space3)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(Motion.easingStandard.animation(Motion.durationOverlay), value: atBottom)
+            .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay), value: atBottom)
             .safeAreaBar(edge: .bottom) {
                 ComposerView(model: model, channel: channel.id, placeholder: placeholder).id(channel.id)
             }
@@ -458,14 +486,14 @@ private struct ChannelIntro: View {
                 .padding(.bottom, Spacing.space2)
             Text(Words.channelLabel(channel))
                 .typeStyle(Typography.display)
-                .foregroundStyle(Colors.ink.style)
+                .foregroundStyle(NativePalette.ink.style)
             if let topic = channel.topic, !topic.isEmpty {
-                Text(topic).typeStyle(Typography.body).foregroundStyle(Colors.inkMuted.style)
+                Text(topic).typeStyle(Typography.body).foregroundStyle(NativePalette.secondary.style)
             }
             if empty {
                 Text("A good conversation starts with a hello.")
                     .typeStyle(Typography.body)
-                    .foregroundStyle(Colors.inkSubtle.style)
+                    .foregroundStyle(NativePalette.tertiary.style)
             }
         }
         .padding(Spacing.space6)
@@ -479,11 +507,11 @@ private struct FeedPlaceholder: View {
         VStack(alignment: .leading, spacing: Spacing.space4) {
             ForEach(0..<6, id: \.self) { index in
                 HStack(alignment: .top, spacing: Spacing.space3) {
-                    Circle().fill(Colors.surface200.style).frame(width: Size.sizeAvatarLg, height: Size.sizeAvatarLg)
+                    Circle().fill(NativePalette.fill.style).frame(width: Size.sizeAvatarLg, height: Size.sizeAvatarLg)
                     VStack(alignment: .leading, spacing: Spacing.space2) {
-                        RoundedRectangle(cornerRadius: Radius.radiusSm).fill(Colors.surface200.style)
+                        RoundedRectangle(cornerRadius: Radius.radiusSm).fill(NativePalette.fill.style)
                             .frame(width: Size.sizeAvatarLg * 3, height: Spacing.space3)
-                        RoundedRectangle(cornerRadius: Radius.radiusSm).fill(Colors.surface200.style)
+                        RoundedRectangle(cornerRadius: Radius.radiusSm).fill(NativePalette.fill.style)
                             .frame(
                                 maxWidth: index.isMultiple(of: 2) ? .infinity : Size.sizeAttachment,
                                 minHeight: Spacing.space3)
@@ -512,21 +540,23 @@ struct PendingRow: View {
                 if !pending.content.isEmpty {
                     Text(pending.content)
                         .typeStyle(Typography.body)
-                        .foregroundStyle(pending.delivery == .failed ? Colors.dangerText.style : Colors.inkMuted.style)
+                        .foregroundStyle(
+                            pending.delivery == .failed ? Colors.dangerText.style : NativePalette.secondary.style
+                        )
                         .textSelection(.enabled)
                 }
                 ForEach(pending.attachments, id: \.id) { attachment in
                     Label(attachment.fileName, systemImage: attachment.kind == .image ? "photo" : "doc")
                         .typeStyle(Typography.label)
-                        .foregroundStyle(Colors.inkMuted.style)
+                        .foregroundStyle(NativePalette.secondary.style)
                 }
                 switch pending.delivery {
                 case .sending:
                     Label("Sending…", systemImage: "clock")
-                        .typeStyle(Typography.caption).foregroundStyle(Colors.inkSubtle.style)
+                        .typeStyle(Typography.caption).foregroundStyle(NativePalette.tertiary.style)
                 case .sent:
                     Label("Sent", systemImage: "checkmark")
-                        .typeStyle(Typography.caption).foregroundStyle(Colors.inkSubtle.style)
+                        .typeStyle(Typography.caption).foregroundStyle(NativePalette.tertiary.style)
                 case .failed:
                     HStack(spacing: Spacing.space3) {
                         Label(failureText, systemImage: "exclamationmark.circle")

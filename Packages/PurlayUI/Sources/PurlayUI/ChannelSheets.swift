@@ -8,22 +8,58 @@ enum ChannelSheet: String, Identifiable {
     var id: String { rawValue }
 }
 
-/// What the person can do to a channel from its row.
+/// What the person can do to a channel, the same from its row, the toolbar and the menu bar: how it tells them, where it lives,
+/// and leaving it.
 struct ChannelMenu: View {
     let model: AppModel
     let channel: Channel
     @Binding var leaving: Channel?
+    /// Opens the channel's details on a tab, where the window can show them.
+    var showDetails: ((ChannelDetailTab) -> Void)?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Button(channel.starred ? "Unstar" : "Star", systemImage: channel.starred ? "star.slash" : "star") {
             Task { await model.setStarred(!channel.starred, channel) }
         }
+        Picker(selection: notificationLevel) {
+            Text("All Messages").tag(NotificationLevel.all)
+            Text("Mentions and Replies").tag(NotificationLevel.mentions)
+            Text("Muted").tag(NotificationLevel.none)
+        } label: {
+            Label("Notifications", systemImage: channel.isMuted ? "bell.slash" : "bell")
+        }
+        .pickerStyle(.menu)
+        if let showDetails {
+            Divider()
+            Button("Channel Details", systemImage: "info.circle") { showDetails(.about) }
+            Button("Members", systemImage: "person.2") { showDetails(.members) }
+            Button("Files", systemImage: "doc.on.doc") { showDetails(.files) }
+        }
+        Divider()
+        Button("Copy Link", systemImage: "link") {
+            if let url = model.webURL(.channel(channel.id)) { Clipboard.copy(url.absoluteString) }
+        }
+        .disabled(model.webURL(.channel(channel.id)) == nil)
+        Button("Open in Browser", systemImage: "safari") {
+            if let url = model.webURL(.channel(channel.id)) { openURL(url) }
+        }
+        .disabled(model.webURL(.channel(channel.id)) == nil)
         if channel.type != .directMessage {
             Divider()
             Button("Leave Channel…", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                 leaving = channel
             }
         }
+    }
+
+    /// The level as the menu shows it; choosing one asks the server, and a refusal is heard rather than shown as chosen.
+    private var notificationLevel: Binding<NotificationLevel> {
+        Binding(
+            get: { channel.notificationLevel ?? .mentions },
+            set: { level in
+                Task { if !(await model.setNotifications(level, in: channel.id)) { NSSound.beep() } }
+            })
     }
 }
 
@@ -226,7 +262,7 @@ struct NewConversationSheet: View {
                 } label: {
                     HStack {
                         Image(systemName: isChosen ? "checkmark.circle.fill" : "circle").foregroundStyle(
-                            isChosen ? Color.accentColor : .secondary)
+                            isChosen ? AnyShapeStyle(Colors.accent.style) : AnyShapeStyle(.secondary))
                         PresenceAvatar(user: person, online: model.isOnline(person.id), size: Size.sizeAvatar)
                         VStack(alignment: .leading, spacing: Spacing.space1) {
                             Text(person.displayName).fontWeight(.medium).lineLimit(1)
@@ -243,8 +279,10 @@ struct NewConversationSheet: View {
                 .accessibilityAddTraits(isChosen ? .isSelected : [])
             }
             if failed {
-                Text("Could not start the conversation. Check your connection and try again.").foregroundStyle(.red)
-                    .font(.callout)
+                Text("Could not start the conversation. Check your connection and try again.").foregroundStyle(
+                    Colors.dangerText.style
+                )
+                .font(.callout)
             }
             HStack {
                 if full {

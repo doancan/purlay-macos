@@ -22,7 +22,7 @@ struct PaletteSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: Spacing.space3) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Colors.inkMuted.style).imageScale(.large)
+                Image(systemName: "magnifyingglass").foregroundStyle(NativePalette.secondary.style).imageScale(.large)
                 TextField("Jump to a channel or a person, or search", text: $query)
                     .textFieldStyle(.plain)
                     .font(Typography.title.font.weight(.regular))

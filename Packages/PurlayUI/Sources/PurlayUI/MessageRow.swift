@@ -21,10 +21,13 @@ struct MessageRow: View {
     @State private var picking = false
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.controlActiveState) private var activeState
     @AppStorage("messages.compact") private var compact = false
     @AppStorage("messages.timestamps") private var timestamps = false
+    @AppStorage("reactions.recentEmoji") private var recentEmoji = ""
 
-    private var editing: Bool { model.editing == message.id }
+    /// A root open in the thread panel is also in the feed: it is edited in the feed only, so there is one box and one Return.
+    private var editing: Bool { model.editing == message.id && !(inThread && message.parentId == nil) }
     private var deleted: Bool { message.deletedAt != nil }
     private var mine: Bool { message.sender?.id == model.me?.user.id }
 
@@ -55,11 +58,17 @@ struct MessageRow: View {
                     delete: { confirmingDelete = true }
                 )
                 .padding(.trailing, Spacing.space3)
-                .offset(y: -Spacing.space3)
+                // Lifted over the gap above a new run; on a continuation it stays inside the row, off the line above.
+                .offset(y: continuation ? 0 : -Spacing.space3)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
             }
         }
-        .onHover { hovering = $0 }
+        // Continuous hover ends when the row scrolls out from under a still pointer, which plain hover does not see.
+        .onContinuousHover { phase in
+            if case .active = phase { hovering = true } else { hovering = false }
+        }
+        .onChange(of: picking) { _, open in if !open { hovering = false } }
+        .onChange(of: activeState) { _, state in if state != .key { hovering = false } }
         .contextMenu { menu }
         .confirmationDialog("Delete this message?", isPresented: $confirmingDelete) {
             Button("Delete", role: .destructive) { Task { await model.delete(message) } }
@@ -92,19 +101,21 @@ struct MessageRow: View {
             Text(message.sender?.displayName ?? String(localized: "Purlay"))
                 .typeStyle(Typography.heading)
                 .foregroundStyle(NativePalette.ink.style)
+                .lineLimit(1)
+                .layoutPriority(-1)
             Text(message.createdAt.date, format: .dateTime.hour().minute())
                 .typeStyle(Typography.caption)
                 .monospacedDigit()
                 .foregroundStyle(NativePalette.secondary.style)
                 .help(message.createdAt.date.formatted(date: .complete, time: .standard))
             if message.editedAt != nil && !deleted {
-                Text("edited").typeStyle(Typography.caption).foregroundStyle(Colors.inkSubtle.style)
+                Text("edited").typeStyle(Typography.caption).foregroundStyle(NativePalette.tertiary.style)
             }
             if model.isPinned(message) {
                 Label("Pinned", systemImage: "pin.fill")
                     .labelStyle(.iconOnly)
                     .imageScale(.small)
-                    .foregroundStyle(Colors.warningText.style)
+                    .foregroundStyle(NativePalette.warning.style)
             }
             if model.isSaved(message) {
                 Label("Saved", systemImage: "bookmark.fill")
@@ -120,7 +131,7 @@ struct MessageRow: View {
             Text("This message was deleted.")
                 .typeStyle(Typography.body)
                 .italic()
-                .foregroundStyle(Colors.inkSubtle.style)
+                .foregroundStyle(NativePalette.tertiary.style)
         } else if editing {
             EditBox(message: message, model: model) { model.endEdit() }
         } else {
@@ -133,11 +144,13 @@ struct MessageRow: View {
         }
     }
 
+    /// A soft, inset rounded mark rather than a full-width band: light grey under the pointer, the accent's tint for a search
+    /// hit, nothing at rest, so the canvas shows through.
     private var background: some View {
-        Rectangle().fill(
-            highlighted
-                ? Colors.accentSubtle.style
-                : hovering && !editing ? NativePalette.hover.style : NativePalette.canvas.style)
+        RoundedRectangle(cornerRadius: Radius.radiusLg)
+            .fill(highlighted ? AnyShapeStyle(NativePalette.selection.style) : AnyShapeStyle(NativePalette.hover.style))
+            .opacity(highlighted || (hovering && !editing) ? 1 : 0)
+            .padding(.horizontal, Spacing.space2)
     }
 
     @ViewBuilder private var menu: some View {
@@ -152,6 +165,16 @@ struct MessageRow: View {
                 if let url = model.webURL(.message(message.id, in: message.channelId)) { openURL(url) }
             }
             Divider()
+            Menu("Add Reaction", systemImage: "face.smiling") {
+                ForEach(quickReactions, id: \.self) { emoji in
+                    Button(emoji) {
+                        recentEmoji = ReactionEmojiCatalog.recording(emoji, in: recentEmoji)
+                        Task { await model.toggleReaction(emoji, on: message) }
+                    }
+                }
+                Divider()
+                Button("More…") { picking = true }
+            }
             if !inThread && message.parentId == nil {
                 Button("Reply in Thread", systemImage: "bubble.left") { Task { await model.openThread(message) } }
             }
@@ -175,6 +198,13 @@ struct MessageRow: View {
         }
     }
 
+    /// The person's recent reactions first, filled out with the common few, six in all.
+    private var quickReactions: [String] {
+        let recent = ReactionEmojiCatalog.recent(recentEmoji).map(\.symbol)
+        let common = ["👍", "❤️", "😂", "🎉", "👀", "✅"]
+        return Array((recent + common.filter { !recent.contains($0) }).prefix(6))
+    }
+
     /// What a pointer does on hover, offered to VoiceOver as actions on the one element the row is.
     @ViewBuilder private var accessibilityActions: some View {
         if !deleted {
@@ -184,6 +214,10 @@ struct MessageRow: View {
             Button(model.isSaved(message) ? "Remove from Saved" : "Save") {
                 Task { await model.setSaved(!model.isSaved(message), message) }
             }
+            Button(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel") {
+                Task { await model.setPinned(!model.isPinned(message), message) }
+            }
+            Button("Add Reaction") { picking = true }
             if mine {
                 Button("Edit") { model.beginEdit(message.id) }
                 Button("Delete") { confirmingDelete = true }
@@ -210,18 +244,23 @@ private struct EditBox: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.space2) {
             ComposerTextView(
                 state: state, placeholder: "", candidates: { model.mentionCandidates }, onSend: save,
                 onPeopleMissing: { Task { await model.refreshPeople() } }, onCancel: done, takesFocus: true
             )
-            .padding(6)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+            .padding(Spacing.space2)
+            .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusLg))
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.radiusLg)
+                    .strokeBorder(Colors.focusRing.style, lineWidth: Stroke.strokeHairline)
+            }
             HStack {
                 Text("Escape to cancel, Return to save").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel", action: done).keyboardShortcut(.cancelAction)
-                Button("Save", action: save).keyboardShortcut(.defaultAction).disabled(saving)
+                // The box answers Return and Escape itself; window-wide shortcuts here would fire from the palette too.
+                Button("Cancel", action: done)
+                Button("Save", action: save).buttonStyle(.borderedProminent).disabled(saving)
             }
             .controlSize(.small)
         }
@@ -246,11 +285,13 @@ private struct ActionBar: View {
     let delete: () -> Void
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: Stroke.strokeFocus) {
             Button {
                 picking.toggle()
             } label: {
-                Image(systemName: "face.smiling").frame(width: 24, height: 22)
+                Image(systemName: "face.smiling").frame(
+                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
+                ).contentShape(.rect)
             }
             .help("Add reaction")
             .accessibilityLabel("Add reaction")
@@ -269,7 +310,9 @@ private struct ActionBar: View {
                 Button {
                     Task { await model.openThread(message) }
                 } label: {
-                    Image(systemName: "bubble.left").frame(width: 24, height: 22)
+                    Image(systemName: "bubble.left").frame(
+                        width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
+                    ).contentShape(.rect)
                 }
                 .help("Reply in thread")
                 .accessibilityLabel("Reply in thread")
@@ -277,30 +320,42 @@ private struct ActionBar: View {
             Button {
                 Task { await model.setSaved(!model.isSaved(message), message) }
             } label: {
-                Image(systemName: model.isSaved(message) ? "bookmark.fill" : "bookmark").frame(width: 24, height: 22)
+                Image(systemName: model.isSaved(message) ? "bookmark.fill" : "bookmark").frame(
+                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
+                ).contentShape(.rect)
             }
             .help(model.isSaved(message) ? "Remove from Saved" : "Save")
             .accessibilityLabel(model.isSaved(message) ? "Remove from Saved" : "Save")
             Button {
                 Task { await model.setPinned(!model.isPinned(message), message) }
             } label: {
-                Image(systemName: model.isPinned(message) ? "pin.fill" : "pin").frame(width: 24, height: 22)
+                Image(systemName: model.isPinned(message) ? "pin.fill" : "pin").frame(
+                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
+                ).contentShape(.rect)
             }
             .help(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel")
             .accessibilityLabel(model.isPinned(message) ? "Unpin" : "Pin")
             if mine {
-                Button(action: edit) { Image(systemName: "pencil").frame(width: 24, height: 22) }
-                    .help("Edit")
-                    .accessibilityLabel("Edit")
-                Button(action: delete) { Image(systemName: "trash").frame(width: 24, height: 22) }
-                    .help("Delete")
-                    .accessibilityLabel("Delete")
+                Button(action: edit) {
+                    Image(systemName: "pencil").frame(
+                        width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
+                    ).contentShape(.rect)
+                }
+                .help("Edit")
+                .accessibilityLabel("Edit")
+                Button(action: delete) {
+                    Image(systemName: "trash").frame(
+                        width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
+                    ).contentShape(.rect)
+                }
+                .help("Delete")
+                .accessibilityLabel("Delete")
             }
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
         .padding(Spacing.space1)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: Radius.radiusXl))
+        .modifier(ControlSurface(radius: Radius.radiusXl))
     }
 }
 
@@ -308,33 +363,50 @@ private struct ActionBar: View {
 private struct ReactionRow: View {
     let message: Message
     let model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: Spacing.space1 + Stroke.strokeFocus) {
+        FlowLayout(spacing: Spacing.space1 + Stroke.strokeFocus) {
             ForEach(message.reactions, id: \.emoji) { reaction in
                 let mine = reaction.userIds.contains { $0 == model.me?.user.id }
                 Button {
                     Task { await model.toggleReaction(reaction.emoji, on: message) }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Spacing.space1) {
                         Text(reaction.emoji)
                         Text(reaction.userIds.count, format: .number)
                             .font(Typography.caption.font.monospacedDigit())
-                            .foregroundStyle(mine ? Colors.accentText.style : Colors.inkMuted.style)
+                            .contentTransition(.numericText(value: Double(reaction.userIds.count)))
+                            .foregroundStyle(mine ? Colors.accentText.style : NativePalette.secondary.style)
                     }
                     .padding(.horizontal, Spacing.space2)
                     .padding(.vertical, Stroke.strokeFocus)
-                    .background(mine ? Colors.accentSubtle.style : Colors.surface200.style, in: Capsule())
-                    .overlay(
-                        Capsule().stroke(
-                            mine ? Colors.accent.style : Colors.borderSubtle.style, lineWidth: Stroke.strokeHairline))
+                    .background(mine ? NativePalette.selection.style : NativePalette.fill.style, in: Capsule())
+                    .overlay {
+                        if mine {
+                            Capsule().strokeBorder(Colors.accent.style.opacity(0.5), lineWidth: Stroke.strokeHairline)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
+                .help(reactors(reaction.userIds))
                 .accessibilityLabel(Text("\(reaction.emoji), \(reaction.userIds.count)"))
                 .accessibilityAddTraits(mine ? .isSelected : [])
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
         }
-        .padding(.top, 2)
+        .padding(.top, Stroke.strokeFocus)
+        .animation(
+            reduceMotion ? nil : .spring(duration: Motion.durationOverlay.seconds * 2, bounce: 0.3),
+            value: message.reactions)
+    }
+
+    /// Who reacted, by name where the app knows them.
+    private func reactors(_ ids: [Uuid]) -> String {
+        let names = ids.compactMap { id in model.workspacePeople.first { $0.id == id }?.displayName }
+        guard !names.isEmpty else { return String(localized: "\(ids.count) people reacted") }
+        let shown = names.prefix(8).formatted(.list(type: .and))
+        return names.count > 8 ? String(localized: "\(shown) and \(names.count - 8) more") : shown
     }
 }
 
@@ -350,10 +422,10 @@ private struct ThreadAffordance: View {
         Button {
             Task { await model.openThread(message) }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.space1 + Stroke.strokeFocus) {
                 if let resolvedBy = summary.resolvedBy, summary.resolvedAt != nil {
                     Label("Resolved by \(resolvedBy.displayName)", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Colors.successText.style)
                 } else {
                     Label("Open", systemImage: "circle")
                 }
@@ -363,14 +435,14 @@ private struct ThreadAffordance: View {
                     Text("·")
                     Text(last.date, style: .relative)
                 }
-                Text(open ? "Thread open" : "Show thread").foregroundStyle(Color.accentColor).fontWeight(
+                Text(open ? "Thread open" : "Show thread").foregroundStyle(Colors.accentText.style).fontWeight(
                     open ? .semibold : .regular)
             }
             .font(.callout)
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(open ? Color.accentColor.opacity(0.15) : .clear, in: Capsule())
+            .padding(.horizontal, Spacing.space2)
+            .padding(.vertical, Stroke.strokeFocus)
+            .background(open ? AnyShapeStyle(NativePalette.selection.style) : AnyShapeStyle(.clear), in: Capsule())
         }
         .buttonStyle(.plain)
         .padding(.top, 2)

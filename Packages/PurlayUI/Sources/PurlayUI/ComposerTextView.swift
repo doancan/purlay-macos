@@ -71,6 +71,9 @@ struct ComposerTextView: NSViewRepresentable {
         view.isAutomaticTextReplacementEnabled = false
         view.isAutomaticSpellingCorrectionEnabled = false
         view.isAutomaticLinkDetectionEnabled = false
+        // Misspellings underlined as Mail and Messages do; nothing is changed without the person choosing it. Markdown stays
+        // literal, so quotes, dashes and replacements stay off.
+        view.isContinuousSpellCheckingEnabled = true
         // Writing Tools works in the box itself: a proofread, a rewrite or a composed text replaces what is selected (or the
         // whole box) in place, with the system's Replace and Revert, and lands in the message to be sent. Plain text only:
         // the box holds markdown, not styled text.
@@ -78,7 +81,7 @@ struct ComposerTextView: NSViewRepresentable {
         view.allowedWritingToolsResultOptions = [.plainText]
         view.drawsBackground = false
         view.font = Typography.body.nsFont
-        view.textColor = Colors.ink.nsColor
+        view.textColor = NativePalette.ink.nsColor
         view.insertionPointColor = Colors.accent.nsColor
         view.textContainerInset = NSSize(width: Spacing.space1, height: Spacing.space2)
         let paragraph = NSMutableParagraphStyle()

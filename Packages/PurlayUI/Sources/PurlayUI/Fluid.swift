@@ -17,7 +17,7 @@ struct TypingLine: View {
                 TypingDots(animated: !reduceMotion)
                 Text(Self.words(names))
                     .typeStyle(Typography.caption)
-                    .foregroundStyle(Colors.inkMuted.style)
+                    .foregroundStyle(NativePalette.secondary.style)
                     .lineLimit(1)
             }
             .padding(.horizontal, Spacing.space2)
@@ -44,7 +44,7 @@ private struct TypingDots: View {
             HStack(spacing: Stroke.strokeFocus + 1) {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
-                        .fill(Colors.inkSubtle.style)
+                        .fill(NativePalette.tertiary.style)
                         .frame(width: Spacing.space1 + 1, height: Spacing.space1 + 1)
                         .offset(y: animated ? lift(index, context.date) : 0)
                 }

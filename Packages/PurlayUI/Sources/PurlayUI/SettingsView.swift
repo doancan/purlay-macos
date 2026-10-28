@@ -1,5 +1,6 @@
 import AppKit
 import PurlayKit
+import PurlayTokens
 import SwiftUI
 
 /// "Copy diagnostics": versions, the connection and the last problems by code onto the pasteboard. Nothing is sent anywhere.
@@ -21,7 +22,6 @@ public struct SettingsView: View {
     @AppStorage("messages.timestamps") private var timestamps = false
     @AppStorage("composer.formatting") private var formatting = false
     @AppStorage("composer.hints") private var hints = true
-    @AppStorage("sidebar.translucent") private var translucentSidebar = true
     @State private var copied = false
     @State private var tab = SettingsTab.general
     @State private var forward = true
@@ -31,15 +31,8 @@ public struct SettingsView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            Picker("Settings", selection: tabSelection) {
-                ForEach(SettingsTab.allCases) { item in
-                    Label(item.title, systemImage: item.image).tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
-            .padding(20)
+            GlassTabs(tabs: SettingsTab.allCases, selection: tabSelection, title: \.title, image: \.image)
+                .padding(Spacing.space5)
             Divider()
             ZStack {
                 page
@@ -123,7 +116,6 @@ public struct SettingsView: View {
                     ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                Toggle("Translucent sidebar", isOn: $translucentSidebar)
             }
             Section("Messages") {
                 Picker("Message spacing", selection: $compact) {

@@ -112,6 +112,7 @@ private struct InboxRowView: View {
     let model: AppModel
     let row: InboxRow
     @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
@@ -136,7 +137,7 @@ private struct InboxRowView: View {
                             .foregroundStyle(NativePalette.secondary.style)
                             .padding(.horizontal, Spacing.space2)
                             .padding(.vertical, Stroke.strokeFocus)
-                            .background(Colors.surface200.style, in: Capsule())
+                            .background(NativePalette.fill.style, in: Capsule())
                         Spacer(minLength: Spacing.space2)
                         Text(row.at.date, style: Calendar.current.isDateInToday(row.at.date) ? .time : .date)
                             .typeStyle(Typography.caption)
@@ -175,8 +176,10 @@ private struct InboxRowView: View {
             Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
                 .padding(.leading, Spacing.space4 * 2 + Size.sizeAvatarLg + Size.sizeDot)
         }
-        .onHover { hovering = $0 }
-        .animation(Motion.easingStandard.animation(Motion.durationHover), value: hovering)
+        .onContinuousHover { phase in
+            if case .active = phase { hovering = true } else { hovering = false }
+        }
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: hovering)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: Text("Mark Read")) { Task { await model.markInboxRead(row) } }

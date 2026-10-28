@@ -45,7 +45,7 @@ struct ComposerView: View {
             if model.isWaiting(channel: channel, parent: parent) {
                 Label("Goes when the files are up", systemImage: "clock")
                     .typeStyle(Typography.caption)
-                    .foregroundStyle(Colors.inkMuted.style)
+                    .foregroundStyle(.secondary)
             }
             card
             if !compact && showHints { hints }
@@ -110,14 +110,14 @@ struct ComposerView: View {
             }
             actions
         }
-        .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radius2xl + Spacing.space1))
+        // Glass floating over the feed's foot, as the system's own message fields; a ring only while it has the keyboard or a drop.
+        .modifier(ControlSurface(radius: Radius.radius2xl + Spacing.space1))
         .overlay {
             RoundedRectangle(cornerRadius: Radius.radius2xl + Spacing.space1)
-                .strokeBorder(
-                    dropping || state.isFocused ? Colors.focusRing.style : NativePalette.border.style,
-                    lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline)
+                .strokeBorder(Colors.focusRing.style, lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline)
+                .opacity(dropping || state.isFocused ? 1 : 0)
+                .allowsHitTesting(false)
         }
-        .tokenShadow(Shadows.shadowRaised)
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: state.isFocused)
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay), value: formatting)
     }
@@ -154,7 +154,7 @@ struct ComposerView: View {
                 Text(left, format: .number)
                     .typeStyle(Typography.caption)
                     .monospacedDigit()
-                    .foregroundStyle(left < 0 ? Colors.dangerText.style : Colors.inkSubtle.style)
+                    .foregroundStyle(left < 0 ? AnyShapeStyle(Colors.dangerText.style) : AnyShapeStyle(.tertiary))
                     .accessibilityLabel(
                         left < 0 ? Text("\(-left) characters over the limit") : Text("\(left) characters left"))
             }
@@ -170,7 +170,7 @@ struct ComposerView: View {
             .help("Send  ↩")
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(NativePalette.secondary.style)
+        .foregroundStyle(.secondary)
         .padding(.horizontal, Spacing.space2)
         .padding(.bottom, Spacing.space2)
     }
@@ -191,7 +191,7 @@ struct ComposerView: View {
             Text("**Return** to send · **⇧Return** for a new line")
         }
         .typeStyle(Typography.caption)
-        .foregroundStyle(NativePalette.secondary.style)
+        .foregroundStyle(.secondary)
         .padding(.horizontal, Spacing.space2)
         .accessibilityHidden(true)
     }
@@ -279,8 +279,8 @@ private struct SuggestionList: View {
                 } label: {
                     HStack(spacing: Spacing.space2) {
                         Avatar(user: person, size: Size.sizeAvatarSm)
-                        Text(person.displayName).foregroundStyle(Colors.ink.style)
-                        Text("@\(person.username)").foregroundStyle(Colors.inkMuted.style)
+                        Text(person.displayName).foregroundStyle(.primary).lineLimit(1)
+                        Text("@\(person.username)").foregroundStyle(.secondary).lineLimit(1)
                         Spacer()
                     }
                     .typeStyle(Typography.body)
@@ -289,7 +289,7 @@ private struct SuggestionList: View {
                     .contentShape(.rect)
                     .background {
                         if index == state.highlighted {
-                            RoundedRectangle(cornerRadius: Radius.radiusMd).fill(Colors.accentSubtle.style)
+                            RoundedRectangle(cornerRadius: Radius.radiusMd).fill(.fill.secondary)
                         }
                     }
                 }
@@ -298,7 +298,7 @@ private struct SuggestionList: View {
             }
         }
         .padding(Spacing.space1)
-        .glassEffect(.regular, in: .rect(cornerRadius: Radius.radiusXl))
+        .modifier(ControlSurface(radius: Radius.radiusXl))
     }
 }
 
@@ -314,7 +314,8 @@ private struct ComposerNotice: View {
             Button("Dismiss", systemImage: "xmark", action: dismiss).labelStyle(.iconOnly).buttonStyle(.borderless)
         }
         .font(.callout)
-        .padding(8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(.secondary)
+        .padding(Spacing.space2)
+        .background(.fill.tertiary, in: .rect(cornerRadius: Radius.radiusLg))
     }
 }

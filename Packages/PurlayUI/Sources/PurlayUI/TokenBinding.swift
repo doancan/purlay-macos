@@ -82,9 +82,15 @@ extension TypeStyle {
 
 extension CubicBezier {
     public func animation(_ duration: Duration) -> Animation {
-        let components = duration.components
-        let seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
-        return .timingCurve(x1, y1, x2, y2, duration: seconds)
+        .timingCurve(x1, y1, x2, y2, duration: duration.seconds)
+    }
+}
+
+extension Duration {
+    /// A token duration as the seconds an `Animation` takes.
+    public var seconds: Double {
+        let components = components
+        return Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
 }
 

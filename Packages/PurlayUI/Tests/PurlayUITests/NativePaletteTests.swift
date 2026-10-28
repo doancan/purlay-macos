@@ -17,10 +17,32 @@ struct NativePaletteTests {
         #expect(RGBA.contrast(NativePalette.secondary.value(in: appearance), canvas) >= 4.5)
     }
 
-    @Test("the title and topic have sufficient contrast on the blue toolbar", arguments: Appearance.allCases)
-    func toolbarContrast(_ appearance: Appearance) {
-        let toolbar = NativePalette.toolbar.value(in: appearance)
-        #expect(RGBA.contrast(NativePalette.onToolbar.value(in: appearance), toolbar) >= 4.5)
-        #expect(RGBA.contrast(NativePalette.toolbarDetail.value(in: appearance), toolbar) >= 4.5)
+    @Test("the hover under a message is a neutral grey, not a tint of the brand", arguments: Appearance.allCases)
+    func neutralHover(_ appearance: Appearance) {
+        let hover = NativePalette.hover.value(in: appearance)
+        let channels = [hover.red, hover.green, hover.blue]
+        #expect((channels.max() ?? 0) - (channels.min() ?? 0) <= 0.02)
+    }
+
+    @Test("the hover is visible against the canvas, yet quieter than a divider", arguments: Appearance.allCases)
+    func hoverWeight(_ appearance: Appearance) {
+        let canvas = NativePalette.canvas.value(in: appearance)
+        let hover = RGBA.contrast(NativePalette.hover.value(in: appearance), canvas)
+        #expect(hover > 1.02)
+        #expect(hover < RGBA.contrast(NativePalette.divider.value(in: appearance), canvas))
+    }
+
+    @Test(
+        "code reads at full contrast on its well and its chip, each a visible step off the canvas",
+        arguments: Appearance.allCases)
+    func codeSurfaces(_ appearance: Appearance) {
+        let canvas = NativePalette.canvas.value(in: appearance)
+        let ink = NativePalette.ink.value(in: appearance)
+        let well = NativePalette.codeSurface.value(in: appearance)
+        let chip = NativePalette.codeChip.value(in: appearance)
+        #expect(RGBA.contrast(ink, well) >= 7)
+        #expect(RGBA.contrast(ink, chip) >= 7)
+        #expect(RGBA.contrast(well, canvas) > 1.05)
+        #expect(RGBA.contrast(chip, canvas) > RGBA.contrast(well, canvas))
     }
 }
