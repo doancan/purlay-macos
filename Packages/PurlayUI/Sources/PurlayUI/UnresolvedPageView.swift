@@ -26,7 +26,7 @@ struct UnresolvedPageView: View {
             }
             .padding()
             Divider()
-            content
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle("Open Topics")
         .navigationSubtitle("Conversations waiting to be resolved")
