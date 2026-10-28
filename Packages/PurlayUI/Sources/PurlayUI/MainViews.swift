@@ -146,8 +146,6 @@ struct MainView: View {
         }
         .modifier(ChannelEntrance(forward: forward))
         .id(shown)
-        // Room for the feed and the composer however wide the sidebar and the inspector are.
-        .frame(minWidth: Size.sizeField)
         .safeAreaBar(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
