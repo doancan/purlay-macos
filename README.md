@@ -63,7 +63,7 @@ Release builds are signed with Developer ID and notarized by Apple. Each release
 
 ## Workspace administration
 
-Owners and administrators can open workspace settings, members, invitations, integrations, and the audit log. Data and history management is available to owners. Server administration is outside the desktop app’s scope.
+Owners and administrators can open workspace settings, members, invitations, integrations, and the audit log. Data and history management is available to owners. Server administrators also see **Server Settings**, which opens server management in the browser. This requires server administrator permission, independently of the workspace role.
 
 The member list is native. **Invitations, role changes, and other management changes open in your browser**, where you may need to sign in separately. To add someone, create an invitation link, share it, and have them accept it after signing in.
 

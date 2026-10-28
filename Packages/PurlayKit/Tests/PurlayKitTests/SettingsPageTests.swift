@@ -5,12 +5,22 @@ import Testing
 
 @Suite("settings permissions")
 struct SettingsPageTests {
-    @Test("signed out exposes only device settings, even with a stale owner role")
+    @Test("signed out exposes only device settings, even with stale owner and server admin permissions")
     func signedOut() {
         #expect(
-            SettingsPage.available(role: .owner, signedIn: false) == [
+            SettingsPage.available(role: .owner, signedIn: false, isServerAdmin: true) == [
                 .general, .appearance, .notifications,
             ])
+    }
+
+    @Test("server administration requires its own permission, independently of workspace role")
+    func serverAdministration() {
+        for role: UserRole? in [.owner, .admin, .member, .unknown("future"), nil] {
+            let pages = SettingsPage.available(role: role, signedIn: true)
+            #expect(!pages.contains(.server))
+            let serverAdminPages = SettingsPage.available(role: role, signedIn: true, isServerAdmin: true)
+            #expect(serverAdminPages == pages + [.server])
+        }
     }
 
     @Test("members and unknown roles cannot see administration")
@@ -38,6 +48,7 @@ struct SettingsPageTests {
     func routes() {
         #expect(SettingsPage.audit.webPage?.path == "settings/audit")
         #expect(SettingsPage.data.webPage?.path == "settings/data")
+        #expect(SettingsPage.server.webPage?.path == "settings/server")
         #expect(SettingsPage.general.webPage == nil)
     }
 }
@@ -45,6 +56,36 @@ struct SettingsPageTests {
 @MainActor
 @Suite("settings selection")
 struct SettingsSelectionTests {
+    @Test("server settings follow the signed-in user's permission and are unavailable after revocation or sign-out")
+    func serverAdministration() async throws {
+        let h = ModelHarness()
+        await h.signedIn()
+        h.model.selectSettingsPage(.server)
+        #expect(h.model.settingsPage == .general)
+
+        var me = try #require(h.model.me)
+        me.isServerAdmin = true
+        h.model.me = me
+        h.model.selectSettingsPage(.server)
+        #expect(h.model.settingsPage == .server)
+        #expect(!h.model.availableSettingsPages.contains(.workspace))
+
+        me.isServerAdmin = false
+        h.model.me = me
+        #expect(!h.model.availableSettingsPages.contains(.server))
+        h.model.selectSettingsPage(h.model.settingsPage)
+        #expect(h.model.settingsPage == .general)
+
+        me.isServerAdmin = true
+        h.model.me = me
+        h.model.selectSettingsPage(.server)
+        #expect(h.model.settingsPage == .server)
+        _ = await h.model.signOut(.thisDevice)
+        #expect(!h.model.availableSettingsPages.contains(.server))
+        h.model.selectSettingsPage(.server)
+        #expect(h.model.settingsPage == .general)
+    }
+
     @Test("selection is validated against the active membership and resets when signing out")
     func selection() async throws {
         let h = ModelHarness()

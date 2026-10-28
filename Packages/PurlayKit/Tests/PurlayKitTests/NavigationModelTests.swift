@@ -89,6 +89,7 @@ struct WebPageTests {
         #expect(base.hasSuffix("/w/\(slug)/settings/profile"))
         #expect(h.model.webURL(.invitations)?.path == "/w/\(slug)/settings/invitations")
         #expect(h.model.webURL(.members)?.path == "/w/\(slug)/settings/members")
+        #expect(h.model.webURL(.server)?.path == "/w/\(slug)/settings/server")
         let one = Uuid(channel(1))!
         #expect(h.model.webURL(.channel(one))?.path == "/w/\(slug)/c/\(one.value)")
         let link = try #require(h.model.webURL(.message(idAt(5), in: one)))

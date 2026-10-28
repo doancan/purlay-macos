@@ -251,7 +251,9 @@ public struct SettingsView: View {
             }
             Section {
                 Button {
-                    guard let destination = page.webPage, let url = model.webURL(destination) else { return }
+                    guard model.availableSettingsPages.contains(page),
+                        let destination = page.webPage, let url = model.webURL(destination)
+                    else { return }
                     openURL(url)
                 } label: {
                     Label(page.action, systemImage: "arrow.up.right.square")
@@ -280,6 +282,7 @@ extension SettingsPage.Group {
         case .device: "On This Mac"
         case .account: "Your Account"
         case .workspace: "Workspace Administration"
+        case .server: "Server Administration"
         }
     }
 }
@@ -298,6 +301,7 @@ extension SettingsPage {
         case .integrations: "Integrations"
         case .audit: "Audit Log"
         case .data: "Data & History"
+        case .server: "Server Settings"
         }
     }
 
@@ -313,6 +317,7 @@ extension SettingsPage {
         case .integrations: "puzzlepiece.extension"
         case .audit: "list.clipboard"
         case .data: "externaldrive"
+        case .server: "server.rack"
         }
     }
 
@@ -326,6 +331,7 @@ extension SettingsPage {
         case .integrations: "Connect GitHub and manage workspace integrations."
         case .audit: "Review administrative changes and who made them."
         case .data: "Manage retention and workspace exports. Available to workspace owners."
+        case .server: "Manage server configuration, sign-in methods and connected services."
         default: ""
         }
     }
@@ -339,6 +345,7 @@ extension SettingsPage {
         case .integrations: "Manage Integrations in Browser"
         case .audit: "View Audit Log in Browser"
         case .data: "Manage Data in Browser"
+        case .server: "Manage Server in Browser"
         default: "Open Settings in Browser"
         }
     }

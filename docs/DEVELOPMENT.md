@@ -50,7 +50,9 @@ and contract versions. Unknown capability names are ignored; only a known boolea
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.
-Server administration is excluded. Members are read from the generated API, with loading, empty and retry states.
+Server Settings appears in its own administration group only when the signed-in user's `isServerAdmin` is true,
+independently of their workspace role, and opens the existing `settings/server` web route.
+Members are read from the generated API, with loading, empty and retry states.
 Invitations, role changes and other server-owned writes open their existing web pages and may require browser sign-in.
 Invitation links admit signed-in people as members, last seven days and are reusable until expired or revoked.
 

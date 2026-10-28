@@ -4,16 +4,18 @@ import PurlayContract
 public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
     case general, appearance, notifications, profile, account
     case workspace, members, invitations, integrations, audit, data
+    case server
 
     public var id: String { rawValue }
 
-    public enum Group: CaseIterable, Sendable { case device, account, workspace }
+    public enum Group: CaseIterable, Sendable { case device, account, workspace, server }
 
     public var group: Group {
         switch self {
         case .general, .appearance, .notifications: .device
         case .profile, .account: .account
         case .workspace, .members, .invitations, .integrations, .audit, .data: .workspace
+        case .server: .server
         }
     }
 
@@ -28,16 +30,18 @@ public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
         case .integrations: .integrations
         case .audit: .audit
         case .data: .data
+        case .server: .server
         }
     }
 
-    public static func available(role: UserRole?, signedIn: Bool) -> [Self] {
+    public static func available(role: UserRole?, signedIn: Bool, isServerAdmin: Bool = false) -> [Self] {
         allCases.filter { page in
             switch page.group {
             case .device: true
             case .account: signedIn
             case .workspace:
                 signedIn && (page == .data ? role == .owner : role == .owner || role == .admin)
+            case .server: signedIn && isServerAdmin
             }
         }
     }
@@ -50,7 +54,7 @@ extension AppModel {
     }
 
     public var availableSettingsPages: [SettingsPage] {
-        SettingsPage.available(role: workspaceRole, signedIn: me != nil)
+        SettingsPage.available(role: workspaceRole, signedIn: me != nil, isServerAdmin: me?.isServerAdmin == true)
     }
 
     public func selectSettingsPage(_ page: SettingsPage) {
