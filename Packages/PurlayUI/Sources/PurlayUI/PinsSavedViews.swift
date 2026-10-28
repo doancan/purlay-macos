@@ -74,37 +74,80 @@ struct SavedSheet: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            if model.savedItems.isEmpty {
+            if model.savedLoading && model.savedItems.isEmpty {
+                ProgressView("Loading saved messages…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.savedFailed && model.savedItems.isEmpty {
+                ContentUnavailableView {
+                    Label("Could Not Load Saved Messages", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text("Check your connection and try again.")
+                } actions: {
+                    Button("Try Again") { Task { await model.loadSaved(state) } }
+                }
+            } else if model.savedItems.isEmpty {
                 ContentUnavailableView(
                     "Nothing saved here", systemImage: "bookmark",
                     description: Text("Save a message to come back to it.")
                 )
                 .frame(maxHeight: .infinity)
             } else {
-                List(model.savedItems, id: \.id) { item in
-                    HStack(alignment: .top) {
-                        Button {
-                            dismiss()
-                            Task { await model.openMessage(item.message) }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(model.chat.channels[item.message.channelId].map(Words.channelLabel) ?? "")
-                                        .font(.caption.bold())
-                                    Text(item.message.sender?.displayName ?? "Purlay").font(.caption).foregroundStyle(
-                                        .secondary)
+                List {
+                    ForEach(model.savedItems, id: \.id) { item in
+                        HStack(alignment: .top) {
+                            Button {
+                                dismiss()
+                                Task { await model.openMessage(item.message) }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text(model.chat.channels[item.message.channelId].map(Words.channelLabel) ?? "")
+                                            .font(.caption.bold())
+                                        Text(item.message.sender?.displayName ?? "Purlay").font(.caption)
+                                            .foregroundStyle(
+                                                .secondary)
+                                    }
+                                    Text(item.message.content).lineLimit(3)
                                 }
-                                Text(item.message.content).lineLimit(3)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        Button("Remove", systemImage: "bookmark.slash") { Task { await model.removeSaved(item) } }
+                            .buttonStyle(.plain)
+                            Menu {
+                                if state != .completed {
+                                    Button("Mark Completed", systemImage: "checkmark.circle") {
+                                        Task { await model.setSavedState(.completed, item.message) }
+                                    }
+                                }
+                                if state != .archived {
+                                    Button("Archive", systemImage: "archivebox") {
+                                        Task { await model.setSavedState(.archived, item.message) }
+                                    }
+                                }
+                                if state != .inProgress {
+                                    Button("Move to In Progress", systemImage: "arrow.uturn.backward") {
+                                        Task { await model.setSavedState(.inProgress, item.message) }
+                                    }
+                                }
+                                Divider()
+                                Button("Remove from Saved", systemImage: "bookmark.slash") {
+                                    Task { await model.removeSaved(item) }
+                                }
+                            } label: {
+                                Label("Saved Message Actions", systemImage: "ellipsis.circle")
+                            }
                             .labelStyle(.iconOnly)
-                            .buttonStyle(.borderless)
-                            .help("Remove from Saved")
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .disabled(model.savedUpdating.contains(item.message.id))
+                        }
                     }
+                    if model.savedHasMore {
+                        Button(model.savedFailed ? "Try Loading More Again" : "Load More") {
+                            Task { await model.loadMoreSaved() }
+                        }
+                        .disabled(model.savedLoading)
+                    }
+                    if model.savedLoading { ProgressView() }
                 }
                 .listStyle(.plain)
             }

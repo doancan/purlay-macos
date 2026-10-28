@@ -51,6 +51,10 @@ Message search supports channel and author filters using the existing `channelId
 Filters stay attached to every result page. Recent searches retain their filters, are stored separately for each
 server/account/workspace, and can be cleared from the search window.
 
+Saved messages can be completed, archived or moved back to In Progress from their action menu. Each state
+supports pagination, loading and retry. State changes use the existing saved-message API and refresh across
+devices; an in-flight operation cannot restore another session's data after sign-out.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

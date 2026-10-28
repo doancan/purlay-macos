@@ -25,6 +25,10 @@ final class FakeServer: HTTPTransport {
         var attachmentData: [String: Data] = [:]
         var saved: [String: String] = [:]
         var savedIdsStatus = 200
+        var savedListStatus = 200
+        var savedPageSize = 20
+        var savedDelays: [String: Int] = [:]
+        var saveDelay = 0
         var saveError: (status: Int, code: String)?
         var pins: [String: [String]] = [:]
         var pinError: (status: Int, code: String)?
@@ -415,27 +419,37 @@ final class FakeServer: HTTPTransport {
             return json(snapshot.savedIdsStatus, "[\(items.joined(separator: ","))]")
         case ("GET", "/api/workspaces/\(Self.workspaceID)/saved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            let wanted =
-                URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems?.first {
-                    $0.name == "state"
-                }?.value ?? "in_progress"
-            let all = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
-            let items = snapshot.saved.filter { $0.value == wanted }.compactMap { entry -> String? in
-                guard let found = all.first(where: { $0.id.value == entry.key }) else { return nil }
-                return
-                    "{\"id\":\"\(found.id.value)\",\"message\":\(Self.encoded(found)),\"savedAt\":\"2026-10-09T12:00:00.000Z\",\"state\":\"\(wanted)\"}"
+            let query = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let wanted = query.first { $0.name == "state" }?.value ?? "in_progress"
+            let before = query.first { $0.name == "before" }?.value
+            if let delay = snapshot.savedDelays[wanted] { try? await Task.sleep(for: .milliseconds(delay)) }
+            if snapshot.savedListStatus != 200 {
+                return json(snapshot.savedListStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
             }
-            return json(200, "{\"data\":[\(items.joined(separator: ","))],\"nextCursor\":null}")
+            let all = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
+            let found = all.filter {
+                snapshot.saved[$0.id.value] == wanted && (before == nil || $0.id.value < (before ?? ""))
+            }.sorted { $0.id > $1.id }
+            let items = found.prefix(snapshot.savedPageSize).map {
+                SavedItem(id: $0.id, message: $0, savedAt: $0.createdAt, state: SavedState(rawValue: wanted))
+            }
+            return json(
+                200,
+                Self.encoded(
+                    SavedPage(
+                        data: items, nextCursor: found.count > items.count ? items.last?.id : nil)))
         case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/saved"),
             ("DELETE", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/saved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.saveDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.saveDelay)) }
             if let failure = snapshot.saveError {
                 return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
             }
             let id = String(path.dropFirst("/api/messages/".count).dropLast("/saved".count))
             state.withLock { state in
                 if request.method == "PUT" {
-                    if state.saved[id] == nil { state.saved[id] = "in_progress" }
+                    let input = request.body.flatMap { try? JSONDecoder().decode(SaveMessageRequest.self, from: $0) }
+                    state.saved[id] = input?.state?.rawValue ?? state.saved[id] ?? "in_progress"
                 } else {
                     state.saved[id] = nil
                 }

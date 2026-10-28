@@ -179,6 +179,13 @@ public final class AppModel {
     /// The pins of each channel that was opened, newest first as the server gives them.
     var pins: [Uuid: [PinnedMessage]] = [:]
     public internal(set) var savedItems: [SavedItem] = []
+    public internal(set) var savedFilter: SavedState = .inProgress
+    public internal(set) var savedLoading = false
+    public internal(set) var savedFailed = false
+    public internal(set) var savedUpdating: Set<Uuid> = []
+    var savedCursor: Uuid?
+    var savedGeneration = 0
+    var contextGeneration = 0
     /// The message whose words are being changed, if any: one at a time.
     public internal(set) var editing: Uuid?
     /// Reactions on their way, as message id and emoji: a double click is one request.
@@ -604,6 +611,7 @@ public final class AppModel {
     }
 
     private func tearDown() {
+        contextGeneration += 1
         cookieCache = nil
         markedRead = [:]
         marking = []
@@ -630,6 +638,12 @@ public final class AppModel {
         attachmentCacheBytes = 0
         savedIDs = [:]
         savedItems = []
+        savedGeneration += 1
+        savedCursor = nil
+        savedLoading = false
+        savedFailed = false
+        savedUpdating = []
+        savedFilter = .inProgress
         pins = [:]
         // After the engine is gone: stopping it says it changed, and that would count what is no longer anybody's.
         attention = Attention()

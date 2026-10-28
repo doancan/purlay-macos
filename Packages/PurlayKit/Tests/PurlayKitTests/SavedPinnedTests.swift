@@ -119,6 +119,82 @@ struct SavedPinnedTests {
 
     // MARK: Pinned
 
+    @Test("a saved message can be completed, archived and reopened, and the server keeps each state")
+    func savedLifecycle() async throws {
+        let target = them(1_000, "follow up")
+        let h = await opened([target], saved: [target.id.value: "in_progress"])
+        for state: SavedState in [.completed, .archived, .inProgress] {
+            await h.model.setSavedState(state, target)
+            #expect(h.model.savedIDs[target.id] == state)
+            await h.model.loadSaved(state)
+            #expect(h.model.savedItems.map(\.message.id) == [target.id])
+            #expect(h.model.savedItems.first?.state == state)
+        }
+        #expect(calls(h, "PUT", "/saved").count == 3)
+        await h.model.setSavedState(.unknown("future"), target)
+        #expect(calls(h, "PUT", "/saved").count == 3)
+    }
+
+    @Test("a refused state change keeps the item available to retry")
+    func savedStateFailure() async {
+        let target = them(1_000, "follow up")
+        let h = await opened([target], saved: [target.id.value: "in_progress"])
+        await h.model.loadSaved(.inProgress)
+        h.server.edit { $0.saveError = (403, "FORBIDDEN") }
+        await h.model.setSavedState(.completed, target)
+        #expect(h.model.savedIDs[target.id] == .inProgress)
+        #expect(h.model.savedItems.map(\.message.id) == [target.id])
+        #expect(h.model.savedUpdating.isEmpty)
+        #expect(h.model.notices.map(\.kind).contains(.saveFailed))
+        h.server.edit { $0.saveError = nil }
+        await h.model.setSavedState(.completed, target)
+        #expect(h.model.savedItems.isEmpty)
+    }
+
+    @Test("saved lists paginate, retry a failure, and reject a late response for another tab")
+    func savedPagination() async {
+        let messages = (1...5).map { them($0 * 1_000, "item \($0)") }
+        let h = await opened(
+            messages, saved: Dictionary(uniqueKeysWithValues: messages.map { ($0.id.value, "in_progress") }))
+        h.server.edit { $0.savedPageSize = 2 }
+        await h.model.loadSaved(.inProgress)
+        #expect(h.model.savedItems.count == 2)
+        #expect(h.model.savedHasMore)
+        h.server.edit { $0.savedListStatus = 500 }
+        await h.model.loadMoreSaved()
+        #expect(h.model.savedFailed)
+        #expect(h.model.savedItems.count == 2)
+        h.server.edit { $0.savedListStatus = 200 }
+        await h.model.loadMoreSaved()
+        await h.model.loadMoreSaved()
+        #expect(h.model.savedItems.count == 5)
+        #expect(!h.model.savedHasMore)
+        h.server.edit { $0.savedDelays["in_progress"] = 100 }
+        let slow = Task { await h.model.loadSaved(.inProgress) }
+        try? await Task.sleep(for: .milliseconds(20))
+        await h.model.loadSaved(.completed)
+        await slow.value
+        #expect(h.model.savedFilter == .completed)
+        #expect(h.model.savedItems.isEmpty)
+        #expect(!h.model.savedLoading)
+    }
+
+    @Test("an in-flight change is sent once and cannot restore saved data after sign-out")
+    func savedLateMutation() async {
+        let target = them(1_000, "follow up")
+        let h = await opened([target], saved: [target.id.value: "in_progress"])
+        h.server.edit { $0.saveDelay = 100 }
+        let slow = Task { await h.model.setSavedState(.completed, target) }
+        try? await Task.sleep(for: .milliseconds(20))
+        await h.model.setSavedState(.archived, target)
+        #expect(calls(h, "PUT", "/saved").count == 1)
+        _ = await h.model.signOut(.thisDevice)
+        await slow.value
+        #expect(h.model.savedIDs.isEmpty)
+        #expect(h.model.savedItems.isEmpty)
+        #expect(h.model.savedUpdating.isEmpty)
+    }
+
     @Test("a channel's pins are read when it is opened, newest first as the server gives them")
     func pinsRead() async {
         let h = await opened([them(1_000, "rule one"), them(2_000, "rule two")], pins: [idAt(1_000).value])
