@@ -15,21 +15,16 @@ struct DraftsSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: Spacing.space3) {
-                Image(systemName: "square.and.pencil").foregroundStyle(Colors.accentText.style)
-                VStack(alignment: .leading, spacing: Spacing.space1) {
-                    Text("Drafts").font(.title2.bold())
-                    Text("Pick up where you left off.").font(.callout).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+            SheetHeader(title: "Drafts", subtitle: "Pick up where you left off.", image: "square.and.pencil") {
+                dismiss()
             }
-            .padding(Spacing.space5)
             Divider()
             if channels.isEmpty {
-                ContentUnavailableView(
+                EmptyState(
                     "No Unfinished Messages", systemImage: "square.and.pencil",
-                    description: Text("Channel drafts are saved automatically on this Mac."))
+                    description: Text("Channel drafts are saved automatically on this Mac.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(channels, id: \.id) { channel in
                     Button {

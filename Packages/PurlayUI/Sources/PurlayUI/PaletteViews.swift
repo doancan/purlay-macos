@@ -36,7 +36,7 @@ struct PaletteSheet: View {
             Divider()
             let rows = entries
             if rows.isEmpty {
-                ContentUnavailableView(
+                EmptyState(
                     "Nothing here yet", systemImage: "number",
                     description: Text("Type at least three letters to search messages.")
                 )
@@ -63,10 +63,14 @@ struct PaletteSheet: View {
                 }
             }
         }
-        .frame(width: Size.sizePalette, height: Size.sizePaletteList + Size.sizeHeader * 1.5)
+        .frame(
+            maxWidth: Size.sizePalette, minHeight: Size.sizeMembers,
+            maxHeight: Size.sizePaletteList + Size.sizeHeader * 1.5
+        )
         // Focus is taken once the sheet is on screen: asked for as it appears, it is not given.
         .task {
             try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
             focused = true
         }
         .onExitCommand { dismiss() }
@@ -107,17 +111,17 @@ private struct PaletteRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 18)
+            Image(systemName: symbol).foregroundStyle(NativePalette.secondary.style).frame(width: 18)
             if case .search = entry.target {
                 Text("Search messages for “\(entry.title)”")
             } else {
                 Text(entry.title)
                 if let subtitle = entry.subtitle, !subtitle.isEmpty {
-                    Text(subtitle).foregroundStyle(.secondary).lineLimit(1)
+                    Text(subtitle).foregroundStyle(NativePalette.secondary.style).lineLimit(1)
                 }
             }
             Spacer()
-            if !entry.joined { Text("Not joined").font(.caption).foregroundStyle(.secondary) }
+            if !entry.joined { Text("Not joined").font(.caption).foregroundStyle(NativePalette.secondary.style) }
         }
         .padding(.vertical, 2)
     }
@@ -144,7 +148,7 @@ struct SearchSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "magnifyingglass").foregroundStyle(NativePalette.secondary.style)
                 TextField("Search messages", text: $query)
                     .textFieldStyle(.plain)
                     .font(.title3)
@@ -155,10 +159,14 @@ struct SearchSheet: View {
             content
         }
         .padding(Spacing.space4)
-        .frame(width: Size.sizeDialogLg, height: Size.sizePaletteList + Size.sizeHeader * 2)
+        .frame(
+            maxWidth: Size.sizeDialogLg, minHeight: Size.sizeMembers,
+            maxHeight: Size.sizePaletteList + Size.sizeHeader * 2
+        )
         .task {
-            query = model.searchQuery
+            query = model.searchInput
             try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
             focused = true
         }
         .onChange(of: query) { _, new in
@@ -173,6 +181,11 @@ struct SearchSheet: View {
                 if !Task.isCancelled { await model.search(new) }
             }
         }
+        .onDisappear {
+            pending?.cancel()
+            model.cancelSearch()
+        }
+        .onExitCommand { dismiss() }
     }
 
     private func run() {
@@ -184,7 +197,7 @@ struct SearchSheet: View {
     private var content: some View {
         switch model.searchStatus {
         case .idle:
-            ContentUnavailableView(
+            EmptyState(
                 "Search messages", systemImage: "magnifyingglass",
                 description: Text("Type at least three letters. Results are newest first.")
             )
@@ -201,7 +214,7 @@ struct SearchSheet: View {
             }
             .frame(maxHeight: .infinity)
         case .done where model.searchResults.isEmpty:
-            ContentUnavailableView.search(text: model.searchQuery).frame(maxHeight: .infinity)
+            EmptyState.search(text: model.searchQuery).frame(maxHeight: .infinity)
         default:
             List {
                 ForEach(model.searchResults, id: \.id) { message in
@@ -232,9 +245,12 @@ private struct ResultRow: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Text(model.chat.channels[message.channelId].map(Words.channelLabel) ?? "").font(.caption.bold())
-                Text(message.sender?.displayName ?? "Purlay").font(.caption).foregroundStyle(.secondary)
-                Text(message.createdAt.date, style: .date).font(.caption).foregroundStyle(.secondary)
-                if message.parentId != nil { Text("reply").font(.caption).foregroundStyle(.secondary) }
+                Text(message.sender?.displayName ?? "Purlay").font(.caption).foregroundStyle(
+                    NativePalette.secondary.style)
+                Text(message.createdAt.date, style: .date).font(.caption).foregroundStyle(NativePalette.secondary.style)
+                if message.parentId != nil {
+                    Text("reply").font(.caption).foregroundStyle(NativePalette.secondary.style)
+                }
             }
             Text(message.content).lineLimit(3)
         }

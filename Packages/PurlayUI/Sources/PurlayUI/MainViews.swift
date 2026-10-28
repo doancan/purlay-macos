@@ -20,7 +20,8 @@ struct MainView: View {
         NavigationSplitView {
             SidebarView(model: model, selection: $selection, sheet: $sheet, leaving: $leaving)
                 .navigationSplitViewColumnWidth(
-                    min: Size.sizeMembers + Spacing.space5, ideal: Size.sizeSidebar, max: Size.sizeField)
+                    min: Size.sizeMembers + Spacing.space12, ideal: Size.sizeSidebar + Spacing.space4,
+                    max: Size.sizeField)
         } detail: {
             detail
                 .inspector(isPresented: inspectorShown) {

@@ -92,6 +92,8 @@ private struct FloatingPanel<Panel: View>: ViewModifier {
                             .modifier(ControlSurface())
                             .tokenShadow(Shadows.shadowFloat)
                             .padding(.top, Size.sizeHeader * 2)
+                            .padding(.horizontal, Spacing.space4)
+                            .padding(.bottom, Spacing.space4)
                             .onExitCommand { isPresented = false }
                             .transition(.scale(scale: 0.97, anchor: .top).combined(with: .opacity))
                             .accessibilityAddTraits(.isModal)

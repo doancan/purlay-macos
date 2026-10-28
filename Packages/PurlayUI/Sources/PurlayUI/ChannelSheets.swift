@@ -107,6 +107,7 @@ struct NewChannelSheet: View {
             }
             .formStyle(.grouped)
             .frame(height: 240)
+            .disabled(busy)
             if let problem {
                 Label(problem, systemImage: "exclamationmark.circle")
                     .font(.callout).foregroundStyle(Colors.dangerText.style)
@@ -117,6 +118,7 @@ struct NewChannelSheet: View {
                 HStack {
                     Spacer()
                     Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                        .disabled(busy)
                     Button(action: create) {
                         HStack {
                             if busy { ProgressView().controlSize(.small) }
@@ -164,38 +166,45 @@ struct BrowseChannelsSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                SheetHeading(
-                    title: "Browse Channels", subtitle: "Find the conversations that matter to you.",
-                    image: "rectangle.stack")
-                Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+        VStack(alignment: .leading, spacing: 0) {
+            SheetHeader(
+                title: "Browse Channels", subtitle: "Find the conversations that matter to you.",
+                image: "rectangle.stack"
+            ) {
+                dismiss()
             }
+            Divider()
             TextField("Search channels", text: $query).textFieldStyle(.roundedBorder).controlSize(.large)
-            if model.joinableChannels.isEmpty {
-                ContentUnavailableView(
-                    "Nothing to join", systemImage: "checkmark.circle",
-                    description: Text("You are in every public channel."))
-            } else if channels.isEmpty {
-                ContentUnavailableView.search(text: query)
-            } else {
-                List(channels, id: \.id) { channel in
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Words.channelLabel(channel)).font(.headline)
-                            Text(channel.topic ?? "").font(.callout).foregroundStyle(.secondary).lineLimit(1)
-                            Text("\(channel.memberCount) people").font(.caption).foregroundStyle(.secondary)
+                .padding(Spacing.space4)
+            Group {
+                if model.joinableChannels.isEmpty {
+                    EmptyState(
+                        "All Channels Joined", systemImage: "checkmark.circle",
+                        description: Text("You are in every public channel."))
+                } else if channels.isEmpty {
+                    EmptyState.search(text: query)
+                } else {
+                    List(channels, id: \.id) { channel in
+                        HStack(spacing: Spacing.space3) {
+                            ChannelEmblem(channel: channel)
+                            VStack(alignment: .leading, spacing: Spacing.space1) {
+                                Text(Words.channelLabel(channel)).font(.headline).lineLimit(1)
+                                if let topic = channel.topic, !topic.isEmpty {
+                                    Text(topic).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Text("\(channel.memberCount) people").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(joining == channel.id ? "Joining…" : "Join") { join(channel) }
+                                .buttonStyle(.glass).disabled(joining != nil)
                         }
-                        Spacer()
-                        Button(joining == channel.id ? "Joining…" : "Join") { join(channel) }
-                            .buttonStyle(.glass).disabled(joining != nil)
+                        .padding(.vertical, Spacing.space2)
                     }
-                    .padding(.vertical, 2)
+                    .listStyle(.inset).scrollContentBackground(.hidden)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(20)
         .frame(width: Size.sizePalette, height: Size.sizeDialog - Spacing.space10)
     }
 
@@ -217,6 +226,9 @@ struct NewConversationSheet: View {
     @State private var chosen: [User] = []
     @State private var busy = false
     @State private var failed = false
+    @State private var loadingPeople = true
+    @State private var peopleFailed = false
+    @State private var refreshRevision = 0
 
     private var people: [User] {
         let folded = MentionSuggest.fold(query)
@@ -229,15 +241,17 @@ struct NewConversationSheet: View {
     private var full: Bool { chosen.count >= ContractConstants.conversationPeopleMax - 1 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                SheetHeading(
-                    title: "New Conversation", subtitle: "One person, a few people, or a note to yourself.",
-                    image: "bubble.left.and.bubble.right")
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+        VStack(alignment: .leading, spacing: 0) {
+            SheetHeader(
+                title: "New Conversation", subtitle: "One person, a few people, or a note to yourself.",
+                image: "bubble.left.and.bubble.right", closeTitle: "Cancel"
+            ) {
+                dismiss()
             }
+            .disabled(busy)
+            Divider()
             TextField("Search people", text: $query).textFieldStyle(.roundedBorder).controlSize(.large)
+                .padding(Spacing.space4).disabled(busy)
             if !chosen.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     GlassEffectContainer(spacing: Spacing.space1) {
@@ -258,6 +272,7 @@ struct NewConversationSheet: View {
                     }
                     .padding(.vertical, Spacing.space1)
                 }
+                .padding(.horizontal, Spacing.space4).disabled(busy)
             }
             List(people, id: \.id) { person in
                 let isChosen = chosen.contains { $0.id == person.id }
@@ -282,12 +297,30 @@ struct NewConversationSheet: View {
                 .disabled(!isChosen && full)
                 .accessibilityAddTraits(isChosen ? .isSelected : [])
             }
+            .listStyle(.inset).scrollContentBackground(.hidden).disabled(busy)
+            .overlay {
+                if loadingPeople && model.workspacePeople.isEmpty {
+                    ProgressView("Loading people…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if peopleFailed {
+                    ContentUnavailableView {
+                        Label("Couldn't Load People", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text("Check your connection and try again.")
+                    } actions: {
+                        Button("Try Again") { refreshRevision &+= 1 }.buttonStyle(.glass)
+                    }
+                } else if people.isEmpty {
+                    EmptyState.search(text: query)
+                }
+            }
             if failed {
                 Text("Could not start the conversation. Check your connection and try again.").foregroundStyle(
                     Colors.dangerText.style
                 )
                 .font(.callout)
+                .padding(.horizontal, Spacing.space4).padding(.bottom, Spacing.space3)
             }
+            Divider()
             HStack {
                 if full {
                     Text("That is as many people as a conversation holds.").font(.caption).foregroundStyle(.secondary)
@@ -297,13 +330,20 @@ struct NewConversationSheet: View {
                     .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).controlSize(.large)
                     .disabled(chosen.isEmpty || busy)
             }
+            .padding(Spacing.space4)
         }
-        .padding(20)
         .frame(width: Size.sizePalette, height: Size.sizeDialog)
-        .task { await model.refreshPeople() }
+        .task(id: refreshRevision) {
+            loadingPeople = true
+            let success = await model.refreshPeople()
+            guard !Task.isCancelled else { return }
+            peopleFailed = !success && model.workspacePeople.isEmpty
+            loadingPeople = false
+        }
     }
 
     private func toggle(_ person: User) {
+        failed = false
         if let at = chosen.firstIndex(where: { $0.id == person.id }) {
             chosen.remove(at: at)
         } else if !full {
@@ -312,6 +352,7 @@ struct NewConversationSheet: View {
     }
 
     private func start() {
+        guard !busy, !chosen.isEmpty else { return }
         busy = true
         failed = false
         Task {
