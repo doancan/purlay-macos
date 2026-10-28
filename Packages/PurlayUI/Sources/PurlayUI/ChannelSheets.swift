@@ -72,6 +72,10 @@ struct ChannelMenu: View {
             if let url = model.webURL(.channel(channel.id)) { Clipboard.copy(url.absoluteString) }
         }
         .disabled(model.webURL(.channel(channel.id)) == nil)
+        Button("Copy App Link", systemImage: "macwindow") {
+            if let url = model.appURL(.channel(channel.id)) { Clipboard.copy(url.absoluteString) }
+        }
+        .disabled(model.appURL(.channel(channel.id)) == nil)
         Button("Open in Browser", systemImage: "safari") {
             if let url = model.webURL(.channel(channel.id)) { openURL(url) }
         }

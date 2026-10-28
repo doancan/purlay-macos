@@ -5,7 +5,7 @@ import Testing
 @testable import PurlayKit
 
 /// Two servers deliberately reuse user, workspace and channel IDs to exercise local isolation.
-private struct DesktopTransport: HTTPTransport {
+struct DesktopTransport: HTTPTransport {
     let first: FakeServer
     let second: FakeServer
     static let otherWorkspace = "0199155c-6200-7b7f-8c11-0000000000bb"

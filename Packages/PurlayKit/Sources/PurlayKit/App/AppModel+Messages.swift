@@ -89,6 +89,7 @@ extension AppModel {
 
     /// Opens a channel: the window of messages it already holds is shown at once, and the newest page is read.
     public func open(_ channelID: Uuid) async {
+        navigationGeneration += 1
         // Read again for a new frame is the same channel: the keyboard stays where it was.
         if selectedChannel != channelID { keyboardRow = nil }
         if thread?.channel != channelID { closeThread() }

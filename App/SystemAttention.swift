@@ -13,6 +13,7 @@ import UserNotifications
 final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCenterDelegate {
     /// Opens a conversation, from a click on its notice.
     var open: ((Uuid, String?) -> Void)?
+    var bringForward: (() -> Void)?
 
     private let center = UNUserNotificationCenter.current()
 
@@ -75,6 +76,7 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
         let channel = (response.notification.request.content.userInfo["channel"] as? String).flatMap(Uuid.init)
         let source = response.notification.request.content.userInfo["source"] as? String
         await MainActor.run {
+            bringForward?()
             NSApp.activate()
             NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
             if let channel { open?(channel, source) }

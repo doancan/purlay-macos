@@ -155,11 +155,19 @@ extension AppModel {
     /// Goes to a message: its channel, with the feed read around it, and the feed told to show it. A reply opens its root's thread, and is
     /// the one shown there. A message that cannot be read changes nothing.
     public func openMessage(_ message: Message) async {
-        guard let api, let engine else { return }
+        _ = await revealMessage(message.id, in: message.channelId)
+    }
+
+    func revealMessage(_ messageID: Uuid, in expectedChannel: Uuid) async -> Bool {
+        guard let api, let engine else { return false }
         let context = contextGeneration
+        navigationGeneration += 1
+        let navigation = navigationGeneration
         do {
-            let around = try await api.getMessagesAround(messageId: message.id.value)
-            guard context == contextGeneration else { return }
+            let around = try await api.getMessagesAround(messageId: messageID.value)
+            guard context == contextGeneration, navigation == navigationGeneration,
+                around.target.channelId == expectedChannel
+            else { return false }
             let channelID = around.target.channelId
             if thread?.channel != channelID { closeThread() }
             inboxOpen = false
@@ -173,12 +181,15 @@ extension AppModel {
             if let parent = around.target.parentId, let root = around.data.first(where: { $0.id == parent }) {
                 await openThread(root)
             }
+            guard context == contextGeneration, navigation == navigationGeneration else { return false }
             focusSequence += 1
             focus = Focus(message: around.target.id, sequence: focusSequence)
             sync()
+            return true
         } catch {
-            guard context == contextGeneration else { return }
+            guard context == contextGeneration, navigation == navigationGeneration else { return false }
             say(.loadFailed)
+            return false
         }
     }
 }

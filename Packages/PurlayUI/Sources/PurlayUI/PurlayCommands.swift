@@ -59,6 +59,13 @@ public struct PurlayCommands: Commands {
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 .disabled(actions == nil)
             Divider()
+            if let sessions {
+                Button("Open Purlay Link…") {
+                    openWindow(id: "main")
+                    sessions.linkEntryOpen = true
+                }
+                .keyboardShortcut("o", modifiers: [.command, .option])
+            }
             Button("Open Conversation in New Window") {
                 if let channel, let request = model.conversationWindowRequest(for: channel.id) {
                     openWindow(id: "conversation", value: request)
@@ -140,6 +147,12 @@ public struct PurlayCommands: Commands {
             .disabled(message == nil)
         Button("Copy Link") {
             if let message, let url = model.webURL(.message(message.id, in: message.channelId)) {
+                Clipboard.copy(url.absoluteString)
+            }
+        }
+        .disabled(message == nil)
+        Button("Copy App Link") {
+            if let message, let url = model.appURL(.message(message.id, in: message.channelId)) {
                 Clipboard.copy(url.absoluteString)
             }
         }

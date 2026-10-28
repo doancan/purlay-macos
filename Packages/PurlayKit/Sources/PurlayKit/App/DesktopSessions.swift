@@ -37,11 +37,21 @@ public final class DesktopSessions {
     private let environment: AppEnvironment
     private let attention: DesktopAttention
     private var launched = false
+    public var linkEntryOpen = false
+    public var linkProblem: LinkProblem?
+    public private(set) var pendingLink: ConversationLink?
+    private var resolvingLink = false
+    private var linkGeneration = 0
 
-    public var active: AppModel { sessions.first { $0.id == selectedID }!.model }
+    public enum LinkProblem: Equatable, Sendable {
+        case invalid, workspaceUnavailable, conversationUnavailable
+    }
+
+    public private(set) var active: AppModel
 
     public init(_ environment: AppEnvironment) {
         self.environment = environment
+        active = AppModel(environment)
         attention = DesktopAttention(environment.attention)
         let descriptors =
             environment.preferences.string(for: Self.storageKey)
@@ -59,6 +69,7 @@ public final class DesktopSessions {
             environment.preferences.string(for: Self.selectionKey).flatMap(UUID.init(uuidString:))
             .flatMap { id in initial.contains { $0.id == id } ? id : nil } ?? initial[0].id
         for descriptor in initial { append(descriptor) }
+        if let selected = sessions.first(where: { $0.id == selectedID }) { active = selected.model }
     }
 
     public func launch() async {
@@ -83,8 +94,9 @@ public final class DesktopSessions {
     }
 
     public func select(_ id: UUID) {
-        guard selectedID != id, sessions.contains(where: { $0.id == id }) else { return }
+        guard selectedID != id, let selected = sessions.first(where: { $0.id == id }) else { return }
         active.setActive(false)
+        active = selected.model
         selectedID = id
         persist()
     }
@@ -135,6 +147,64 @@ public final class DesktopSessions {
         await active.showChannel(channel)
     }
 
+    /// Called by Launch Services or the explicit paste-link action. Browser authentication owns the auth route.
+    public func openLink(_ url: URL) async {
+        if url.scheme?.lowercased() == "purlay", url.host == "auth" { return }
+        guard let link = ConversationLink.parse(url, allowsLocalHTTP: environment.allowsLocalHTTP) else {
+            pendingLink = nil
+            linkGeneration += 1
+            linkProblem = .invalid
+            return
+        }
+        for session in sessions { session.model.navigationGeneration += 1 }
+        linkGeneration += 1
+        pendingLink = link
+        linkProblem = nil
+        await launch()
+        await resumePendingLink()
+    }
+
+    private func resumePendingLink() async {
+        guard !resolvingLink, let link = pendingLink else { return }
+        resolvingLink = true
+        let generation = linkGeneration
+        defer {
+            resolvingLink = false
+            if generation != linkGeneration, pendingLink != nil {
+                Task { await resumePendingLink() }
+            }
+        }
+        func matchingSession() -> DesktopSession? {
+            let matches = sessions.filter {
+                $0.model.origin == link.server || $0.model.server == link.server
+                    || $0.descriptor.server == link.server.description
+            }
+            return matches.first { $0.model.phase == .ready } ?? matches.first
+        }
+        if matchingSession() == nil {
+            addServer()
+            let model = active
+            await model.connect(to: link.server.description)
+        }
+        guard generation == linkGeneration, let source = matchingSession() else { return }
+        select(source.id)
+        guard source.model.phase == .ready else { return }
+        guard let membership = source.model.me?.memberships.first(where: { $0.workspace.slug == link.workspaceSlug })
+        else {
+            pendingLink = nil
+            linkProblem = .workspaceUnavailable
+            return
+        }
+        await selectWorkspace(membership.workspace.id, from: source.model)
+        guard generation == linkGeneration else { return }
+        let target = active
+        guard target.phase == .ready else { return }
+        pendingLink = nil
+        let opened = await target.openConversationLink(link)
+        guard generation == linkGeneration else { return }
+        if !opened { linkProblem = .conversationUnavailable }
+    }
+
     private func append(_ descriptor: Descriptor) {
         var scoped = environment
         if !descriptor.legacy {
@@ -157,6 +227,10 @@ public final class DesktopSessions {
         }
         model.onSessionEnded = { [weak self, weak model, weak session] in
             guard let self, let model, let session else { return }
+            if self.pendingLink?.server == model.origin || self.pendingLink?.server == model.server {
+                self.pendingLink = nil
+                self.linkGeneration += 1
+            }
             for other in self.sessions where other.model !== model && other.model.origin == model.origin {
                 other.model.invalidateLocalSession()
                 self.attention.clear(other.id.uuidString)
@@ -186,6 +260,9 @@ public final class DesktopSessions {
         }
         if let server = session.model.server { session.descriptor.server = server.description }
         persist()
+        if session.model.phase == .ready, pendingLink != nil {
+            Task { await resumePendingLink() }
+        }
     }
 
     private func persist() {

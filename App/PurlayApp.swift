@@ -25,17 +25,7 @@ struct PurlayApp: App {
 
     var body: some Scene {
         Window("Purlay", id: "main") {
-            RootView(model: sessions.active)
-                .id(sessions.selectedID)
-                .environment(\.desktopSessions, sessions)
-                .toolbar {
-                    ToolbarItem(placement: .navigation) { DesktopSwitcher(sessions: sessions) }
-                }
-                .task {
-                    delegate.model = sessions.active
-                    await sessions.launch()
-                }
-                .onChange(of: sessions.selectedID) { _, _ in delegate.model = sessions.active }
+            DesktopMainScene(sessions: sessions, delegate: delegate, attention: attention)
         }
         .defaultSize(width: 1_180, height: 780)
         .windowToolbarStyle(.unified)
@@ -59,6 +49,30 @@ struct PurlayApp: App {
             }
             .frame(width: 760, height: 620)
         }
+    }
+}
+
+private struct DesktopMainScene: View {
+    let sessions: DesktopSessions
+    let delegate: AppDelegate
+    let attention: SystemAttention
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        RootView(model: sessions.active)
+            .id(sessions.selectedID)
+            .environment(\.desktopSessions, sessions)
+            .toolbar {
+                ToolbarItem(placement: .navigation) { DesktopSwitcher(sessions: sessions) }
+            }
+            .modifier(DesktopLinkPresentation(sessions: sessions))
+            .task {
+                attention.bringForward = { openWindow(id: "main") }
+                delegate.install(sessions: sessions, openMain: { openWindow(id: "main") })
+                delegate.model = sessions.active
+                await sessions.launch()
+            }
+            .onChange(of: sessions.selectedID) { _, _ in delegate.model = sessions.active }
     }
 }
 
@@ -116,6 +130,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Set by the app once its model exists; the Dock menu reads it when it is opened.
     var model: AppModel?
     private var dockActions: [() -> Void] = []
+    private var sessions: DesktopSessions?
+    private var openMain: (() -> Void)?
+    private var pendingURL: URL?
+
+    func install(sessions: DesktopSessions, openMain: @escaping () -> Void) {
+        self.sessions = sessions
+        self.openMain = openMain
+        if let url = pendingURL {
+            pendingURL = nil
+            open(url)
+        }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.last(where: { !($0.scheme == "purlay" && $0.host == "auth") }) else { return }
+        open(url)
+    }
+
+    private func open(_ url: URL) {
+        guard let sessions else {
+            pendingURL = url
+            return
+        }
+        openMain?()
+        NSApp.activate()
+        Task { await sessions.openLink(url) }
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false

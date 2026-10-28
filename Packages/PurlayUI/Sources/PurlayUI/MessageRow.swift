@@ -160,6 +160,11 @@ struct MessageRow: View {
                     Clipboard.copy(url.absoluteString)
                 }
             }
+            Button("Copy App Link", systemImage: "macwindow") {
+                if let url = model.appURL(.message(message.id, in: message.channelId)) {
+                    Clipboard.copy(url.absoluteString)
+                }
+            }
             Button("Open in Browser", systemImage: "safari") {
                 if let url = model.webURL(.message(message.id, in: message.channelId)) { openURL(url) }
             }

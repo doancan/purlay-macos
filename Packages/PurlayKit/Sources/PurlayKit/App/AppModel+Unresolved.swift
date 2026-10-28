@@ -5,6 +5,7 @@ extension AppModel {
     public var unresolvedHasMore: Bool { unresolvedCursor != nil }
 
     public func openUnresolved() async {
+        navigationGeneration += 1
         inboxOpen = false
         unresolvedOpen = true
         closeThread()

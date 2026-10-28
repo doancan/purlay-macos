@@ -8,6 +8,7 @@ extension AppModel {
 
     /// Opens the inbox on what the person was told, with the filter they last chose, read afresh.
     public func openInbox() async {
+        navigationGeneration += 1
         unresolvedOpen = false
         inboxOpen = true
         await reloadInbox()

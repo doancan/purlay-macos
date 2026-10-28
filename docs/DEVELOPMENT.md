@@ -78,6 +78,13 @@ groups or up/down within a section; dragging reorders an unfiltered section. A s
 conversation order. The arrangement is local to this Mac and scoped by server, account and workspace. It is shared
 by companion windows and never changes membership, permissions, or server-side starred state.
 
+Channel and message menus offer Copy App Link, using `purlay://open?url=<encoded web permalink>`.
+The registered app URL handler validates the origin, workspace slug and identifiers before routing the link.
+File → Open Purlay Link (Option-Command-O) also accepts ordinary web permalinks. Links select the matching server
+and workspace, wait through sign-in when needed, and show an error for inaccessible destinations. A newer link
+supersedes a pending navigation. `purlay://auth` remains owned by browser authentication. Arbitrary self-hosted
+HTTPS domains are not registered as universal links; the explicit app link or paste action opens them natively.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

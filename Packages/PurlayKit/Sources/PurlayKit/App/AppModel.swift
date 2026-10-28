@@ -304,6 +304,7 @@ public final class AppModel {
     var searchGeneration = 0
     var loadingMoreResults = false
     var focusSequence = 0
+    var navigationGeneration = 0
 
     // MARK: What needs the person
 
