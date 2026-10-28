@@ -31,7 +31,7 @@ extension AppModel {
                 workspaceId: workspace.id.value,
                 query: UnresolvedQuery(channelId: unresolvedChannelID, limit: ContractConstants.pageLimit.default))
             guard generation == unresolvedGeneration else { return }
-            unresolvedItems = page.data
+            unresolvedItems = page.data.filter { !isPersonallyDeleted($0.id) }
             unresolvedCursor = page.nextCursor
         } catch {
             guard generation == unresolvedGeneration else { return }
@@ -52,7 +52,7 @@ extension AppModel {
                     before: cursor, channelId: unresolvedChannelID, limit: ContractConstants.pageLimit.default))
             guard generation == unresolvedGeneration else { return }
             let held = Set(unresolvedItems.map(\.id))
-            unresolvedItems += page.data.filter { !held.contains($0.id) }
+            unresolvedItems += page.data.filter { !held.contains($0.id) && !isPersonallyDeleted($0.id) }
             unresolvedCursor = page.nextCursor
         } catch {
             guard generation == unresolvedGeneration else { return }
@@ -76,7 +76,7 @@ extension AppModel {
             let updated = try await api.resolveThread(messageId: message.id.value)
             guard context == contextGeneration else { return }
             engine?.revise(message.id, in: message.channelId) { $0.thread = updated.thread }
-            if thread?.root == message.id { threadRootCopy = updated }
+            if thread?.root == message.id { threadRootCopy = chat.personalProjection(updated) }
             await loadUnresolved()
             sync()
         } catch {

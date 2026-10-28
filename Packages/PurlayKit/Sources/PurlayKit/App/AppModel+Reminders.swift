@@ -50,7 +50,7 @@ extension AppModel {
         do {
             let items = try await api.listMessageReminders(workspaceId: workspace.id.value)
             guard generation == reminderGeneration, context == contextGeneration else { return true }
-            storedReminders = items
+            storedReminders = items.filter { !isPersonallyDeleted($0.message.id) }
             syncReminderNotices()
             return true
         } catch {
@@ -78,6 +78,7 @@ extension AppModel {
                 messageId: message.id.value, body: SetMessageReminderRequest(remindAt: Timestamp(date)))
         } catch { throw ReminderFailure.from(error) }
         guard context == contextGeneration else { throw ReminderFailure.sessionChanged }
+        guard !isPersonallyDeleted(message.id) else { throw ReminderFailure.access }
         reminderGeneration += 1
         loadingReminders = false
         storedReminders.removeAll { $0.message.id == message.id }

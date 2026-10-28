@@ -135,6 +135,8 @@ public struct PurlayCommands: Commands {
             .disabled(message == nil || message?.parentId != nil)
         Button("Edit") { if let message { model.beginEdit(message.id) } }
             .disabled(!mine)
+        Button("Delete…", role: .destructive) { model.deletionTarget = message }
+            .disabled(message.map { !model.canDeleteForMe($0) && !model.canDeleteForEveryone($0) } ?? true)
         Divider()
         Button(message.map(model.isSaved) == true ? "Remove from Saved" : "Save") {
             if let message { Task { await model.setSaved(!model.isSaved(message), message) } }

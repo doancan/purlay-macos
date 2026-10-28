@@ -60,6 +60,7 @@ final class FakeServer: HTTPTransport {
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
+        var hideDelay = 0
         var threads: [String: [Message]] = [:]
         var threadPageSize: Int?
         var threadStatus = 200
@@ -119,13 +120,15 @@ final class FakeServer: HTTPTransport {
 
     static func clientInfo(
         minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390",
-        notificationTypeFilters: Bool? = true, scheduledMessages: Bool? = nil, messageReminders: Bool? = nil
+        notificationTypeFilters: Bool? = true, scheduledMessages: Bool? = nil, messageReminders: Bool? = nil,
+        personalMessageDeletion: Bool? = nil
     )
         -> String
     {
         let flags = [
             notificationTypeFilters.map { "\"notificationTypeFilters\":\($0)" },
             scheduledMessages.map { "\"scheduledMessages\":\($0)" },
+            personalMessageDeletion.map { "\"personalMessageDeletion\":\($0)" },
             messageReminders.map { "\"messageReminders\":\($0)" },
         ].compactMap { $0 }.joined(separator: ",")
         let capability = flags.isEmpty ? "" : ",\"capabilities\":{\(flags)}"
@@ -616,6 +619,19 @@ final class FakeServer: HTTPTransport {
                 return json(404, #"{"error":{"code":"ATTACHMENT_NOT_FOUND","message":"x"}}"#)
             }
             return HTTPResponse(status: 200, headers: ["Content-Type": "application/octet-stream"], body: data)
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/hidden"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.hideDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.hideDelay)) }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/hidden".count))
+            let all = Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined())
+            guard let message = all.first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            // Reads deliberately retain their original payload to exercise stale responses in the model.
+            return json(200, Self.encoded(message.deletedForMe(at: message.createdAt)))
         case ("PATCH", _) where path.hasPrefix("/api/messages/"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let id = String(path.dropFirst("/api/messages/".count))

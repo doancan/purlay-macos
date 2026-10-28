@@ -24,7 +24,7 @@ struct ThreadPanel: View {
                             if !thread.isLoaded {
                                 ProgressView().frame(maxWidth: .infinity).padding(24)
                             } else {
-                                ForEach(thread.replies, id: \.id) { reply in
+                                ForEach(thread.replies.filter { $0.hiddenForMe != true }, id: \.id) { reply in
                                     MessageRow(
                                         message: reply, model: model, inThread: true, highlighted: marked == reply.id
                                     ).id(reply.id)

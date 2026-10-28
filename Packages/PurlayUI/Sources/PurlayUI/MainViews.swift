@@ -306,6 +306,7 @@ private struct MainSheets: ViewModifier {
                 case .conversation: NewConversationSheet(model: model)
                 }
             }
+            .modifier(MessageDeletionDialog(model: model))
             .confirmationDialog(
                 "Leave this channel?", isPresented: Binding(get: { leaving != nil }, set: { if !$0 { leaving = nil } }),
                 presenting: leaving
@@ -317,6 +318,39 @@ private struct MainSheets: ViewModifier {
                         ? "You will need an invitation to come back to \(Words.channelLabel(channel))."
                         : "You can join \(Words.channelLabel(channel)) again from Browse Channels.")
             }
+    }
+}
+
+/// Shared by the context menu, hover actions and the keyboard's Message menu.
+private struct MessageDeletionDialog: ViewModifier {
+    let model: AppModel
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "Delete this message?",
+            isPresented: Binding(get: { model.deletionTarget != nil }, set: { if !$0 { model.deletionTarget = nil } }),
+            titleVisibility: .visible, presenting: model.deletionTarget
+        ) { message in
+            if model.canDeleteForMe(message) {
+                Button("Delete for Me", role: .destructive) { Task { await model.deleteForMe(message) } }
+            }
+            if model.canDeleteForEveryone(message) {
+                Button("Delete for Everyone", role: .destructive) { Task { await model.delete(message) } }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { message in
+            if model.canDeleteForMe(message) && model.canDeleteForEveryone(message) {
+                Text(
+                    "Delete for Me removes it from your account on all devices. Delete for Everyone removes it for all participants. This can't be undone."
+                )
+            } else if model.canDeleteForMe(message) {
+                Text(
+                    "This removes the message from your account on all devices. Other participants will still see it. This can't be undone."
+                )
+            } else {
+                Text("This removes the message for all participants. This can't be undone.")
+            }
+        }
     }
 }
 

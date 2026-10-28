@@ -106,7 +106,7 @@ extension AppModel {
                     channelId: searchChannelID, limit: ContractConstants.pageLimit.default, q: typed,
                     senderId: searchSenderID))
             guard generation == searchGeneration else { return }
-            searchResults = page.data
+            searchResults = page.data.filter { !isPersonallyDeleted($0.id) }
             searchCursor = page.nextCursor
             searchStatus = .done
         } catch {
@@ -133,7 +133,7 @@ extension AppModel {
                     q: searchQuery, senderId: searchSenderID))
             guard generation == searchGeneration else { return }
             let held = Set(searchResults.map(\.id))
-            searchResults += page.data.filter { !held.contains($0.id) }
+            searchResults += page.data.filter { !held.contains($0.id) && !isPersonallyDeleted($0.id) }
             searchCursor = page.nextCursor
         } catch {
             guard generation == searchGeneration else { return }

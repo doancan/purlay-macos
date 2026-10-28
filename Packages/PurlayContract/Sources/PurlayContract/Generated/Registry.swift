@@ -95,6 +95,7 @@ public enum ContractRegistry {
         "Message": { data in try JSONEncoder().encode(try JSONDecoder().decode(Message.self, from: data)) },
         "MessageContent": { data in try JSONEncoder().encode(try JSONDecoder().decode(MessageContent.self, from: data)) },
         "MessageCreatedFrame": { data in try JSONEncoder().encode(try JSONDecoder().decode(MessageCreatedFrame.self, from: data)) },
+        "MessageHiddenFrame": { data in try JSONEncoder().encode(try JSONDecoder().decode(MessageHiddenFrame.self, from: data)) },
         "MessagePage": { data in try JSONEncoder().encode(try JSONDecoder().decode(MessagePage.self, from: data)) },
         "MessageReminder": { data in try JSONEncoder().encode(try JSONDecoder().decode(MessageReminder.self, from: data)) },
         "MessageReminderList": { data in try JSONEncoder().encode(try JSONDecoder().decode(MessageReminderList.self, from: data)) },

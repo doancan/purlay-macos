@@ -28,7 +28,7 @@ extension AppModel {
             thread = ThreadWindow(root: root.id, channel: root.channelId)
             threadFollow = .reading
         }
-        threadRootCopy = root
+        threadRootCopy = chat.personalProjection(root)
         let size = ContractConstants.pageLimit.default
         do {
             var page = try await api.getThread(messageId: root.id.value, query: PageQuery(limit: size))
@@ -43,7 +43,7 @@ extension AppModel {
                 next = page.nextCursor
                 pages += 1
             }
-            thread?.load(replies, next: next)
+            thread?.load(replies.map(chat.personalProjection), next: next)
             markThreadReadIfSeen()
         } catch {
             guard generation == threadGeneration else { return }
@@ -79,7 +79,7 @@ extension AppModel {
     /// A reply arrived: the open thread, if it is that one, adds it.
     func receiveReply(_ reply: Message) {
         for window in liveConversationWindows { window.receiveReply(reply) }
-        guard thread?.receive(reply) == true else { return }
+        guard thread?.receive(chat.personalProjection(reply)) == true else { return }
         markThreadReadIfSeen()
     }
 

@@ -16,6 +16,7 @@ extension ServerFrame {
             }
         case .error(let frame): return frame.refId
         case .messageCreated(let frame): return frame.refId
+        case .messageHidden(let frame): return frame.refId
         case .threadUpdated(let frame): return frame.refId
         case .reactionsUpdated(let frame): return frame.refId
         case .messageRevised(let frame): return frame.refId

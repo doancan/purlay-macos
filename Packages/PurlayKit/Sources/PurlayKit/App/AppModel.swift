@@ -266,6 +266,8 @@ public final class AppModel {
     public var pinsOpen = false
     public var remindersOpen = false
     public var reminderTarget: Message?
+    public var deletionTarget: Message?
+    var deletingMessages: Set<Uuid> = []
     var storedReminders: [MessageReminder] = []
     var loadingReminders = false
     var failedReminders = false
@@ -759,6 +761,8 @@ public final class AppModel {
         attachmentCacheOrder = []
         attachmentCacheBytes = 0
         savedIDs = [:]
+        deletionTarget = nil
+        deletingMessages = []
         scheduledItems = []
         scheduledOpen = false
         scheduledGeneration += 1

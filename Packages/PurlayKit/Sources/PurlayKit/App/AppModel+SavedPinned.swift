@@ -17,7 +17,9 @@ extension AppModel {
         let context = contextGeneration
         guard let ids = try? await api.listSavedIds(workspaceId: workspace.id.value) else { return false }
         guard context == contextGeneration, self.workspace?.id == workspace.id else { return true }
-        savedIDs = Dictionary(ids.map { ($0.messageId, $0.state) }, uniquingKeysWith: { _, last in last })
+        savedIDs = Dictionary(
+            ids.filter { !isPersonallyDeleted($0.messageId) }.map { ($0.messageId, $0.state) },
+            uniquingKeysWith: { _, last in last })
         if savedOpen { await loadSaved(savedFilter) }
         return true
     }
@@ -26,7 +28,7 @@ extension AppModel {
     func reloadPins(_ channel: Uuid) async -> Bool {
         guard let api else { return true }
         guard let list = try? await api.listPins(channelId: channel.value) else { return false }
-        pins[channel] = list
+        pins[channel] = list.filter { !isPersonallyDeleted($0.message.id) }
         return true
     }
 
@@ -53,7 +55,7 @@ extension AppModel {
             if savedOpen { await loadSaved(savedFilter) }
         } catch {
             guard context == contextGeneration else { return }
-            savedIDs[message.id] = before
+            savedIDs[message.id] = isPersonallyDeleted(message.id) ? nil : before
             if let api = error as? APIError, api.code == .savedLimit { say(.savedFull) } else { say(.saveFailed) }
         }
     }
@@ -75,7 +77,7 @@ extension AppModel {
                 query: SavedQuery(limit: ContractConstants.pageLimit.default, state: state)
             )
             guard generation == savedGeneration else { return }
-            savedItems = page.data
+            savedItems = page.data.filter { !isPersonallyDeleted($0.message.id) }
             savedCursor = page.nextCursor
         } catch {
             guard generation == savedGeneration else { return }
@@ -97,7 +99,7 @@ extension AppModel {
                 query: SavedQuery(before: cursor, limit: ContractConstants.pageLimit.default, state: savedFilter))
             guard generation == savedGeneration else { return }
             let held = Set(savedItems.map(\.id))
-            savedItems += page.data.filter { !held.contains($0.id) }
+            savedItems += page.data.filter { !held.contains($0.id) && !isPersonallyDeleted($0.message.id) }
             savedCursor = page.nextCursor
         } catch {
             guard generation == savedGeneration else { return }
@@ -116,7 +118,7 @@ extension AppModel {
             try await api.saveMessage(
                 messageId: message.id.value, body: SaveMessageRequest(state: .init(rawValue: state.rawValue)))
             guard context == contextGeneration else { return }
-            savedIDs[message.id] = state
+            savedIDs[message.id] = isPersonallyDeleted(message.id) ? nil : state
             savedGeneration += 1
             savedLoading = false
             if state != savedFilter { savedItems.removeAll { $0.message.id == message.id } }
@@ -159,7 +161,7 @@ extension AppModel {
                 try await api.unpinMessage(messageId: message.id.value)
             }
         } catch {
-            pins[channel] = before
+            pins[channel] = before.filter { !isPersonallyDeleted($0.message.id) }
             if let api = error as? APIError, api.code == .pinsLimit { say(.pinsFull) } else { say(.pinFailed) }
         }
     }

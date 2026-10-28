@@ -36,15 +36,20 @@ extension AppModel {
         }
     }
 
-    /// Takes back one of the person's own messages. The row changes when the server's own frame says so, which is the one place that
+    /// Takes back a message the person authored or may moderate. The row changes when the server's own frame says so, which is the one place that
     /// knows when it happened.
     @discardableResult
     public func delete(_ message: Message) async -> Bool {
-        guard let api, isMine(message), message.deletedAt == nil else { return false }
+        if let sessionOwner { return await sessionOwner.delete(message) }
+        guard let api, canDeleteForEveryone(message), !deletingMessages.contains(message.id) else { return false }
+        let context = contextGeneration
+        deletingMessages.insert(message.id)
+        defer { if context == contextGeneration { deletingMessages.remove(message.id) } }
         do {
             try await api.deleteMessage(messageId: message.id.value)
-            return true
+            return context == contextGeneration
         } catch {
+            guard context == contextGeneration else { return false }
             say(.deleteFailed)
             return false
         }

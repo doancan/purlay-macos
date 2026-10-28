@@ -33,7 +33,8 @@ public enum FeedLayout {
         items.reserveCapacity(messages.count + 4)
         var previous: Message?
         var placedNew = newAfter == nil
-        for message in messages {
+        for message in messages
+        where message.hiddenForMe != true || (message.parentId == nil && (message.thread?.replyCount ?? 0) > 0) {
             let date = message.createdAt.date
             let newDay = previous.map { !calendar.isDate($0.createdAt.date, inSameDayAs: date) } ?? true
             if newDay { items.append(.day(calendar.startOfDay(for: date))) }

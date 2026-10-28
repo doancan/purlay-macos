@@ -34,7 +34,8 @@ public struct ChannelWindow: Sendable, Equatable {
 
     /// The newest page: the window starts here, at the present.
     public mutating func load(latest page: [Message], reachesOldest: Bool) {
-        messages = Self.sorted(page)
+        let previous = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+        messages = Self.sorted(page.map { $0.retainingPersonalDeletion(from: previous[$0.id]) })
         reachesNewest = true
         self.reachesOldest = reachesOldest
         newerExists = false
@@ -42,7 +43,8 @@ public struct ChannelWindow: Sendable, Equatable {
 
     /// A page around a message, as a link to one opens a channel: short of the present unless it says it reaches it.
     public mutating func load(around page: [Message], reachesOldest: Bool, reachesNewest: Bool) {
-        messages = Self.sorted(page)
+        let previous = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+        messages = Self.sorted(page.map { $0.retainingPersonalDeletion(from: previous[$0.id]) })
         self.reachesOldest = reachesOldest
         self.reachesNewest = reachesNewest
         newerExists = !reachesNewest
@@ -85,7 +87,9 @@ public struct ChannelWindow: Sendable, Equatable {
     @discardableResult
     public mutating func update(_ id: Uuid, _ edit: (inout Message) -> Void) -> Bool {
         guard let at = index(of: id) else { return false }
+        let previous = messages[at]
         edit(&messages[at])
+        messages[at] = messages[at].retainingPersonalDeletion(from: previous)
         return true
     }
 
@@ -132,7 +136,7 @@ public struct ChannelWindow: Sendable, Equatable {
     private mutating func upsert(_ message: Message) {
         let at = lowerBound(message.id)
         if at < messages.count, messages[at].id == message.id {
-            messages[at] = message
+            messages[at] = message.retainingPersonalDeletion(from: messages[at])
         } else {
             messages.insert(message, at: at)
         }

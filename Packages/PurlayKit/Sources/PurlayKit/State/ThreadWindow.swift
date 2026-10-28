@@ -20,9 +20,10 @@ public struct ThreadWindow: Equatable, Sendable {
 
     /// The first page, in place of what was held. A live reply that arrived while it was on its way is kept: the page may not have had it.
     public mutating func load(_ page: [Message], next: Uuid?) {
+        let previous = Dictionary(uniqueKeysWithValues: replies.map { ($0.id, $0) })
         let live = isLoaded ? [] : replies
         replies = []
-        insert(page)
+        insert(page.map { $0.retainingPersonalDeletion(from: previous[$0.id]) })
         insert(live)
         nextCursor = next
         isLoaded = true
@@ -46,7 +47,9 @@ public struct ThreadWindow: Equatable, Sendable {
     @discardableResult
     public mutating func update(_ id: Uuid, _ edit: (inout Message) -> Void) -> Bool {
         guard let at = replies.firstIndex(where: { $0.id == id }) else { return false }
+        let previous = replies[at]
         edit(&replies[at])
+        replies[at] = replies[at].retainingPersonalDeletion(from: previous)
         return true
     }
 

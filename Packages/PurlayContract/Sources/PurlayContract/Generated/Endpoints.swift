@@ -259,6 +259,11 @@ public enum Endpoints {
         query: nil, body: nil,
         responses: [204: .empty])
 
+    public static let hideMessage = EndpointSpec(
+        id: "hideMessage", method: "PUT", path: "/api/messages/:messageId/hidden", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("Message")])
+
     public static let setMessageReminder = EndpointSpec(
         id: "setMessageReminder", method: "PUT", path: "/api/messages/:messageId/reminder", auth: .session,
         query: nil, body: .schema("SetMessageReminderRequest"),
@@ -398,6 +403,7 @@ public enum Endpoints {
         unpinMessage,
         saveMessage,
         unsaveMessage,
+        hideMessage,
         setMessageReminder,
         cancelMessageReminder,
         listMessageReminders,

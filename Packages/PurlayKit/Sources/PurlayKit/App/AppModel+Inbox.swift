@@ -85,7 +85,13 @@ extension AppModel {
         return try await api.listNotifications(query: request)
     }
 
-    private func rebuildInbox() {
+    func rebuildInbox() {
+        inboxNotes.removeAll { isPersonallyDeleted($0.message.id) }
+        for index in inboxNotes.indices {
+            if let root = inboxNotes[index].thread?.rootId, isPersonallyDeleted(root) {
+                inboxNotes[index].thread?.excerpt = nil
+            }
+        }
         inboxRows = Inbox.rows(inboxNotes, calendar: .current, now: Date()).filter { inboxCategory.includes($0.reason) }
     }
 

@@ -20,6 +20,8 @@ extension AppModel {
             }
         }
         switch refresh {
+        case .hidden(let channel, let message, let at):
+            didDeleteForMe(message, in: channel, at: at)
         case .channels(let id) where id == workspace?.id:
             reread(refresh) { await $0.reloadChannels() }
         case .messages(let channel) where channel == selectedChannel:

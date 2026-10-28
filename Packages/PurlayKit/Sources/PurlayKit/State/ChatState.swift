@@ -22,6 +22,7 @@ public enum Effect: Sendable, Equatable {
 public enum Refresh: Sendable, Hashable {
     case memberships(workspace: Uuid)
     case channels(workspace: Uuid)
+    case hidden(channel: Uuid, message: Uuid, at: Timestamp)
     case pins(channel: Uuid)
     case reminders(workspace: Uuid)
     case saved(workspace: Uuid)
@@ -51,6 +52,18 @@ public struct ChatState: Sendable, Equatable {
     }
 
     public var windows: [Uuid: ChannelWindow] = [:]
+    /// Kept for this session so a response already in flight cannot restore personally deleted content.
+    public private(set) var hiddenMessages: [Uuid: Timestamp] = [:]
+
+    public func personalProjection(_ message: Message) -> Message {
+        guard let at = hiddenMessages[message.id] else { return message }
+        return message.deletedForMe(at: at)
+    }
+
+    public mutating func hideMessage(_ id: Uuid, in channel: Uuid, at: Timestamp) {
+        hiddenMessages[id] = at
+        windows[channel]?.update(id) { $0 = $0.deletedForMe(at: at) }
+    }
     public var channels: [Uuid: Channel] = [:]
     /// Channels that went away and why, when the server said: what a screen still showing one tells the person instead of "not found".
     public var gone: [Uuid: RevokedReason] = [:]
@@ -88,8 +101,13 @@ public struct ChatState: Sendable, Equatable {
     public mutating func apply(_ frame: ServerFrame, now: Date) -> [Effect] {
         switch frame {
         case .messageCreated(let created):
-            let message = created.data
+            let message = personalProjection(created.data)
             var effects: [Effect] = []
+            if message.hiddenForMe == true {
+                let at = message.deletedAt ?? message.createdAt
+                hideMessage(message.id, in: message.channelId, at: at)
+                effects.append(.refresh(.hidden(channel: message.channelId, message: message.id, at: at)))
+            }
             if let sender = message.sender { endTyping(channel: message.channelId, user: sender.id) }
             if message.parentId != nil {
                 effects.append(.reply(message))
@@ -97,6 +115,11 @@ public struct ChatState: Sendable, Equatable {
                 windows[message.channelId]?.receive(message)
             }
             return effects
+
+        case .messageHidden(let frame):
+            let data = frame.data
+            hideMessage(data.messageId, in: data.channelId, at: data.hiddenAt)
+            return [.refresh(.hidden(channel: data.channelId, message: data.messageId, at: data.hiddenAt))]
 
         case .messageRevised(let revised):
             let data = revised.data

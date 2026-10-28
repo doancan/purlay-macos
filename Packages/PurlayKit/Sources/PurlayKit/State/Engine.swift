@@ -205,19 +205,43 @@ public final class Engine {
 
     /// The state a channel's window is loaded into: the app reads, the engine holds.
     public func load(_ window: ChannelWindow, for channel: Uuid) {
-        chat.windows[channel] = window
+        var projected = window
+        var newlyHidden: [Message] = []
+        for message in window.messages {
+            let previous = chat.windows[channel]?.message(message.id)
+            let value = chat.personalProjection(message).retainingPersonalDeletion(from: previous)
+            projected.update(message.id) { $0 = value }
+            if value.hiddenForMe == true {
+                if chat.hiddenMessages[value.id] == nil { newlyHidden.append(value) }
+                chat.hideMessage(value.id, in: channel, at: value.deletedAt ?? value.createdAt)
+            }
+        }
+        chat.windows[channel] = projected
         options.onChange()
+        for message in newlyHidden {
+            options.refresh(.hidden(channel: channel, message: message.id, at: message.deletedAt ?? message.createdAt))
+        }
     }
 
     /// An older page put above what a channel's window holds now, in place: what arrived while the page was on its way stays.
     public func prepend(_ older: [Message], reachesOldest: Bool, for channel: Uuid) {
-        chat.windows[channel]?.prepend(older, reachesOldest: reachesOldest)
+        for message in older where message.hiddenForMe == true {
+            hideMessage(message.id, in: channel, at: message.deletedAt ?? message.createdAt)
+        }
+        let projected = older.map(chat.personalProjection)
+        chat.windows[channel]?.prepend(projected, reachesOldest: reachesOldest)
         options.onChange()
     }
 
     /// What the server says a channel's read state is now, from the answer to marking it read.
     /// A message as the server answered an edit or a reaction: what it says now, put into the window that holds it. A frame for the same
     /// change may follow, and says the same thing.
+    public func hideMessage(_ id: Uuid, in channel: Uuid, at: Timestamp) {
+        chat.hideMessage(id, in: channel, at: at)
+        options.onChange()
+        options.refresh(.hidden(channel: channel, message: id, at: at))
+    }
+
     public func revise(_ id: Uuid, in channel: Uuid, _ edit: (inout Message) -> Void) {
         _ = chat.windows[channel]?.update(id, edit)
         options.onChange()
@@ -404,8 +428,12 @@ public final class Engine {
         while let after = cursor {
             let page = try await options.readAfter(channel, after)
             for message in page.data {
+                if message.hiddenForMe == true {
+                    hideMessage(message.id, in: channel, at: message.deletedAt ?? message.createdAt)
+                }
                 if message.parentId == nil {
-                    chat.windows[channel]?.receive(message)
+                    let projected = chat.personalProjection(message)
+                    chat.windows[channel]?.receive(projected)
                 }
                 connection.observe(channel: channel.value, message: message.id.value)
             }

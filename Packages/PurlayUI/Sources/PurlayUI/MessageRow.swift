@@ -16,7 +16,6 @@ struct MessageRow: View {
     var highlighted = false
     /// The row the keyboard is on (↑ ↓): a bar at its edge, quiet enough not to be mistaken for a search hit.
     var keyboard = false
-    @State private var confirmingDelete = false
     @State private var hovering = false
     @State private var picking = false
     @Environment(\.openURL) private var openURL
@@ -55,7 +54,7 @@ struct MessageRow: View {
                     message: message, model: model, mine: mine, canReply: !inThread && message.parentId == nil,
                     picking: $picking,
                     edit: { model.beginEdit(message.id) },
-                    delete: { confirmingDelete = true }
+                    delete: { model.deletionTarget = message }
                 )
                 .padding(.trailing, Spacing.space3)
                 .padding(.top, Spacing.space2)
@@ -69,11 +68,6 @@ struct MessageRow: View {
         .onChange(of: picking) { _, open in if !open { hovering = false } }
         .onChange(of: activeState) { _, state in if state != .key { hovering = false } }
         .contextMenu { menu }
-        .confirmationDialog("Delete this message?", isPresented: $confirmingDelete) {
-            Button("Delete", role: .destructive) { Task { await model.delete(message) } }
-        } message: {
-            Text("This can't be undone.")
-        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(keyboard ? .isSelected : [])
         .accessibilityActions { accessibilityActions }
@@ -127,7 +121,7 @@ struct MessageRow: View {
 
     @ViewBuilder private var content: some View {
         if deleted {
-            Text("This message was deleted.")
+            Text(message.hiddenForMe == true ? "You deleted this message." : "This message was deleted.")
                 .typeStyle(Typography.body)
                 .italic()
                 .foregroundStyle(NativePalette.tertiary.style)
@@ -202,7 +196,9 @@ struct MessageRow: View {
             if mine {
                 Divider()
                 Button("Edit", systemImage: "pencil") { model.beginEdit(message.id) }
-                Button("Delete…", systemImage: "trash", role: .destructive) { confirmingDelete = true }
+            }
+            if model.canDeleteForMe(message) || model.canDeleteForEveryone(message) {
+                Button("Delete…", systemImage: "trash", role: .destructive) { model.deletionTarget = message }
             }
         }
     }
@@ -229,7 +225,9 @@ struct MessageRow: View {
             Button("Add Reaction") { picking = true }
             if mine {
                 Button("Edit") { model.beginEdit(message.id) }
-                Button("Delete") { confirmingDelete = true }
+            }
+            if model.canDeleteForMe(message) || model.canDeleteForEveryone(message) {
+                Button("Delete") { model.deletionTarget = message }
             }
         }
     }
@@ -358,6 +356,8 @@ private struct ActionBar: View {
                         }
                         .help("Edit")
                         .accessibilityLabel("Edit")
+                    }
+                    if model.canDeleteForMe(message) || model.canDeleteForEveryone(message) {
                         Button(action: delete) {
                             Image(systemName: "trash").frame(
                                 width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1

@@ -110,6 +110,16 @@ Invitations, role changes and other server-owned writes open their existing web 
 Invitation links admit signed-in people as members, last seven days and are reusable until expired or revoked.
 
 
+## Message deletion
+
+The message menu offers **Delete for Me** when the server advertises `personalMessageDeletion`.
+The server keeps this choice per account, across devices; it does not remove anyone else's content or files.
+Search, saved messages, pins, inbox items and pending reminders omit personally deleted messages.
+A deleted root keeps an empty placeholder when it has replies, so the thread remains reachable.
+Private events and replay projections also clear companion windows; older in-flight reads cannot restore the words.
+**Delete for Everyone** uses the existing server deletion rule: the author, workspace owner or workspace admin.
+Both actions require an explicit choice in the same confirmation dialog, and failures retain the message.
+
 ## Release notes
 
 `CHANGELOG.md` is the source for both GitHub and Sparkle release notes. Before tagging a version, add its entry and update `MARKETING_VERSION`. The release workflow runs `scripts/release-notes VERSION dist`, generates self-contained HTML for Sparkle, signs that HTML together with the appcast and archive, verifies all three signatures, and uploads the notes as a release asset. Do not edit signed release assets after publication.
