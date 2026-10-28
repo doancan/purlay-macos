@@ -6,3 +6,7 @@ SWIFT_OPTIMIZATION_LEVEL = -Onone
 // One binary, one signature: the separate debug dylib (for previews, unused here) would be loaded under library validation
 // and refused whenever its signature and the app's differ.
 ENABLE_DEBUG_DYLIB = NO
+
+// Sparkle is prebuilt: ad-hoc development signatures have no Team ID for library validation.
+// Developer ID Release builds retain library validation.
+CODE_SIGN_ENTITLEMENTS = App/Resources/Purlay.Debug.entitlements

@@ -10,35 +10,55 @@ struct InboxPage: View {
     let model: AppModel
 
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(NativePalette.canvas.style)
-            .navigationTitle("Inbox")
-            .navigationSubtitle(subtitle)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("Show", selection: filter) {
-                        Text("All").tag(AppModel.InboxFilter.all)
-                        Text("Unread").tag(AppModel.InboxFilter.unread)
+        VStack(spacing: 0) {
+            HStack {
+                Picker("Notification type", selection: category) {
+                    ForEach(Inbox.Category.allCases) { category in
+                        Text(category.title).tag(category)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        Task { await model.markAllInboxRead() }
-                    } label: {
-                        Label("Mark All Read", systemImage: "checkmark.circle")
-                    }
-                    .disabled(!model.inboxRows.contains(where: \.isUnread))
-                    .help("Mark everything shown as read")
-                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 420)
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, Spacing.space4)
+            .padding(.vertical, Spacing.space3)
+            Divider()
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(NativePalette.canvas.style)
+        .navigationTitle("Inbox")
+        .navigationSubtitle(subtitle)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Show", selection: filter) {
+                    Text("All").tag(AppModel.InboxFilter.all)
+                    Text("Unread").tag(AppModel.InboxFilter.unread)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await model.markAllInboxRead() }
+                } label: {
+                    Label("Mark All Read", systemImage: "checkmark.circle")
+                }
+                .disabled(!model.inboxRows.contains(where: \.isUnread))
+                .help("Mark everything shown as read")
+            }
+        }
     }
 
     private var filter: Binding<AppModel.InboxFilter> {
         Binding(get: { model.inboxFilter }, set: { new in Task { await model.setInboxFilter(new) } })
+    }
+
+    private var category: Binding<Inbox.Category> {
+        Binding(get: { model.inboxCategory }, set: { category in Task { await model.setInboxCategory(category) } })
     }
 
     private var subtitle: String {
@@ -61,19 +81,50 @@ struct InboxPage: View {
             }
         case .loaded:
             if model.inboxRows.isEmpty {
-                if model.inboxFilter == .unread {
-                    ContentUnavailableView(
-                        "All Caught Up", systemImage: "checkmark.circle",
-                        description: Text("Nothing is waiting for you."))
-                } else {
-                    ContentUnavailableView(
-                        "Nothing Yet", systemImage: "tray",
-                        description: Text("Mentions, direct messages and replies to you will gather here."))
+                ContentUnavailableView {
+                    Label(emptyTitle, systemImage: model.inboxHasMore ? "line.3.horizontal.decrease" : "tray")
+                } description: {
+                    Text(emptyDescription)
+                } actions: {
+                    if model.inboxHasMore { loadMore }
                 }
             } else {
                 list
             }
         }
+    }
+
+    private var emptyTitle: String {
+        if model.inboxHasMore { return String(localized: "No Matches Yet") }
+        if model.inboxFilter == .unread { return String(localized: "All Caught Up") }
+        switch model.inboxCategory {
+        case .all: return String(localized: "Nothing Yet")
+        case .mentions: return String(localized: "No Mentions")
+        case .directMessages: return String(localized: "No Direct Messages")
+        case .threads: return String(localized: "No Thread Updates")
+        }
+    }
+
+    private var emptyDescription: String {
+        if model.inboxHasMore {
+            return String(localized: "Older notifications may match this filter. Load more to keep looking.")
+        }
+        return model.inboxFilter == .unread
+            ? String(localized: "Nothing is waiting for you in this view.")
+            : String(localized: "Notifications matching this filter will appear here.")
+    }
+
+    private var loadMore: some View {
+        Button {
+            Task { await model.loadMoreInbox() }
+        } label: {
+            HStack {
+                if model.inboxLoadingMore { ProgressView().controlSize(.small) }
+                Text(model.inboxLoadingMore ? "Loading…" : "Load More")
+            }
+        }
+        .buttonStyle(.glass)
+        .disabled(model.inboxLoadingMore)
     }
 
     private var list: some View {
@@ -95,8 +146,7 @@ struct InboxPage: View {
                     }
                 }
                 if model.inboxHasMore {
-                    Button("Load More") { Task { await model.loadMoreInbox() } }
-                        .buttonStyle(.glass)
+                    loadMore
                         .padding(Spacing.space4)
                         .frame(maxWidth: .infinity)
                 }
@@ -230,6 +280,17 @@ extension Words {
             return others == 1
                 ? String(localized: "\(named[0]), \(named[1]) and 1 other")
                 : String(localized: "\(named[0]), \(named[1]) and \(others) others")
+        }
+    }
+}
+
+extension Inbox.Category {
+    var title: String {
+        switch self {
+        case .all: String(localized: "All")
+        case .mentions: String(localized: "Mentions")
+        case .directMessages: String(localized: "DMs")
+        case .threads: String(localized: "Threads")
         }
     }
 }

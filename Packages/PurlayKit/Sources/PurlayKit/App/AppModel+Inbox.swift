@@ -18,18 +18,27 @@ extension AppModel {
         await reloadInbox()
     }
 
+    /// A category starts a new server-filtered page sequence, preserving the independent unread selection.
+    public func setInboxCategory(_ category: Inbox.Category) async {
+        inboxCategory = category
+        await reloadInbox()
+    }
+
     private func reloadInbox() async {
         guard let api, let workspace else { return }
         inboxGeneration += 1
         let generation = inboxGeneration
         inboxStatus = .loading
+        inboxLoadingMore = false
         inboxNotes = []
         inboxCursor = nil
         rebuildInbox()
         do {
-            let page = try await api.listNotifications(
+            let page = try await readInboxPage(
+                api: api,
                 query: NotificationQuery(
-                    limit: ContractConstants.pageLimit.default, unreadOnly: inboxFilter == .unread,
+                    limit: ContractConstants.pageLimit.default, types: inboxCategory.notificationTypes,
+                    unreadOnly: inboxFilter == .unread,
                     workspaceId: workspace.id))
             // An answer to a look the person has since changed, or left, is not used.
             guard generation == inboxGeneration else { return }
@@ -49,12 +58,14 @@ extension AppModel {
             return
         }
         inboxLoadingMore = true
-        defer { inboxLoadingMore = false }
         let generation = inboxGeneration
+        defer { if generation == inboxGeneration { inboxLoadingMore = false } }
         do {
-            let page = try await api.listNotifications(
+            let page = try await readInboxPage(
+                api: api,
                 query: NotificationQuery(
-                    before: cursor, limit: ContractConstants.pageLimit.default, unreadOnly: inboxFilter == .unread,
+                    before: cursor, limit: ContractConstants.pageLimit.default, types: inboxCategory.notificationTypes,
+                    unreadOnly: inboxFilter == .unread,
                     workspaceId: workspace.id))
             guard generation == inboxGeneration else { return }
             inboxNotes += page.data
@@ -66,8 +77,14 @@ extension AppModel {
         }
     }
 
+    private func readInboxPage(api: PurlayAPI, query: NotificationQuery) async throws -> NotificationPage {
+        var request = query
+        if inboxFiltersLocally { request.types = nil }
+        return try await api.listNotifications(query: request)
+    }
+
     private func rebuildInbox() {
-        inboxRows = Inbox.rows(inboxNotes, calendar: .current, now: Date())
+        inboxRows = Inbox.rows(inboxNotes, calendar: .current, now: Date()).filter { inboxCategory.includes($0.reason) }
     }
 
     /// Reads what a row gathers: painted at once, and put back with a word if the server refuses.
@@ -115,6 +132,7 @@ extension AppModel {
         inboxGeneration += 1
         inboxOpen = false
         inboxFilter = .all
+        inboxCategory = .all
         inboxStatus = .idle
         inboxNotes = []
         inboxCursor = nil

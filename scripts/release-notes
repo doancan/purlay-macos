@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Render one CHANGELOG release as GitHub Markdown and self-contained Sparkle HTML.
+
+Usage: scripts/release-notes VERSION OUTPUT_DIRECTORY
+Only paragraphs, level-three headings, bullets, and bold text are accepted. This
+keeps the published notes predictable and rejects accidental unsupported markup.
+"""
+import argparse
+import html
+from pathlib import Path
+import re
+
+
+def release_section(changelog: str, version: str) -> str:
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("expected a release version such as 0.1.1")
+    pattern = rf"^## \[{re.escape(version)}\](?:[^\n]*)\n(.*?)(?=^## |^\[\d|\Z)"
+    matches = re.findall(pattern, changelog, re.MULTILINE | re.DOTALL)
+    if len(matches) != 1 or not matches[0].strip():
+        raise ValueError(f"expected exactly one nonempty changelog entry for {version}")
+    return matches[0].strip()
+
+
+def inline(text: str) -> str:
+    escaped = html.escape(text)
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+
+
+def render(body: str, version: str) -> str:
+    blocks = []
+    in_list = False
+    for line in body.splitlines():
+        if not line.startswith("- ") and in_list:
+            blocks.append("</ul>")
+            in_list = False
+        if line.startswith("- "):
+            if not in_list:
+                blocks.append("<ul>")
+                in_list = True
+            blocks.append(f"<li>{inline(line[2:])}</li>")
+        elif line.startswith("### "):
+            blocks.append(f"<h2>{inline(line[4:])}</h2>")
+        elif line.strip():
+            if line.startswith(("#", " ", "```", "<")):
+                raise ValueError(f"unsupported changelog markup: {line}")
+            blocks.append(f"<p>{inline(line)}</p>")
+    if in_list:
+        blocks.append("</ul>")
+    content = "\n".join(blocks)
+    return f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Purlay {version}</title>
+<style>
+:root {{ color-scheme: light dark; font: 14px/1.6 -apple-system, BlinkMacSystemFont, sans-serif; }}
+body {{ margin: 24px; max-width: 64ch; }}
+h1 {{ font-size: 26px; line-height: 1.2; margin-bottom: 8px; }}
+h2 {{ font-size: 17px; margin: 24px 0 8px; }}
+p {{ margin: 8px 0 16px; }} ul {{ padding-left: 22px; }} li {{ margin: 10px 0; }}
+</style></head><body><h1>Purlay {version}</h1>
+{content}
+</body></html>
+'''
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("version")
+    parser.add_argument("output", type=Path)
+    args = parser.parse_args()
+    changelog = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
+    body = release_section(changelog.read_text(), args.version)
+    rendered = render(body, args.version)
+    args.output.mkdir(parents=True, exist_ok=True)
+    (args.output / "release-notes.md").write_text(f"# Purlay {args.version}\n\n{body}\n")
+    (args.output / f"Purlay-{args.version}-macOS-arm64.html").write_text(rendered)
+
+
+if __name__ == "__main__":
+    main()

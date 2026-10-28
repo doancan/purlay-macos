@@ -36,7 +36,7 @@ public struct HandshakeClient: Sendable {
             transport: transport, sleep: sleep)
         let info: ClientInfo
         do {
-            info = try await PurlayAPI(client: client).getClientInfo()
+            info = try await client.send(Endpoints.getClientInfo, as: HandshakeResponse.self).info
         } catch let error as APIError {
             // A Purlay server answers this route `200` or counts it: any other status is not one.
             if error.status == 429 { throw .rateLimited(retryAfter: error.retryAfter) }
@@ -49,5 +49,23 @@ public struct HandshakeClient: Sendable {
             throw .unreachable(.cancelled)
         }
         return Handshake.evaluate(info, appVersion: appVersion, allowsLocalHTTP: allowsLocalHTTP)
+    }
+}
+
+/// Early servers predating OIDC omitted `auth.oidc`; newer contract-1 servers send null or provider metadata.
+/// Keep that one known additive difference compatible without loosening decoding of other required fields.
+private struct HandshakeResponse: Decodable, Sendable {
+    let info: ClientInfo
+
+    init(from decoder: any Decoder) throws {
+        var value = try JSONValue(from: decoder)
+        if case .object(var root) = value, case .integer(let contract) = root["contractVersion"], contract <= 1,
+            case .object(var auth) = root["auth"], auth["oidc"] == nil
+        {
+            auth["oidc"] = .null
+            root["auth"] = .object(auth)
+            value = .object(root)
+        }
+        info = try JSONDecoder().decode(ClientInfo.self, from: JSONEncoder().encode(value))
     }
 }

@@ -71,7 +71,12 @@ struct OnboardingCard<Content: View>: View {
         }
         .padding(Spacing.space8)
         .frame(width: Size.sizeDialog - Spacing.space16)
-        .modifier(ControlSurface(radius: Radius.radius2xl * 2))
+        .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radius2xl * 2))
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.radius2xl * 2)
+                .strokeBorder(NativePalette.border.style, lineWidth: Stroke.strokeHairline)
+                .allowsHitTesting(false)
+        }
     }
 }
 

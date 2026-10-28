@@ -37,7 +37,7 @@ struct MainView: View {
                         max: Size.sizeThread + Spacing.space10)
                 }
         }
-        .toolbar(removing: .title)
+        // System chrome owns the material, vibrancy, active state and accessibility adaptations.
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Menu {
@@ -49,16 +49,7 @@ struct MainView: View {
                 }
                 .help("New conversation or channel")
             }
-            ToolbarItem(placement: .navigation) {
-                WindowHeading(
-                    title: model.inboxOpen
-                        ? String(localized: "Inbox")
-                        : model.selectedChannel.flatMap { model.chat.channels[$0] }.map(Words.channelLabel) ?? "Purlay",
-                    subtitle: model.inboxOpen
-                        ? String(localized: "Mentions, replies and conversations")
-                        : model.selectedChannel.flatMap { model.chat.channels[$0]?.topic } ?? "")
-            }
-            .sharedBackgroundVisibility(.hidden)
+
         }
         .modifier(MainSheets(model: model, sheet: $sheet, leaving: $leaving))
         .focusedSceneValue(
@@ -381,7 +372,8 @@ struct ChannelView: View {
             .defaultScrollAnchor(.bottom)
             .defaultScrollAnchor(.top, for: .alignment)
             .scrollIndicators(.automatic)
-            .scrollEdgeEffectStyle(.soft, for: .all)
+            .scrollEdgeEffectStyle(.hard, for: .top)
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
             .focusable()
             .focused($feedFocused)
             .focusEffectDisabled()

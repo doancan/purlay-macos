@@ -23,6 +23,10 @@ public enum ContractConstants {
 
     public static let backoff = Backoff(baseMs: 1000, capMs: 30000)
 
+    public static let changesCursorPattern = "^[0-9]{13}\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[0-9]{13}$"
+
+    public static let changesOverlapMs = 65000
+
     public static let checkSessionAfterFailures = 3
 
     public static let contractBundleFormat = 1
@@ -55,7 +59,7 @@ public enum ContractConstants {
 
     public static let nativeCodePattern = "^[0-9a-f]{64}$"
 
-    public static let nativeDeviceNamePattern = "^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]{1,64}$"
+    public static let nativeDeviceNamePattern = "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028-\\u202e\\u2066-\\u2069\\ufeff]{1,64}$"
 
     public static let nativeRedirect = "purlay://auth"
 
@@ -179,6 +183,7 @@ public enum ErrorStatus {
         "ROUTE_NOT_FOUND": 404,
         "SAVED_LIMIT": 409,
         "SERVER_CHANGE_REFUSED": 409,
+        "SESSION_NOT_FOUND": 404,
         "SETTINGS_CHANGE_FAILED": 500,
         "SETUP_LOCKED": 429,
         "SETUP_STEP_REFUSED": 409,

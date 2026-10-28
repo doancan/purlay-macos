@@ -58,8 +58,7 @@ struct MessageRow: View {
                     delete: { confirmingDelete = true }
                 )
                 .padding(.trailing, Spacing.space3)
-                // Lifted over the gap above a new run; on a continuation it stays inside the row, off the line above.
-                .offset(y: continuation ? 0 : -Spacing.space3)
+                .padding(.top, Spacing.space2)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
             }
         }
@@ -285,77 +284,86 @@ private struct ActionBar: View {
     let delete: () -> Void
 
     var body: some View {
-        HStack(spacing: Stroke.strokeFocus) {
-            Button {
-                picking.toggle()
-            } label: {
-                Image(systemName: "face.smiling").frame(
-                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
-                ).contentShape(.rect)
-            }
-            .help("Add reaction")
-            .accessibilityLabel("Add reaction")
-            .popover(isPresented: $picking, arrowEdge: .bottom) {
-                ReactionEmojiPicker(
-                    selected: Set(
-                        message.reactions.filter { reaction in
-                            reaction.userIds.contains { $0 == model.me?.user.id }
-                        }.map(\.emoji))
-                ) { emoji in
-                    picking = false
-                    Task { await model.toggleReaction(emoji, on: message) }
+        GlassEffectContainer(spacing: Spacing.space2) {
+            HStack(spacing: Spacing.space3) {
+                HStack(spacing: 2) {
+                    Button {
+                        picking.toggle()
+                    } label: {
+                        Image(systemName: "face.smiling").frame(
+                            width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1
+                        ).contentShape(.rect)
+                    }
+                    .help("Add reaction")
+                    .accessibilityLabel("Add reaction")
+                    .popover(isPresented: $picking, arrowEdge: .bottom) {
+                        ReactionEmojiPicker(
+                            selected: Set(
+                                message.reactions.filter { reaction in
+                                    reaction.userIds.contains { $0 == model.me?.user.id }
+                                }.map(\.emoji))
+                        ) { emoji in
+                            picking = false
+                            Task { await model.toggleReaction(emoji, on: message) }
+                        }
+                    }
+                    if canReply {
+                        Button {
+                            Task { await model.openThread(message) }
+                        } label: {
+                            Image(systemName: "bubble.left").frame(
+                                width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1
+                            ).contentShape(.rect)
+                        }
+                        .help("Reply in thread")
+                        .accessibilityLabel("Reply in thread")
+                    }
                 }
-            }
-            if canReply {
-                Button {
-                    Task { await model.openThread(message) }
-                } label: {
-                    Image(systemName: "bubble.left").frame(
-                        width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
-                    ).contentShape(.rect)
+                .padding(Spacing.space1)
+                .modifier(ControlSurface(radius: Radius.radiusXl, interactive: true))
+                HStack(spacing: 2) {
+                    Button {
+                        Task { await model.setSaved(!model.isSaved(message), message) }
+                    } label: {
+                        Image(systemName: model.isSaved(message) ? "bookmark.fill" : "bookmark").frame(
+                            width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1
+                        ).contentShape(.rect)
+                    }
+                    .help(model.isSaved(message) ? "Remove from Saved" : "Save")
+                    .accessibilityLabel(model.isSaved(message) ? "Remove from Saved" : "Save")
+                    Button {
+                        Task { await model.setPinned(!model.isPinned(message), message) }
+                    } label: {
+                        Image(systemName: model.isPinned(message) ? "pin.fill" : "pin").frame(
+                            width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1
+                        ).contentShape(.rect)
+                    }
+                    .help(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel")
+                    .accessibilityLabel(model.isPinned(message) ? "Unpin" : "Pin")
+                    if mine {
+                        Button(action: edit) {
+                            Image(systemName: "pencil").frame(
+                                width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1
+                            ).contentShape(.rect)
+                        }
+                        .help("Edit")
+                        .accessibilityLabel("Edit")
+                        Button(action: delete) {
+                            Image(systemName: "trash").frame(
+                                width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Spacing.space1
+                            ).contentShape(.rect)
+                        }
+                        .help("Delete")
+                        .accessibilityLabel("Delete")
+                    }
                 }
-                .help("Reply in thread")
-                .accessibilityLabel("Reply in thread")
-            }
-            Button {
-                Task { await model.setSaved(!model.isSaved(message), message) }
-            } label: {
-                Image(systemName: model.isSaved(message) ? "bookmark.fill" : "bookmark").frame(
-                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
-                ).contentShape(.rect)
-            }
-            .help(model.isSaved(message) ? "Remove from Saved" : "Save")
-            .accessibilityLabel(model.isSaved(message) ? "Remove from Saved" : "Save")
-            Button {
-                Task { await model.setPinned(!model.isPinned(message), message) }
-            } label: {
-                Image(systemName: model.isPinned(message) ? "pin.fill" : "pin").frame(
-                    width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
-                ).contentShape(.rect)
-            }
-            .help(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel")
-            .accessibilityLabel(model.isPinned(message) ? "Unpin" : "Pin")
-            if mine {
-                Button(action: edit) {
-                    Image(systemName: "pencil").frame(
-                        width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
-                    ).contentShape(.rect)
-                }
-                .help("Edit")
-                .accessibilityLabel("Edit")
-                Button(action: delete) {
-                    Image(systemName: "trash").frame(
-                        width: Size.sizeIconLg + Spacing.space1, height: Size.sizeIconLg + Stroke.strokeFocus
-                    ).contentShape(.rect)
-                }
-                .help("Delete")
-                .accessibilityLabel("Delete")
+                .padding(Spacing.space1)
+                .modifier(ControlSurface(radius: Radius.radiusXl, interactive: true))
             }
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
-        .padding(Spacing.space1)
-        .modifier(ControlSurface(radius: Radius.radiusXl))
+
     }
 }
 

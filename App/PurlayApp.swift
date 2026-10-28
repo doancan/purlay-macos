@@ -7,6 +7,7 @@ import SwiftUI
 @main
 struct PurlayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @StateObject private var updates = UpdateController()
     @State private var model: AppModel
     private let attention = SystemAttention()
 
@@ -30,8 +31,19 @@ struct PurlayApp: App {
         }
         .defaultSize(width: 1_180, height: 780)
         .windowToolbarStyle(.unified)
-        .commands { PurlayCommands(model: model) }
-        Settings { SettingsView(model: model) }
+        .commands {
+            PurlayCommands(model: model)
+            CommandGroup(after: .appInfo) {
+                UpdateMenuItem(updates: updates)
+            }
+        }
+        Settings {
+            TabView {
+                Tab("Preferences", systemImage: "gearshape") { SettingsView(model: model) }
+                Tab("Updates", systemImage: "arrow.triangle.2.circlepath") { UpdateSettings(updates: updates) }
+            }
+            .frame(width: 760, height: 620)
+        }
     }
 }
 

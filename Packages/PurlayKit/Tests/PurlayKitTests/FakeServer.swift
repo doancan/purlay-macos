@@ -32,6 +32,8 @@ final class FakeServer: HTTPTransport {
         /// What the person was told, newest first, as the server keeps it; reading one sets its time.
         var notifications: [PurlayContract.Notification] = []
         var notificationsStatus = 200
+        var notificationTypeFiltering = true
+        var notificationQueryValidationField: String?
         var notificationPageSize: Int?
         /// How long the server takes over a list, by the `unreadOnly` it was asked with ("true" or "false").
         var notificationDelays: [String: Int] = [:]
@@ -102,14 +104,18 @@ final class FakeServer: HTTPTransport {
 
     func edit(_ change: (inout State) -> Void) { state.withLock { change(&$0) } }
 
-    static func clientInfo(minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390")
+    static func clientInfo(
+        minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390",
+        notificationTypeFilters: Bool? = true
+    )
         -> String
     {
-        """
-        {"server":{"version":"0.1.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
-        "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
-        "auth":{"email":true,"github":true,"signUp":"invite-only"}}
-        """
+        let capability = notificationTypeFilters.map { ",\"capabilities\":{\"notificationTypeFilters\":\($0)}" } ?? ""
+        return """
+            {"server":{"version":"0.1.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
+            "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
+            "auth":{"email":true,"github":true,"signUp":"invite-only"}\(capability)}
+            """
     }
 
     /// A channel of the fake server: what the list says of it.
@@ -282,17 +288,36 @@ final class FakeServer: HTTPTransport {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let unreadOnly = items.first { $0.name == "unreadOnly" }?.value ?? "false"
-            if let wait = snapshot.notificationDelays[unreadOnly] { try? await Task.sleep(for: .milliseconds(wait)) }
+            let typeKey = "types:" + (items.first { $0.name == "types" }?.value ?? "all")
+            if let wait = snapshot.notificationDelays[typeKey] ?? snapshot.notificationDelays[unreadOnly] {
+                try? await Task.sleep(for: .milliseconds(wait))
+            }
             if snapshot.notificationsStatus != 200 {
                 return json(snapshot.notificationsStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
             }
+            let types = items.first { $0.name == "types" }?.value
+            if types != nil && !snapshot.notificationTypeFiltering {
+                return json(
+                    400,
+                    #"{"error":{"code":"VALIDATION_FAILED","message":"x","details":{"fields":{"types":"unknown query field"}}}}"#
+                )
+            }
+            if let field = snapshot.notificationQueryValidationField {
+                let details = Self.encoded(["fields": [field: "invalid"]])
+                return json(
+                    400, "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"x\",\"details\":\(details)}}")
+            }
             var list = snapshot.notifications
-            if unreadOnly == "true" { list = list.filter { $0.readAt == nil } }
             if let before = items.first(where: { $0.name == "before" })?.value {
                 guard let at = list.firstIndex(where: { $0.id.value == before }) else {
                     return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
                 }
                 list = Array(list[(at + 1)...])
+            }
+            if unreadOnly == "true" { list = list.filter { $0.readAt == nil } }
+            if let types {
+                let selected = Set(types.split(separator: ",").map(String.init))
+                list = list.filter { selected.contains($0.type.rawValue) }
             }
             let size =
                 snapshot.notificationPageSize ?? items.first { $0.name == "limit" }?.value.flatMap(Int.init) ?? 50

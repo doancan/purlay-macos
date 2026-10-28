@@ -164,6 +164,7 @@ struct ComposerView: View {
                     .frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
             }
             .buttonStyle(.glassProminent)
+            .tint(NativePalette.brand.color)
             .buttonBorderShape(.circle)
             .disabled(!canSend || over || state.isRewriting)
             .accessibilityLabel("Send")

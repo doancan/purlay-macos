@@ -24,6 +24,7 @@ jobs:
           version=$(sed -n 's/^MARKETING_VERSION = //p' Config/Base.xcconfig)
           [[ "$GITHUB_REF_NAME" == "v$version" ]]
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          scripts/release-notes "$version" dist
       - name: Install XcodeGen
         run: brew install xcodegen
       - uses: oven-sh/setup-bun@v2.2.0
@@ -34,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone https://github.com/doancan/purlay.git "$RUNNER_TEMP/server"
-          git -C "$RUNNER_TEMP/server" checkout f9d8716bca3d936575c8349894a449d07df8a0f9
+          git -C "$RUNNER_TEMP/server" checkout 75de80783b4a7ab8db35d94d6d3e44f5f7d9c31b
           (cd "$RUNNER_TEMP/server" && bun install --frozen-lockfile && bun run contract:bundle --out "$GITHUB_WORKSPACE/Contract/bundle")
           scripts/contract verify
       - name: Check architecture and test packages
@@ -78,10 +79,10 @@ jobs:
           xcodegen generate
           xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Release \
             -destination 'generic/platform=macOS' -derivedDataPath build \
-            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             OTHER_CODE_SIGN_FLAGS='--timestamp' build
-          codesign --verify --deep --strict --verbose=2 build/Build/Products/Release/Purlay.app
+          scripts/sign-release build/Build/Products/Release/Purlay.app "$SIGNING_IDENTITY"
           [[ "$(lipo -archs build/Build/Products/Release/Purlay.app/Contents/MacOS/Purlay)" == arm64 ]]
       - name: Notarize and staple
         env:
@@ -106,12 +107,44 @@ jobs:
           ditto -c -k --keepParent "$app" "dist/Purlay-$VERSION-macOS-arm64.zip"
           cd dist
           shasum -a 256 *.zip > SHA256SUMS
+      - name: Generate signed Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SPARKLE_PRIVATE_KEY" ]]
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | \
+            build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast \
+              --ed-key-file - --maximum-deltas 0 \
+              --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
+              --release-notes-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
+              --link "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
+              dist
+          python3 - <<'PYCAST'
+          import os, subprocess, xml.etree.ElementTree as ET
+          root = ET.parse('dist/appcast.xml').getroot()
+          enclosure = root.find('./channel/item/enclosure')
+          assert enclosure is not None
+          signature = enclosure.get('{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature')
+          assert signature
+          signer = 'build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update'
+          archive = f'dist/Purlay-{os.environ["VERSION"]}-macOS-arm64.zip'
+          notes = root.find('./channel/item/{http://www.andymatuschak.org/xml-namespaces/sparkle}releaseNotesLink')
+          assert notes is not None
+          notes_signature = notes.get('{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature')
+          assert notes_signature
+          assert notes.text == f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/releases/download/{os.environ["GITHUB_REF_NAME"]}/Purlay-{os.environ["VERSION"]}-macOS-arm64.html'
+          notes_file = f'dist/Purlay-{os.environ["VERSION"]}-macOS-arm64.html'
+          for arguments in [('dist/appcast.xml',), (archive, signature), (notes_file, notes_signature)]:
+              subprocess.run([signer, '--ed-key-file', '-', '--verify', *arguments],
+                             input=os.environ['SPARKLE_PRIVATE_KEY'].encode(), check=True)
+          PYCAST
       - name: Publish GitHub release
         shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --verify-tag --title "Purlay $VERSION" \
-            --notes $'Native Purlay client for macOS 26 and later.\n\nApple Silicon (arm64) build, signed with Developer ID and notarized by Apple.\n\nDownload and extract the ZIP, then move Purlay.app to Applications. Connect to your Purlay server on first launch.\n\nIncludes threads, inbox, saved messages, drafts, channel members, and file browsing. SHA256SUMS contains the download checksum.'
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS dist/appcast.xml dist/*.html \
+            --verify-tag --title "Purlay $VERSION" --notes-file dist/release-notes.md
       - name: Remove signing material
         if: always()
         shell: bash

@@ -22,3 +22,8 @@ network: then you must offer them the corresponding source of your modifications
 Outside contributions require a contributor licence agreement, so that copyright
 stays consolidated and a commercial licence can be offered to organisations whose
 policies do not permit the AGPL. See docs/DECISIONS.md D-24.
+
+---
+
+This application includes Sparkle, distributed under its permissive license.
+See licenses/Sparkle.txt. Sparkle's framework bundle also carries its license notices.

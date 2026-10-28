@@ -113,16 +113,18 @@ struct NewChannelSheet: View {
                     .padding(.horizontal, Spacing.space5).padding(.bottom, Spacing.space3)
             }
             Divider()
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
-                Button(action: create) {
-                    HStack {
-                        if busy { ProgressView().controlSize(.small) }
-                        Text(busy ? "Creating…" : "Create Channel")
+            GlassEffectContainer(spacing: Spacing.space2) {
+                HStack {
+                    Spacer()
+                    Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                    Button(action: create) {
+                        HStack {
+                            if busy { ProgressView().controlSize(.small) }
+                            Text(busy ? "Creating…" : "Create Channel")
+                        }
                     }
+                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).disabled(made == nil || busy)
                 }
-                .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).disabled(made == nil || busy)
             }
             .controlSize(.large).padding(Spacing.space4)
         }
@@ -238,18 +240,20 @@ struct NewConversationSheet: View {
             TextField("Search people", text: $query).textFieldStyle(.roundedBorder).controlSize(.large)
             if !chosen.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.space2) {
-                        ForEach(chosen, id: \.id) { person in
-                            Button {
-                                toggle(person)
-                            } label: {
-                                HStack(spacing: Spacing.space1) {
-                                    Text(person.displayName).lineLimit(1)
-                                    Image(systemName: "xmark").font(.caption2)
+                    GlassEffectContainer(spacing: Spacing.space1) {
+                        HStack(spacing: Spacing.space2) {
+                            ForEach(chosen, id: \.id) { person in
+                                Button {
+                                    toggle(person)
+                                } label: {
+                                    HStack(spacing: Spacing.space1) {
+                                        Text(person.displayName).lineLimit(1)
+                                        Image(systemName: "xmark").font(.caption2)
+                                    }
                                 }
+                                .buttonStyle(.glass).controlSize(.small)
+                                .accessibilityLabel("Remove \(person.displayName)")
                             }
-                            .buttonStyle(.glass).controlSize(.small)
-                            .accessibilityLabel("Remove \(person.displayName)")
                         }
                     }
                     .padding(.vertical, Spacing.space1)

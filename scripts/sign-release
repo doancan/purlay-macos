@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Sparkle's nested helpers must be signed explicitly before the containing framework and app.
+# Usage: scripts/sign-release APP SIGNING_IDENTITY
+set -euo pipefail
+app="${1:?app path required}"
+identity="${2:?signing identity required}"
+framework="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
+[ -d "$framework" ] || { echo 'FAIL: Sparkle framework is missing' >&2; exit 1; }
+
+# The application and Sparkle helpers ship only Apple Silicon slices.
+while IFS= read -r -d '' binary; do
+  if architectures=$(lipo -archs "$binary" 2>/dev/null); then
+    if [ "$architectures" != arm64 ]; then
+      lipo "$binary" -thin arm64 -output "$binary.arm64"
+      mv "$binary.arm64" "$binary"
+    fi
+    [[ "$(lipo -archs "$binary")" == arm64 ]]
+  fi
+done < <(find "$app" -type f -perm -111 -print0)
+
+stamp=--timestamp
+[ "$identity" != - ] || stamp=--timestamp=none
+for component in \
+  "$framework/XPCServices/Installer.xpc" \
+  "$framework/XPCServices/Downloader.xpc" \
+  "$framework/Autoupdate" \
+  "$framework/Updater.app" \
+  "$app/Contents/Frameworks/Sparkle.framework" \
+  "$app"; do
+  codesign --force --sign "$identity" --options runtime "$stamp" \
+    --preserve-metadata=entitlements "$component"
+done
+codesign --verify --deep --strict --verbose=2 "$app"

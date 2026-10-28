@@ -26,6 +26,9 @@ enum NativePalette {
     static let codeSurface = token("code-surface", light: 0xf5f5f7, dark: 0x252527)
     static let codeChip = token("code-chip", light: 0xebebee, dark: 0x343437)
 
+    /// Brand colour for primary actions, separate from neutral window chrome.
+    static let brand = token("brand", light: 0x015bf7, dark: 0x5b96ff)
+
     private static func token(_ name: String, light: UInt32, dark: UInt32) -> TokenColor {
         TokenColor(name: "mac-\(name)", light: RGBA(hex: light), dark: RGBA(hex: dark), midnight: RGBA(hex: dark))
     }

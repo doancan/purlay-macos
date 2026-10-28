@@ -1,26 +1,89 @@
-# Purlay for macOS
+<div align="center">
+  <img src="Design/purlay-logo.png" width="88" alt="Purlay logo">
+  <h1>Purlay for macOS</h1>
+  <p>Your team’s conversations, at home on the Mac.</p>
+  <p>A native SwiftUI client for <a href="https://github.com/doancan/purlay">Purlay</a>, with Liquid Glass, keyboard navigation, and room to focus.</p>
+  <p>
+    <a href="https://github.com/doancan/purlay-macos/releases/latest"><img src="https://img.shields.io/github/v/release/doancan/purlay-macos?style=flat-square&color=015bf7" alt="Latest release"></a>
+    <img src="https://img.shields.io/badge/macOS-26%2B-24292f?style=flat-square" alt="macOS 26 or later">
+    <img src="https://img.shields.io/badge/Apple_Silicon-arm64-24292f?style=flat-square" alt="Apple Silicon arm64">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-24292f?style=flat-square" alt="AGPL-3.0 license"></a>
+  </p>
+  <p>
+    <a href="https://github.com/doancan/purlay-macos/releases/latest"><strong>Download for Mac</strong></a>
+    &nbsp; · &nbsp; <a href="CHANGELOG.md">What’s new</a>
+    &nbsp; · &nbsp; <a href="https://github.com/doancan/purlay-macos/issues">Report an issue</a>
+  </p>
+</div>
 
-The native macOS client for [Purlay](https://github.com/doancan/purlay): Swift, SwiftUI with AppKit where it
-earns its place, drawn in Liquid Glass. Decided in `DECISIONS.md` D-186 of the server repository, which also owns
-the contract this client is generated from.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/workspace-dark.png">
+  <img src="docs/images/workspace-light.png" alt="Purlay workspace with channels, team conversations, emoji reactions, and the message composer" width="100%">
+</picture>
+<p align="center"><sub>Purlay 0.1.1 · Native macOS interface · Example workspace</sub></p>
 
-Built with Swift 6 and SwiftUI for macOS 26 and later on Apple Silicon (arm64). Native split navigation, Liquid Glass controls, a translucent sidebar,
-threads, an inbox, saved messages, drafts, channel members and file browsing share the same client model.
+## Conversations, without losing your place
 
-Build with Xcode 26 or newer:
+| Stay connected | Stay focused |
+| :--- | :--- |
+| **Channels & direct messages** — keep team discussions and smaller conversations together. | **A focused Inbox** — filter mentions, direct messages, and threads; catch up on unread activity. |
+| **Threads & reactions** — reply in context and pick from 221 standard emoji, with search and recents. | **Deep Work** — quiet interruptions for a focus session, then return to what needs you. |
+| **Files & rich messages** — browse attachments, preview content, and read formatted messages and code. | **Saved messages & drafts** — keep useful context nearby and return to unfinished thoughts. |
+
+## Made for the Mac
+
+- **Native window controls.** A system toolbar and sidebar, Liquid Glass controls, and a thread inspector beside the conversation.
+- **Keyboard-first navigation.** Jump between channels, search messages, and act through the File, Message, Channel, and Go menus.
+- **Your preferred appearance.** Light and dark themes, comfortable or compact messages, and support for Reduce Transparency, Increase Contrast, and Reduce Motion.
+- **Built-in updates.** Sparkle checks for new versions and verifies signed update feeds, release notes, and app downloads.
+- **Workspace-aware settings.** Profile and account details, a native member list, and administration links that follow your workspace role.
+
+## Get started
+
+1. [Download the latest release](https://github.com/doancan/purlay-macos/releases/latest).
+2. Extract the ZIP and move **Purlay.app** to **Applications**.
+3. Open Purlay, enter your server address, and sign in.
+
+**Requirements:** an Apple Silicon Mac, macOS 26 or later, and access to a compatible [Purlay server](https://github.com/doancan/purlay). The desktop app connects to your server; it does not host one.
+
+**Coming from 0.1.0?** Install 0.1.1 manually once. Version 0.1.0 has no built-in updater. From 0.1.1 onward, use **Purlay → Check for Updates…** or enable automatic checks in **Settings → Updates**. Intel builds are no longer provided.
+
+Release builds are signed with Developer ID and notarized by Apple. Each release includes a SHA-256 checksum.
+
+## A few useful shortcuts
+
+| Action | Shortcut |
+| :--- | :--- |
+| Jump to a channel or person | `⌘ K` |
+| Search messages | `⇧ ⌘ F` |
+| New conversation | `⌘ N` |
+| Open Inbox | `⇧ ⌘ I` |
+| Toggle Deep Work | `⇧ ⌘ D` |
+| Show all shortcuts | `⌘ /` |
+
+## Workspace administration
+
+Owners and administrators can open workspace settings, members, invitations, integrations, and the audit log. Data and history management is available to owners. Server administration is outside the desktop app’s scope.
+
+The member list is native. **Invitations, role changes, and other management changes open in your browser**, where you may need to sign in separately. To add someone, create an invitation link, share it, and have them accept it after signing in.
+
+## Build & contribute
+
+Use Xcode 27 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen). The app is written in Swift 6, with SwiftUI and AppKit.
 
 ```sh
 xcodegen generate
-xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Debug -destination 'platform=macOS,arch=arm64' build
+xcodebuild -project Purlay.xcodeproj -scheme Purlay \
+  -configuration Debug -destination 'platform=macOS,arch=arm64' build
 ```
 
-Connect to a compatible Purlay server on first launch. The app is a client and does not start a server itself.
-For local development, `PURLAY_DEV_SERVER` and `PURLAY_DEV_SESSION` can seed a session in Debug builds only.
+See the [development guide](docs/DEVELOPMENT.md) for the pinned API contract, local setup, signing, and release process, and the [testing guide](docs/TESTING.md) for validation. Contributions follow the [contributor agreement](CLA.md).
 
-Run `swift test` inside a package to check that layer, or `scripts/verify` for the full repository checks.
+---
 
-Releases are built by `.github/workflows/release.yml` when a `v` tag matching `MARKETING_VERSION` is pushed.
-The workflow tests the packages, builds for Apple Silicon (arm64), signs with Developer ID, notarizes with Apple,
-and publishes a stapled app ZIP and SHA-256 checksum. Signing uses the repository secrets `MACOS_CERTIFICATE_P12`
-(base64-encoded PKCS#12), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
-The contract bundle is rebuilt from the server commit pinned in the workflow and checked against `Contract/contract.lock`.
+<div align="center">
+  <a href="https://github.com/doancan/purlay">Purlay server & web</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="LICENSE">AGPL-3.0</a> ·
+  <a href="NOTICE">Third-party notices</a>
+</div>

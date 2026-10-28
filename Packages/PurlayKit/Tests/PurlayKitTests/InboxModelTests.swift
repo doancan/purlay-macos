@@ -27,9 +27,13 @@ struct InboxModelTests {
             """)
     }
 
-    private func opened(_ notes: [PurlayContract.Notification], pageSize: Int? = nil) async -> ModelHarness {
+    private func opened(
+        _ notes: [PurlayContract.Notification], pageSize: Int? = nil,
+        notificationTypeFilters: Bool? = true
+    ) async -> ModelHarness {
         let h = ModelHarness()
         h.server.edit {
+            $0.clientInfo = FakeServer.clientInfo(notificationTypeFilters: notificationTypeFilters)
             $0.notifications = notes
             $0.notificationPageSize = pageSize
             $0.messages[channel(1)] = notes.map(\.message).filter { $0.parentId == nil }
@@ -71,6 +75,190 @@ struct InboxModelTests {
         #expect(query(try #require(lists(h).last), "unreadOnly") == "true")
         await h.model.setInboxFilter(.all)
         #expect(h.model.inboxRows.count == 3)
+    }
+
+    @Test("type categories ask the server, combine with unread, and omit types for All")
+    func categories() async {
+        let h = await opened([
+            note(5, type: "mention", read: true), note(4, type: "direct_message"),
+            note(3, type: "thread_reply", root: 100), note(2, type: "thread_resolved", root: 100),
+            note(1, type: "channel_message"),
+        ])
+        await h.model.openInbox()
+        let requests = lists(h).count
+        await h.model.setInboxCategory(.mentions)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(5)])
+        await h.model.setInboxCategory(.directMessages)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(4)])
+        await h.model.setInboxCategory(.threads)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(3), idAt(2)])
+        #expect(lists(h).count == requests + 3)
+        #expect(query(lists(h)[requests], "types") == "mention")
+        #expect(query(lists(h)[requests + 1], "types") == "direct_message")
+        #expect(query(lists(h)[requests + 2], "types") == "thread_reply,thread_resolved")
+        await h.model.setInboxCategory(.mentions)
+        await h.model.setInboxFilter(.unread)
+        #expect(h.model.inboxCategory == .mentions)
+        #expect(h.model.inboxRows.isEmpty)
+        await h.model.setInboxCategory(.all)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(4), idAt(3), idAt(2), idAt(1)])
+        #expect(query(lists(h).last!, "types") == nil)
+    }
+
+    @Test("matching history beyond the unfiltered first page appears immediately and paginates within its category")
+    func categoryPaging() async {
+        let h = await opened(
+            [
+                note(5, type: "channel_message"), note(4, type: "mention"),
+                note(3, type: "direct_message"), note(2, type: "direct_message"), note(1, type: "direct_message"),
+            ], pageSize: 2)
+        await h.model.openInbox()
+        await h.model.setInboxCategory(.directMessages)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(3), idAt(2)])
+        #expect(h.model.inboxHasMore)
+        #expect(query(lists(h).last!, "before") == nil)
+        await h.model.loadMoreInbox()
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(3), idAt(2), idAt(1)])
+        #expect(query(lists(h).last!, "types") == "direct_message")
+        #expect(!h.model.inboxHasMore)
+        await h.model.setInboxCategory(.all)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(5), idAt(4)])
+        #expect(h.model.inboxHasMore)
+    }
+
+    @Test(
+        "absent or false capabilities use local filtering without sending unsupported query fields",
+        arguments: [Optional<Bool>.none, Optional(false)])
+    func legacyTypes(_ support: Bool?) async {
+        let h = await opened(
+            [note(3), note(2, type: "direct_message"), note(1)], pageSize: 1,
+            notificationTypeFilters: support)
+        h.server.edit { $0.notificationTypeFiltering = false }
+        await h.model.setInboxCategory(.directMessages)
+        #expect(h.model.inboxStatus == .loaded)
+        #expect(h.model.inboxFiltersLocally)
+        #expect(h.model.inboxRows.isEmpty)
+        #expect(h.model.inboxHasMore)
+        #expect(lists(h).count == 1)
+        #expect(query(lists(h)[0], "types") == nil)
+        await h.model.loadMoreInbox()
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(2)])
+        #expect(query(lists(h).last!, "types") == nil)
+        await h.model.setInboxCategory(.mentions)
+        #expect(query(lists(h).last!, "types") == nil)
+    }
+
+    @Test("changing server refreshes capability discovery instead of carrying the previous server's support")
+    func capabilityRefresh() async {
+        let h = await opened([note(1)])
+        #expect(!h.model.inboxFiltersLocally)
+        await h.model.chooseAnotherServer()
+        h.server.edit { $0.clientInfo = FakeServer.clientInfo(notificationTypeFilters: nil) }
+        await h.signedIn()
+        await h.model.setInboxCategory(.mentions)
+        #expect(h.model.inboxFiltersLocally)
+        #expect(query(lists(h).last!, "types") == nil)
+        await h.model.chooseAnotherServer()
+        h.server.edit { $0.clientInfo = FakeServer.clientInfo(notificationTypeFilters: true) }
+        await h.signedIn()
+        await h.model.setInboxCategory(.mentions)
+        #expect(!h.model.inboxFiltersLocally)
+        #expect(query(lists(h).last!, "types") == "mention")
+    }
+
+    @Test("an advertised feature's validation refusal remains a failure rather than silently changing filter behavior")
+    func advertisedFeatureRefused() async {
+        let h = await opened([note(1)])
+        h.server.edit { $0.notificationTypeFiltering = false }
+        await h.model.setInboxCategory(.mentions)
+        #expect(h.model.inboxStatus == .failed)
+        #expect(!h.model.inboxFiltersLocally)
+        #expect(lists(h).count == 1)
+    }
+
+    @Test("network and unrelated validation errors do not disable server-side type filtering")
+    func noFalseFallback() async {
+        let h = await opened([note(1)])
+        h.server.edit { $0.notificationsStatus = 500 }
+        await h.model.setInboxCategory(.mentions)
+        #expect(h.model.inboxStatus == .failed)
+        #expect(!h.model.inboxFiltersLocally)
+        h.server.edit {
+            $0.notificationsStatus = 200
+            $0.notificationQueryValidationField = "workspaceId"
+        }
+        await h.model.setInboxCategory(.mentions)
+        #expect(h.model.inboxStatus == .failed)
+        #expect(!h.model.inboxFiltersLocally)
+    }
+
+    @Test("a slow previous category cannot replace the selected category")
+    func staleCategory() async {
+        let h = await opened([note(3), note(2, type: "direct_message"), note(1)])
+        h.server.edit { $0.notificationDelays["types:mention"] = 150 }
+        let slow = Task { await h.model.setInboxCategory(.mentions) }
+        try? await Task.sleep(for: .milliseconds(30))
+        await h.model.setInboxCategory(.directMessages)
+        await slow.value
+        #expect(h.model.inboxCategory == .directMessages)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(2)])
+    }
+
+    @Test("a previous page cannot append to or block a new category's page sequence")
+    func staleCategoryPage() async {
+        let h = await opened(
+            [
+                note(4), note(3), note(2, type: "direct_message"), note(1, type: "direct_message"),
+            ], pageSize: 1)
+        await h.model.openInbox()
+        h.server.edit { $0.notificationDelays["types:all"] = 150 }
+        let slow = Task { await h.model.loadMoreInbox() }
+        try? await Task.sleep(for: .milliseconds(30))
+        await h.model.setInboxCategory(.directMessages)
+        #expect(!h.model.inboxLoadingMore)
+        await h.model.loadMoreInbox()
+        await slow.value
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(2), idAt(1)])
+        #expect(!h.model.inboxHasMore)
+    }
+
+    @Test("a stale validation refusal cannot change advertised capabilities")
+    func staleTypesRefusal() async {
+        let h = await opened([note(1)])
+        h.server.edit {
+            $0.notificationTypeFiltering = false
+            $0.notificationDelays["types:mention"] = 150
+        }
+        let slow = Task { await h.model.setInboxCategory(.mentions) }
+        try? await Task.sleep(for: .milliseconds(30))
+        await h.model.setInboxCategory(.all)
+        await slow.value
+        #expect(!h.model.inboxFiltersLocally)
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(1)])
+    }
+
+    @Test("Mark all read only marks the visible category, leaving hidden notifications unread")
+    func categoryMarkRead() async {
+        let h = await opened([note(3), note(2, type: "direct_message"), note(1)])
+        await h.model.openInbox()
+        await h.model.setInboxCategory(.directMessages)
+        await h.model.markAllInboxRead()
+        #expect(h.server.notificationReads.flatMap { $0.ids ?? [] } == [idAt(10_002)])
+        await h.model.setInboxCategory(.all)
+        #expect(h.model.inboxRows.filter(\.isUnread).map(\.message.id) == [idAt(3), idAt(1)])
+    }
+
+    @Test("an in-flight page rebuilds using the latest category, and sign-out clears the category")
+    func categoryDuringLoad() async {
+        let h = await opened([note(2), note(1, type: "direct_message")])
+        h.server.edit { $0.notificationDelays["false"] = 150 }
+        let loading = Task { await h.model.openInbox() }
+        try? await Task.sleep(for: .milliseconds(30))
+        await h.model.setInboxCategory(.directMessages)
+        await loading.value
+        #expect(h.model.inboxRows.map(\.message.id) == [idAt(1)])
+        _ = await h.model.signOut(.thisDevice)
+        #expect(h.model.inboxCategory == .all)
     }
 
     @Test("Unread with nothing waiting is loaded and empty: the screen says all caught up")

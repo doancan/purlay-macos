@@ -81,7 +81,6 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
         .scrollIndicators(.automatic)
         .environment(\.defaultMinListRowHeight, Size.sizeRow + Spacing.space1)
         .safeAreaBar(edge: .top, spacing: 0) {
@@ -167,6 +166,7 @@ struct SidebarView: View {
             .padding(.bottom, Spacing.space2)
         }
         .safeAreaBar(edge: .bottom) { AccountFooter(model: model) }
+        .modifier(SidebarSurface())
     }
 
     private func expanded(_ id: String) -> Binding<Bool> {
@@ -313,12 +313,11 @@ struct SidebarChannelRow: View {
     }
 }
 
-/// The workspace, as the sidebar's head: its name, and what belongs to the workspace rather than to a channel. What stays in
-/// the browser (members, invitations, settings) opens there.
+/// Workspace creation and role-aware entry points to administration settings.
 private struct WorkspaceHeader: View {
     let model: AppModel
     @Binding var sheet: ChannelSheet?
-    @Environment(\.openURL) private var openURL
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Menu {
@@ -327,11 +326,16 @@ private struct WorkspaceHeader: View {
                 Button("Browse Channels…", systemImage: "list.bullet") { sheet = .browse }
                 Button("New Conversation…", systemImage: "person.2") { sheet = .conversation }
             }
-            Section("In the Browser") {
-                web("Invite People…", "person.badge.plus", .invitations)
-                web("Members", "person.3", .members)
-                web("Integrations", "puzzlepiece.extension", .integrations)
-                web("Workspace Settings", "gearshape", .workspace)
+            if model.availableSettingsPages.contains(.workspace) {
+                Section("Administration") {
+                    ForEach(model.availableSettingsPages.filter { $0.group == .workspace }) {
+                        page in
+                        Button(page.title, systemImage: page.image) {
+                            model.selectSettingsPage(page)
+                            openSettings()
+                        }
+                    }
+                }
             }
         } label: {
             HStack(spacing: Spacing.space2) {
@@ -363,10 +367,6 @@ private struct WorkspaceHeader: View {
 
     private var initials: String { Avatar.initials(model.workspace?.name ?? "P") }
 
-    private func web(_ title: LocalizedStringKey, _ image: String, _ page: WebPage) -> some View {
-        Button(title, systemImage: image) { if let url = model.webURL(page) { openURL(url) } }
-            .disabled(model.webURL(page) == nil)
-    }
 }
 
 /// Who the person is, at the sidebar's foot, on glass: their face, their name, and Deep Work while it lasts; the menu has
@@ -374,18 +374,17 @@ private struct WorkspaceHeader: View {
 private struct AccountFooter: View {
     let model: AppModel
     @State private var confirmingEverywhere = false
-    @Environment(\.openURL) private var openURL
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Menu {
             Section {
-                Button("Profile…", systemImage: "person.crop.circle") { open(.profile) }
-                Button("Account and Sessions…", systemImage: "key") { open(.account) }
+                Button("Profile…", systemImage: "person.crop.circle") { settings(.profile) }
+                Button("Account and Sessions…", systemImage: "key") { settings(.account) }
             }
             Section { DeepWorkItems(model: model) }
             Section {
-                Button("Settings…", systemImage: "gearshape") { openSettings() }
+                Button("Settings…", systemImage: "gearshape") { settings(.general) }
                 Button("Keyboard Shortcuts", systemImage: "keyboard") { model.shortcutsOpen = true }
             }
             Section {
@@ -416,7 +415,6 @@ private struct AccountFooter: View {
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
-        .modifier(ControlSurface())
         .padding(Spacing.space3)
         .confirmationDialog("Sign out on every device?", isPresented: $confirmingEverywhere) {
             Button("Sign Out Everywhere", role: .destructive) { Task { await model.signOut(.everywhere) } }
@@ -433,7 +431,8 @@ private struct AccountFooter: View {
         return model.me.map { "@\($0.user.username)" } ?? ""
     }
 
-    private func open(_ page: WebPage) {
-        if let url = model.webURL(page) { openURL(url) }
+    private func settings(_ page: SettingsPage) {
+        model.selectSettingsPage(page)
+        openSettings()
     }
 }

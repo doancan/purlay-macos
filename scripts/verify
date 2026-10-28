@@ -4,7 +4,7 @@
 #
 #   scripts/verify
 #
-# CI builds with Xcode 26.6 (M-1): set DEVELOPER_DIR to select it. Locally any Xcode with the macOS 26 SDK works.
+# CI builds with Xcode 27; set DEVELOPER_DIR to select it locally.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -66,11 +66,17 @@ done
 
 step "the sandbox and the entitlements are the allowlist and nothing else"
 canonical() { python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), sort_keys=True, separators=(",", ":")))'; }
-allowlist='{"com.apple.security.app-sandbox":true,"com.apple.security.files.user-selected.read-write":true,"com.apple.security.network.client":true}'
-entitlements="$(plutil -convert json -o - App/Resources/Purlay.entitlements | canonical)"
+allowlist='{"com.apple.security.app-sandbox":true,"com.apple.security.files.user-selected.read-write":true,"com.apple.security.network.client":true,"com.apple.security.temporary-exception.mach-lookup.global-name":["dev.purlay.mac-spks","dev.purlay.mac-spki"]}'
+entitlements="$(plutil -convert json -o - App/Resources/Purlay.entitlements | python3 -c 'import sys; print(sys.stdin.read().replace("$(PRODUCT_BUNDLE_IDENTIFIER)", "dev.purlay.mac"))' | canonical)"
 [ "$entitlements" = "$allowlist" ] || { echo "FAIL: entitlements are not the allowlist: $entitlements" >&2; exit 1; }
+debug_entitlements="$(plutil -convert json -o - App/Resources/Purlay.Debug.entitlements | python3 -c '
+import json,sys
+held=json.load(sys.stdin)
+assert held.pop("com.apple.security.cs.disable-library-validation") is True
+print(json.dumps(held).replace("$(PRODUCT_BUNDLE_IDENTIFIER)", "dev.purlay.mac"))' | canonical)"
+[ "$debug_entitlements" = "$allowlist" ] || { echo "FAIL: unexpected Debug entitlements" >&2; exit 1; }
 echo "ok  declared"
-# Declared is not enough: what the built app is signed with is what the sandbox reads. Debug adds the debugger's key alone.
+# Check the signed app too. Debug alone permits debugging and loading Sparkle under ad-hoc signing.
 for configuration in Debug Release; do
   app="$(xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration "$configuration" -showBuildSettings 2>/dev/null \
     | awk -F' = ' '/ BUILT_PRODUCTS_DIR /{print $2}')/Purlay.app"
@@ -79,6 +85,7 @@ import json, sys
 held = json.load(sys.stdin)
 if sys.argv[1] == "Debug":
     held.pop("com.apple.security.get-task-allow", None)
+    held.pop("com.apple.security.cs.disable-library-validation", None)
 print(json.dumps(held, sort_keys=True, separators=(",", ":")))' "$configuration")"
   [ "$signed" = "$allowlist" ] || { echo "FAIL: $configuration is signed with $signed" >&2; exit 1; }
   echo "ok  $configuration signed"

@@ -11,6 +11,9 @@ configFiles:
   Debug: Config/Debug.xcconfig
   Release: Config/Release.xcconfig
 packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.1
   PurlayContract: { path: Packages/PurlayContract }
   PurlayTokens: { path: Packages/PurlayTokens }
   PurlayKit: { path: Packages/PurlayKit }
@@ -25,3 +28,4 @@ targets:
       - package: PurlayTokens
       - package: PurlayKit
       - package: PurlayUI
+      - package: Sparkle

@@ -25,6 +25,30 @@ public struct InboxRow: Identifiable, Equatable, Sendable {
 }
 
 public enum Inbox {
+    public enum Category: String, CaseIterable, Identifiable, Sendable {
+        case all, mentions, directMessages, threads
+        public var id: String { rawValue }
+
+        /// All omits the parameter so it includes current and future notification types.
+        public var notificationTypes: String? {
+            switch self {
+            case .all: nil
+            case .mentions: NotificationType.mention.rawValue
+            case .directMessages: NotificationType.directMessage.rawValue
+            case .threads: [NotificationType.threadReply, .threadResolved].map(\.rawValue).joined(separator: ",")
+            }
+        }
+
+        public func includes(_ reason: InboxRow.Reason) -> Bool {
+            switch self {
+            case .all: true
+            case .mentions: reason == .mention
+            case .directMessages: reason == .directMessage
+            case .threads: reason == .reply || reason == .threadResolved
+            }
+        }
+    }
+
     public enum Section: Sendable, Equatable {
         case today, earlier
     }

@@ -44,6 +44,16 @@ public enum Endpoints {
         query: nil, body: nil,
         responses: [204: .empty])
 
+    public static let listMySessions = EndpointSpec(
+        id: "listMySessions", method: "GET", path: "/api/me/sessions", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("DeviceSessionList")])
+
+    public static let endMySession = EndpointSpec(
+        id: "endMySession", method: "DELETE", path: "/api/me/sessions/:sessionId", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
     public static let getAuthMethods = EndpointSpec(
         id: "getAuthMethods", method: "GET", path: "/api/auth/methods", auth: .none,
         query: nil, body: nil,
@@ -158,6 +168,11 @@ public enum Endpoints {
         id: "listMessages", method: "GET", path: "/api/channels/:channelId/messages", auth: .session,
         query: "PageQuery", body: nil,
         responses: [200: .schema("MessagePage")])
+
+    public static let listChanges = EndpointSpec(
+        id: "listChanges", method: "GET", path: "/api/channels/:channelId/changes", auth: .session,
+        query: "ChangesQuery", body: nil,
+        responses: [200: .schema("ChangePage")])
 
     public static let sendMessage = EndpointSpec(
         id: "sendMessage", method: "POST", path: "/api/channels/:channelId/messages", auth: .session,
@@ -310,6 +325,8 @@ public enum Endpoints {
         nativeToken,
         logout,
         logoutEverywhere,
+        listMySessions,
+        endMySession,
         getAuthMethods,
         getMe,
         listWorkspaces,
@@ -333,6 +350,7 @@ public enum Endpoints {
         listPins,
         listFiles,
         listMessages,
+        listChanges,
         sendMessage,
         getMessagesAround,
         editMessage,

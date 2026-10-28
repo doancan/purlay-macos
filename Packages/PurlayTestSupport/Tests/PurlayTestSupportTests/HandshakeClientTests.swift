@@ -32,11 +32,53 @@ struct HandshakeClientTests {
             return
         }
         #expect(info.server.version == "0.1.0")
+        #expect(info.capabilities == nil)
         #expect(origin.description == "https://chat.example.com")
         let request = try #require(await transport.requests.first)
         #expect(request.url.absoluteString == "https://chat.example.com/api/client")
         #expect(request.headers["Cookie"] == nil)
         #expect(request.headers["X-Purlay-Client"] == "macos/0.1.0 contract/1")
+    }
+
+    @Test("only an explicit known true capability enables filtering; unknown future values are ignored")
+    func capabilities() async throws {
+        let cases: [(String, Bool?)] = [
+            ("{}", nil),
+            (#"{"notificationTypeFilters":false}"#, false),
+            (#"{"notificationTypeFilters":true}"#, true),
+            (#"{"futureFeature":{"nested":[1,"x",true]}}"#, nil),
+            (#"{"notificationTypeFilters":true,"futureFeature":[{"shape":"unknown"}]}"#, true),
+        ]
+        for (capabilities, expected) in cases {
+            let response = "{\"capabilities\":\(capabilities)," + body.dropFirst()
+            let (client, _) = client([ScriptedTransport.json(200, response)])
+            guard case .ready(let info, _) = try await client.perform(address) else {
+                Issue.record("handshake refused valid optional capabilities")
+                continue
+            }
+            #expect(info.capabilities?.notificationTypeFilters == expected)
+        }
+        for malformed in [#"{"notificationTypeFilters":"true"}"#, #"{"notificationTypeFilters":1}"#] {
+            let response = "{\"capabilities\":\(malformed)," + body.dropFirst()
+            let (client, _) = client([ScriptedTransport.json(200, response)])
+            await #expect(throws: HandshakeError.notAPurlayServer) { _ = try await client.perform(address) }
+        }
+    }
+
+    @Test("legacy absent OIDC and current provider metadata both preserve handshake compatibility")
+    func oidcCompatibility() async throws {
+        for oidc in ["null", #"{"name":"Company SSO"}"#] {
+            let current = body.replacingOccurrences(of: #""github":true"#, with: #""github":true,"oidc":\#(oidc)"#)
+            let (client, _) = client([ScriptedTransport.json(200, current)])
+            guard case .ready(let info, _) = try await client.perform(address) else {
+                Issue.record("current handshake was refused")
+                continue
+            }
+            #expect(info.auth.oidc?.name == (oidc == "null" ? nil : "Company SSO"))
+        }
+        let malformed = body.replacingOccurrences(of: #""github":true"#, with: #""github":true,"oidc":false"#)
+        let (client, _) = client([ScriptedTransport.json(200, malformed)])
+        await #expect(throws: HandshakeError.notAPurlayServer) { _ = try await client.perform(address) }
     }
 
     @Test(

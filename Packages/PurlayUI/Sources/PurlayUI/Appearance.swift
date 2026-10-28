@@ -23,38 +23,44 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     }
 }
 
-/// Custom glass has an opaque equivalent when Reduce Transparency is enabled.
+/// A transient control surface, with an opaque, outlined equivalent for accessibility settings.
 struct ControlSurface: ViewModifier {
     var radius: Double = Radius.radius2xl
+    var interactive = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
-        if reduceTransparency {
+        if reduceTransparency || contrast == .increased {
             content
-                .background(NativePalette.raised.style, in: .rect(cornerRadius: radius))
+                .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: radius))
                 .overlay {
-                    RoundedRectangle(cornerRadius: radius).strokeBorder(NativePalette.border.style)
+                    RoundedRectangle(cornerRadius: radius)
+                        .strokeBorder(
+                            Color.primary.opacity(contrast == .increased ? 0.6 : 0.2),
+                            lineWidth: contrast == .increased ? Stroke.strokeFocus : Stroke.strokeHairline
+                        )
+                        .allowsHitTesting(false)
                 }
         } else {
-            content.glassEffect(.regular, in: .rect(cornerRadius: radius))
+            content.glassEffect(interactive ? .regular.interactive() : .regular, in: .rect(cornerRadius: radius))
         }
     }
 }
 
-struct WindowHeading: View {
-    let title: String
-    let subtitle: String
+/// Native sidebar material by default. The local preference can opt out, as can Reduce Transparency.
+/// Never mutate the containing window's opacity or layer a second blur over the system sidebar.
+struct SidebarSurface: ViewModifier {
+    @AppStorage("sidebar.translucent") private var translucent = true
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // Semantic styles: on the toolbar's glass the system gives them vibrancy, as it does a window's own title.
-            Text(title).font(.headline).foregroundStyle(.primary)
-            if !subtitle.isEmpty {
-                Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+    private var opaque: Bool { !translucent || reduceTransparency }
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(opaque ? .hidden : .automatic)
+            .background {
+                if opaque { Color(nsColor: .windowBackgroundColor).ignoresSafeArea() }
             }
-        }
-        .lineLimit(1)
-        .frame(maxWidth: Size.sizeAttachment, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 }

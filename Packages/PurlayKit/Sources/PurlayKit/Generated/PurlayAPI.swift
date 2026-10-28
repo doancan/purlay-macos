@@ -38,6 +38,16 @@ public struct PurlayAPI: Sendable {
         try await client.sendEmpty(Endpoints.logoutEverywhere)
     }
 
+    /// `GET /api/me/sessions`
+    public func listMySessions() async throws -> DeviceSessionList {
+        try await client.send(Endpoints.listMySessions, as: DeviceSessionList.self)
+    }
+
+    /// `DELETE /api/me/sessions/:sessionId`
+    public func endMySession(sessionId: String) async throws {
+        try await client.sendEmpty(Endpoints.endMySession, path: ["sessionId": sessionId])
+    }
+
     /// `GET /api/auth/methods`
     public func getAuthMethods() async throws -> AuthMethods {
         try await client.send(Endpoints.getAuthMethods, as: AuthMethods.self)
@@ -151,6 +161,11 @@ public struct PurlayAPI: Sendable {
     /// `GET /api/channels/:channelId/messages`
     public func listMessages(channelId: String, query: PageQuery) async throws -> MessagePage {
         try await client.send(Endpoints.listMessages, path: ["channelId": channelId], query: query, as: MessagePage.self)
+    }
+
+    /// `GET /api/channels/:channelId/changes`
+    public func listChanges(channelId: String, query: ChangesQuery) async throws -> ChangePage {
+        try await client.send(Endpoints.listChanges, path: ["channelId": channelId], query: query, as: ChangePage.self)
     }
 
     /// `POST /api/channels/:channelId/messages`

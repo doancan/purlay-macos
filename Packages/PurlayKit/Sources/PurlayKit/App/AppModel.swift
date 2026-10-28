@@ -83,6 +83,7 @@ public final class AppModel {
         case ready
     }
 
+    public internal(set) var settingsPage: SettingsPage = .general
     public private(set) var phase: Phase = .launching
     public private(set) var server: ServerAddress?
     public private(set) var serverInfo: ClientInfo?
@@ -154,6 +155,7 @@ public final class AppModel {
 
     public var inboxOpen = false
     public internal(set) var inboxFilter: InboxFilter = .all
+    public internal(set) var inboxCategory: Inbox.Category = .all
     public internal(set) var inboxStatus: InboxStatus = .idle
     public internal(set) var inboxRows: [InboxRow] = []
 
@@ -161,8 +163,10 @@ public final class AppModel {
     /// run over two pages.
     var inboxNotes: [PurlayContract.Notification] = []
     var inboxCursor: Uuid?
+    /// Additive support is discovered for the active server, independently of its release version.
+    public var inboxFiltersLocally: Bool { serverInfo?.capabilities?.notificationTypeFilters != true }
     var inboxGeneration = 0
-    var inboxLoadingMore = false
+    public internal(set) var inboxLoadingMore = false
 
     // MARK: The keyboard's moves
 
@@ -633,6 +637,7 @@ public final class AppModel {
         lastBadge = nil
         workspacePeople = []
         channelPeople = [:]
+        settingsPage = .general
         workspace = nil
         selectedChannel = nil
         chat = ChatState()
