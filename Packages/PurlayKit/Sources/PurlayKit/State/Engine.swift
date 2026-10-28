@@ -209,6 +209,12 @@ public final class Engine {
         options.onChange()
     }
 
+    /// An older page put above what a channel's window holds now, in place: what arrived while the page was on its way stays.
+    public func prepend(_ older: [Message], reachesOldest: Bool, for channel: Uuid) {
+        chat.windows[channel]?.prepend(older, reachesOldest: reachesOldest)
+        options.onChange()
+    }
+
     /// What the server says a channel's read state is now, from the answer to marking it read.
     /// A message as the server answered an edit or a reaction: what it says now, put into the window that holds it. A frame for the same
     /// change may follow, and says the same thing.

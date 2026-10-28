@@ -128,6 +128,20 @@ struct MessageActionTests {
         #expect(h.model.window?.messages.first?.reactions.isEmpty == true)
     }
 
+    @Test("a second click on a reaction while the first is on its way is not a second request")
+    func reactionOnce() async {
+        let theirs = message(1_000, by: "bob", "hello")
+        let h = await opened([theirs])
+        h.server.edit { $0.reactionDelay = 100 }
+        let first = Task { await h.model.toggleReaction("👍", on: theirs) }
+        try? await Task.sleep(for: .milliseconds(20))
+        await h.model.toggleReaction("👍", on: theirs)
+        await first.value
+        #expect(calls(h, "PUT").count == 1)
+        #expect(calls(h, "DELETE").isEmpty)
+        #expect(h.model.window?.messages.first?.reactions.first?.emoji == "👍")
+    }
+
     @Test("an emoji that is nothing, or is a line of text, is not asked; a refusal is said")
     func badReactions() async {
         let theirs = message(1_000, by: "bob", "hello")

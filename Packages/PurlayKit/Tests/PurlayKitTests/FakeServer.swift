@@ -55,6 +55,11 @@ final class FakeServer: HTTPTransport {
         var workspaceMembers: [WorkspaceMember] = []
         var channelMembers: [String: [User]] = [:]
         var messages: [String: [Message]] = [:]
+        /// Whether a channel's first page says there is more before it, and the page held before a message id.
+        var hasOlder = false
+        var olderPages: [String: [Message]] = [:]
+        var olderDelay: Int?
+        var reactionDelay: Int?
         var logoutStatus = 204
         var online = true
         var sessionValid = true
@@ -493,6 +498,7 @@ final class FakeServer: HTTPTransport {
             if snapshot.mutationStatus != 200 {
                 return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
             }
+            if let wait = snapshot.reactionDelay { try? await Task.sleep(for: .milliseconds(wait)) }
             let emoji = String(path.split(separator: "/").last ?? "")
             let adds = request.method == "PUT"
             let set =
@@ -573,9 +579,17 @@ final class FakeServer: HTTPTransport {
             if request.method == "GET", path.hasPrefix("/api/channels/"), path.hasSuffix("/messages") {
                 guard hasSession, snapshot.sessionValid else { return unauthenticated() }
                 let id = String(path.dropFirst("/api/channels/".count).dropLast("/messages".count))
+                let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                if let before = items.first(where: { $0.name == "before" })?.value {
+                    if let wait = snapshot.olderDelay { try? await Task.sleep(for: .milliseconds(wait)) }
+                    let older = snapshot.olderPages[before] ?? []
+                    let data = (try? JSONEncoder().encode(older)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+                    return json(200, #"{"data":\#(data),"nextCursor":null}"#)
+                }
                 let messages = snapshot.messages[id] ?? []
                 let data = (try? JSONEncoder().encode(messages)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-                return json(200, #"{"data":\#(data),"nextCursor":null}"#)
+                let next = snapshot.hasOlder ? messages.first.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+                return json(200, #"{"data":\#(data),"nextCursor":\#(next)}"#)
             }
             return json(404, #"{"error":{"code":"ROUTE_NOT_FOUND","message":"x"}}"#)
         }

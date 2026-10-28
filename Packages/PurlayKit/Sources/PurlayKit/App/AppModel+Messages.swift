@@ -53,12 +53,18 @@ extension AppModel {
     /// An emoji is longer than a word is not: past this it is text, and no reaction.
     static let emojiLengthMax = 32
 
-    /// Adds the person's reaction, or takes it back when it is already theirs.
+    /// Adds the person's reaction, or takes it back when it is already theirs. Whether it is theirs is read from the window as it is
+    /// now, not from the row that was clicked, and a second click while the first is on its way is not a second request.
     public func toggleReaction(_ emoji: String, on message: Message) async {
         guard let api, let me, message.deletedAt == nil, !emoji.isEmpty, emoji.utf16.count <= Self.emojiLengthMax,
             !emoji.contains(where: { $0.isNewline })
         else { return }
-        let mine = message.reactions.first { $0.emoji == emoji }?.userIds.contains(me.user.id) ?? false
+        let key = message.id.value + "|" + emoji
+        guard !reacting.contains(key) else { return }
+        reacting.insert(key)
+        defer { reacting.remove(key) }
+        let current = chat.windows[message.channelId]?.messages.first { $0.id == message.id } ?? message
+        let mine = current.reactions.first { $0.emoji == emoji }?.userIds.contains(me.user.id) ?? false
         do {
             let answer =
                 mine
@@ -105,18 +111,20 @@ extension AppModel {
         }
     }
 
-    /// Reads the page of messages before what is held.
+    /// Reads the page of messages before what is held. One at a time; the page is added to the window as it is when the page lands,
+    /// not as it was when it was asked for, so a message, an edit or a reaction that came in meanwhile is kept.
     public func loadOlder() async {
-        guard let channelID = selectedChannel, let api, let engine, var window = chat.windows[channelID],
+        guard !loadingOlder, let channelID = selectedChannel, let api, let engine, let window = chat.windows[channelID],
             !window.reachesOldest,
             let oldest = window.messages.first
         else { return }
+        loadingOlder = true
+        defer { loadingOlder = false }
         do {
             let page = try await api.listMessages(
                 channelId: channelID.value,
                 query: PageQuery(before: oldest.id, limit: ContractConstants.pageLimit.default))
-            window.prepend(page.data, reachesOldest: page.nextCursor == nil)
-            engine.load(window, for: channelID)
+            engine.prepend(page.data, reachesOldest: page.nextCursor == nil, for: channelID)
         } catch {
             say(.loadFailed)
         }

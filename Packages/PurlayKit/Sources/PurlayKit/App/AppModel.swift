@@ -177,6 +177,10 @@ public final class AppModel {
     public internal(set) var savedItems: [SavedItem] = []
     /// The message whose words are being changed, if any: one at a time.
     public internal(set) var editing: Uuid?
+    /// Reactions on their way, as message id and emoji: a double click is one request.
+    @ObservationIgnored var reacting: Set<String> = []
+    /// An older page of the open channel is on its way.
+    public internal(set) var loadingOlder = false
 
     // MARK: Files
 
