@@ -68,7 +68,7 @@ public struct PurlayCommands: Commands {
                 .disabled(!ready)
             Button("Search in Channel…") {
                 if let channel {
-                    model.openSearch(channel.type == .directMessage ? nil : "in:\(channel.name ?? channel.title) ")
+                    model.openChannelSearch(channel.id)
                 }
             }
             .keyboardShortcut("f", modifiers: [.command, .option])

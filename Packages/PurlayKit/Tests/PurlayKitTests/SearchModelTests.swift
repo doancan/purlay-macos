@@ -130,6 +130,93 @@ struct SearchModelTests {
 
     // MARK: Going to a message
 
+    @Test("channel and author filters constrain every page, and removing them starts a fresh search")
+    func filters() async throws {
+        let author = User(avatarUrl: nil, displayName: "Deniz", id: idAt(99), username: "deniz")
+        var match = msg(1_000, "migration one")
+        match.sender = author
+        var second = msg(2_000, "migration two")
+        second.sender = author
+        let h = await opened([
+            channel(1): [match, second, msg(3_000, "migration other author")],
+            channel(2): [msg(4_000, "migration other channel", channelN: 2)],
+        ])
+        h.server.edit { $0.searchPageSize = 1 }
+        await h.model.setSearchFilters(channel: Uuid(channel(1)), sender: author.id)
+        await h.model.search("migration")
+        #expect(h.model.searchResults.map(\.id) == [second.id])
+        await h.model.loadMoreResults()
+        #expect(h.model.searchResults.map(\.id) == [second.id, match.id])
+        #expect(!h.model.searchHasMore)
+        for call in calls(h, "/search") {
+            let items = try #require(URLComponents(url: call.url, resolvingAgainstBaseURL: false)?.queryItems)
+            #expect(items.contains(URLQueryItem(name: "channelId", value: channel(1))))
+            #expect(items.contains(URLQueryItem(name: "senderId", value: author.id.value)))
+        }
+        await h.model.setSearchFilters(channel: nil, sender: nil)
+        #expect(h.model.searchResults.map(\.id) == [idAt(4_000)])
+        #expect(h.model.searchHasMore)
+    }
+
+    @Test("a delayed search cannot overwrite results after a filter change")
+    func staleFilters() async {
+        let h = await opened([
+            channel(1): [msg(1_000, "migration one")],
+            channel(2): [msg(2_000, "migration two", channelN: 2)],
+        ])
+        h.server.edit { $0.searchDelays["migration"] = 100 }
+        let slow = Task { await h.model.search("migration") }
+        try? await Task.sleep(for: .milliseconds(20))
+        h.server.edit { $0.searchDelays = [:] }
+        await h.model.setSearchFilters(channel: Uuid(channel(1)), sender: nil)
+        await slow.value
+        #expect(h.model.searchResults.map(\.id) == [idAt(1_000)])
+    }
+
+    @Test("search in a conversation opens with its channel filter and no literal query prefix")
+    func channelEntryPoint() async {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        await h.model.search("previous query")
+        h.model.openChannelSearch(idAt(2))
+        #expect(h.model.searchOpen)
+        #expect(h.model.searchQuery.isEmpty)
+        #expect(h.model.searchChannelID == idAt(2))
+        #expect(h.model.searchStatus == .idle)
+    }
+
+    @Test("recent searches preserve filters, survive reopening, stay scoped to the account, and can be cleared")
+    func recent() async throws {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        await h.model.setSearchFilters(channel: Uuid(channel(1)), sender: nil)
+        await h.model.search("migration")
+        h.model.rememberSearch()
+        h.model.rememberSearch()
+        #expect(h.model.recentSearches.count == 1)
+        h.model.clearSearch()
+        h.model.openSearch()
+        let entry = try #require(h.model.recentSearches.first)
+        await h.model.repeatSearch(entry)
+        #expect(h.model.searchChannelID == Uuid(channel(1)))
+        #expect(h.model.searchQuery == "migration")
+        #expect(h.model.searchResults.count == 1)
+
+        let me = try #require(h.model.me)
+        var another = me
+        another.user.id = idAt(98)
+        h.model.me = another
+        h.model.openSearch()
+        #expect(h.model.recentSearches.isEmpty)
+        h.model.me = me
+        h.model.openSearch()
+        #expect(h.model.recentSearches.count == 1)
+        h.model.clearRecentSearches()
+        h.model.openSearch()
+        #expect(h.model.recentSearches.isEmpty)
+        _ = await h.model.signOut(.thisDevice)
+        #expect(h.model.searchChannelID == nil)
+        #expect(h.model.searchSenderID == nil)
+    }
+
     @Test("a result is opened in its channel with the feed read around it, and it is the one the feed is told to show")
     func opensMessage() async {
         let found = msg(1_000, "old migration note", channelN: 2)

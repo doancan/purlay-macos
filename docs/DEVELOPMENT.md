@@ -47,6 +47,10 @@ responses without the subsequently added `auth.oidc` field remain readable so co
 Additive features are discovered from the current handshake's optional capabilities, independently of release
 and contract versions. Unknown capability names are ignored; only a known boolean `true` enables a feature.
 
+Message search supports channel and author filters using the existing `channelId` and `senderId` API parameters.
+Filters stay attached to every result page. Recent searches retain their filters, are stored separately for each
+server/account/workspace, and can be cleared from the search window.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

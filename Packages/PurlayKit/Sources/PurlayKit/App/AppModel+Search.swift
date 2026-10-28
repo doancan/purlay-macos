@@ -1,6 +1,13 @@
 import Foundation
 import PurlayContract
 
+/// A recent search belongs to one account and workspace, including its channel and author filters.
+public struct MessageSearch: Codable, Hashable, Sendable {
+    public let query: String
+    public let channelID: Uuid?
+    public let senderID: Uuid?
+}
+
 extension AppModel {
     // MARK: What is on show
 
@@ -11,6 +18,7 @@ extension AppModel {
     public func openSearch(_ query: String? = nil) {
         paletteOpen = false
         searchOpen = true
+        loadRecentSearches()
         if let query {
             // Said at once, so the sheet that opens shows what is being searched for.
             searchQuery = String(
@@ -21,7 +29,58 @@ extension AppModel {
 
     // MARK: Search
 
+    public func openChannelSearch(_ channel: Uuid) {
+        clearSearch()
+        searchChannelID = channel
+        openSearch()
+    }
+
     public var searchHasMore: Bool { searchCursor != nil }
+
+    public func setSearchFilters(channel: Uuid?, sender: Uuid?) async {
+        searchChannelID = channel
+        searchSenderID = sender
+        await search(searchQuery)
+    }
+
+    public func repeatSearch(_ entry: MessageSearch) async {
+        searchChannelID = entry.channelID
+        searchSenderID = entry.senderID
+        await search(entry.query)
+    }
+
+    func scopedPreferenceKey(_ name: String) -> String? {
+        guard let origin, let user = me?.user.id, let workspace else { return nil }
+        return "\(name).\(origin.description).\(user.value).\(workspace.id.value)"
+    }
+
+    private func loadRecentSearches() {
+        guard let key = scopedPreferenceKey("search.history"),
+            let data = environment.preferences.string(for: key)?.data(using: .utf8),
+            let history = try? JSONDecoder().decode([MessageSearch].self, from: data)
+        else {
+            recentSearches = []
+            return
+        }
+        recentSearches = Array(history.prefix(12))
+    }
+
+    public func rememberSearch() {
+        guard searchStatus == .done, !searchQuery.isEmpty, let key = scopedPreferenceKey("search.history") else {
+            return
+        }
+        let entry = MessageSearch(query: searchQuery, channelID: searchChannelID, senderID: searchSenderID)
+        loadRecentSearches()
+        recentSearches = Array(([entry] + recentSearches.filter { $0 != entry }).prefix(12))
+        if let data = try? JSONEncoder().encode(recentSearches) {
+            environment.preferences.set(String(data: data, encoding: .utf8), for: key)
+        }
+    }
+
+    public func clearRecentSearches() {
+        if let key = scopedPreferenceKey("search.history") { environment.preferences.set(nil, for: key) }
+        recentSearches = []
+    }
 
     /// Searches the workspace's messages for the words as typed. One too short asks nothing and clears; one past the limit is cut where
     /// search stops. Only the answer to the newest query is kept: a slow one that was asked for earlier is let go.
@@ -30,6 +89,9 @@ extension AppModel {
         let generation = searchGeneration
         let typed = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ContractConstants.searchQueryMax))
         searchQuery = typed
+        searchResults = []
+        searchCursor = nil
+        loadingMoreResults = false
         guard typed.count >= ContractConstants.searchQueryMin, let api, let workspace else {
             searchResults = []
             searchCursor = nil
@@ -40,7 +102,9 @@ extension AppModel {
         do {
             let page = try await api.searchMessages(
                 workspaceId: workspace.id.value,
-                query: SearchQuery(limit: ContractConstants.pageLimit.default, q: typed))
+                query: SearchQuery(
+                    channelId: searchChannelID, limit: ContractConstants.pageLimit.default, q: typed,
+                    senderId: searchSenderID))
             guard generation == searchGeneration else { return }
             searchResults = page.data
             searchCursor = page.nextCursor
@@ -59,12 +123,14 @@ extension AppModel {
             return
         }
         loadingMoreResults = true
-        defer { loadingMoreResults = false }
         let generation = searchGeneration
+        defer { if generation == searchGeneration { loadingMoreResults = false } }
         do {
             let page = try await api.searchMessages(
                 workspaceId: workspace.id.value,
-                query: SearchQuery(before: cursor, limit: ContractConstants.pageLimit.default, q: searchQuery))
+                query: SearchQuery(
+                    before: cursor, channelId: searchChannelID, limit: ContractConstants.pageLimit.default,
+                    q: searchQuery, senderId: searchSenderID))
             guard generation == searchGeneration else { return }
             let held = Set(searchResults.map(\.id))
             searchResults += page.data.filter { !held.contains($0.id) }
@@ -78,6 +144,9 @@ extension AppModel {
     public func clearSearch() {
         searchGeneration += 1
         searchQuery = ""
+        searchChannelID = nil
+        searchSenderID = nil
+        loadingMoreResults = false
         searchResults = []
         searchCursor = nil
         searchStatus = .idle

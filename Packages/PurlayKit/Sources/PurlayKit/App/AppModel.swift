@@ -236,6 +236,9 @@ public final class AppModel {
     }
 
     public internal(set) var searchQuery = ""
+    public internal(set) var searchChannelID: Uuid?
+    public internal(set) var searchSenderID: Uuid?
+    public internal(set) var recentSearches: [MessageSearch] = []
     public internal(set) var searchResults: [Message] = []
     public internal(set) var searchStatus: SearchStatus = .idle
     public internal(set) var focus: Focus?
@@ -612,6 +615,7 @@ public final class AppModel {
         api = nil
         me = nil
         clearSearch()
+        recentSearches = []
         focus = nil
         editing = nil
         uploadsByPlace = [:]

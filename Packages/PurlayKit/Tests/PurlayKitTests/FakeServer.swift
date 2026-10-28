@@ -367,6 +367,12 @@ final class FakeServer: HTTPTransport {
                 .filter { $0.deletedAt == nil && $0.content.lowercased().contains(q.lowercased()) }
                 .sorted { $0.id > $1.id }
             if let before { found = found.filter { $0.id.value < before } }
+            if let channel = items.first(where: { $0.name == "channelId" })?.value {
+                found = found.filter { $0.channelId.value == channel }
+            }
+            if let sender = items.first(where: { $0.name == "senderId" })?.value {
+                found = found.filter { $0.sender?.id.value == sender }
+            }
             let size = snapshot.searchPageSize ?? 20
             let page = Array(found.prefix(size))
             let next = found.count > size ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"

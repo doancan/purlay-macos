@@ -150,6 +150,51 @@ struct SearchSheet: View {
                     .font(.title3)
                     .focused($focused)
                     .onSubmit(run)
+                if !query.isEmpty {
+                    Button("Clear Search", systemImage: "xmark.circle.fill") {
+                        pending?.cancel()
+                        model.clearSearch()
+                        query = ""
+                    }
+                    .labelStyle(.iconOnly).buttonStyle(.plain)
+                    .help("Clear search and filters")
+                }
+            }
+            HStack {
+                Picker(
+                    "In",
+                    selection: Binding(
+                        get: { model.searchChannelID },
+                        set: { channel in
+                            pending?.cancel()
+                            pending = Task {
+                                await model.setSearchFilters(channel: channel, sender: model.searchSenderID)
+                            }
+                        })
+                ) {
+                    Text("All conversations").tag(nil as Uuid?)
+                    ForEach(
+                        model.chat.channels.values.sorted { Words.channelLabel($0) < Words.channelLabel($1) }, id: \.id
+                    ) { channel in
+                        Text(Words.channelLabel(channel)).tag(Optional(channel.id))
+                    }
+                }
+                Picker(
+                    "From",
+                    selection: Binding(
+                        get: { model.searchSenderID },
+                        set: { sender in
+                            pending?.cancel()
+                            pending = Task {
+                                await model.setSearchFilters(channel: model.searchChannelID, sender: sender)
+                            }
+                        })
+                ) {
+                    Text("Anyone").tag(nil as Uuid?)
+                    ForEach(model.workspacePeople.sorted { $0.displayName < $1.displayName }, id: \.id) { person in
+                        Text(person.displayName).tag(Optional(person.id))
+                    }
+                }
             }
             Divider()
             content
@@ -173,6 +218,10 @@ struct SearchSheet: View {
                 if !Task.isCancelled { await model.search(new) }
             }
         }
+        .onDisappear {
+            pending?.cancel()
+            model.rememberSearch()
+        }
     }
 
     private func run() {
@@ -183,6 +232,39 @@ struct SearchSheet: View {
     @ViewBuilder
     private var content: some View {
         switch model.searchStatus {
+        case .idle where !model.recentSearches.isEmpty:
+            List {
+                Section {
+                    ForEach(model.recentSearches, id: \.self) { entry in
+                        Button {
+                            pending?.cancel()
+                            query = entry.query
+                            pending = Task { await model.repeatSearch(entry) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label(entry.query, systemImage: "clock")
+                                HStack {
+                                    if let channel = entry.channelID.flatMap({ model.chat.channels[$0] }) {
+                                        Text(Words.channelLabel(channel))
+                                    }
+                                    if let sender = model.workspacePeople.first(where: { $0.id == entry.senderID }) {
+                                        Text(sender.displayName)
+                                    }
+                                }
+                                .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    HStack {
+                        Text("Recent Searches")
+                        Spacer()
+                        Button("Clear History") { model.clearRecentSearches() }
+                    }
+                }
+            }
+            .listStyle(.plain)
         case .idle:
             ContentUnavailableView(
                 "Search messages", systemImage: "magnifyingglass",

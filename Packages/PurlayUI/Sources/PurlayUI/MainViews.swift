@@ -223,7 +223,7 @@ private struct ChannelToolbar: ToolbarContent {
             .badge(model.attentionCount)
             .help("Inbox  ⇧⌘I")
             Button {
-                model.openSearch(channel.type == .directMessage ? nil : "in:\(channel.name ?? channel.title) ")
+                model.openChannelSearch(channel.id)
             } label: {
                 Label("Search", systemImage: "magnifyingglass")
             }
