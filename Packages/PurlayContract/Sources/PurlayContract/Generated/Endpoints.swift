@@ -259,6 +259,21 @@ public enum Endpoints {
         query: nil, body: nil,
         responses: [204: .empty])
 
+    public static let scheduleMessage = EndpointSpec(
+        id: "scheduleMessage", method: "PUT", path: "/api/channels/:channelId/scheduled/:scheduledId", auth: .session,
+        query: nil, body: .schema("ScheduleMessageRequest"),
+        responses: [200: .schema("ScheduledMessage")])
+
+    public static let cancelScheduledMessage = EndpointSpec(
+        id: "cancelScheduledMessage", method: "DELETE", path: "/api/channels/:channelId/scheduled/:scheduledId", auth: .session,
+        query: nil, body: nil,
+        responses: [204: .empty])
+
+    public static let listScheduledMessages = EndpointSpec(
+        id: "listScheduledMessages", method: "GET", path: "/api/workspaces/:workspaceId/scheduled", auth: .session,
+        query: nil, body: nil,
+        responses: [200: .schema("ScheduledMessageList")])
+
     public static let listUnresolved = EndpointSpec(
         id: "listUnresolved", method: "GET", path: "/api/workspaces/:workspaceId/unresolved", auth: .session,
         query: "UnresolvedQuery", body: nil,
@@ -368,6 +383,9 @@ public enum Endpoints {
         unpinMessage,
         saveMessage,
         unsaveMessage,
+        scheduleMessage,
+        cancelScheduledMessage,
+        listScheduledMessages,
         listUnresolved,
         listSaved,
         listSavedIds,

@@ -23,6 +23,9 @@ final class FakeServer: HTTPTransport {
         var uploadErrors: [String: (status: Int, code: String, remaining: Int?)] = [:]
         var uploadDelays: [String: Int] = [:]
         var attachmentData: [String: Data] = [:]
+        var scheduled: [ScheduledMessage] = []
+        var scheduledError: (status: Int, code: String)?
+        var scheduledDelay = 0
         var saved: [String: String] = [:]
         var savedIdsStatus = 200
         var savedListStatus = 200
@@ -113,11 +116,15 @@ final class FakeServer: HTTPTransport {
 
     static func clientInfo(
         minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390",
-        notificationTypeFilters: Bool? = true
+        notificationTypeFilters: Bool? = true, scheduledMessages: Bool? = nil
     )
         -> String
     {
-        let capability = notificationTypeFilters.map { ",\"capabilities\":{\"notificationTypeFilters\":\($0)}" } ?? ""
+        let flags = [
+            notificationTypeFilters.map { "\"notificationTypeFilters\":\($0)" },
+            scheduledMessages.map { "\"scheduledMessages\":\($0)" },
+        ].compactMap { $0 }.joined(separator: ",")
+        let capability = flags.isEmpty ? "" : ",\"capabilities\":{\(flags)}"
         return """
             {"server":{"version":"0.1.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
             "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
@@ -184,6 +191,34 @@ final class FakeServer: HTTPTransport {
         }
         func unauthenticated() -> HTTPResponse {
             json(401, #"{"error":{"code":"UNAUTHENTICATED","message":"x"}}"#)
+        }
+        if path.contains("/scheduled") {
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.scheduledDelay > 0 { try await Task.sleep(for: .milliseconds(snapshot.scheduledDelay)) }
+            if let error = snapshot.scheduledError {
+                return json(error.status, "{\"error\":{\"code\":\"\(error.code)\",\"message\":\"x\"}}")
+            }
+            if request.method == "GET" { return json(200, Self.encoded(snapshot.scheduled)) }
+            let parts = path.split(separator: "/")
+            guard parts.count == 5, let channel = Uuid(String(parts[2])), let id = Uuid(String(parts[4])) else {
+                return HTTPResponse(status: 400)
+            }
+            if request.method == "DELETE" {
+                state.withLock { $0.scheduled.removeAll { $0.id == id } }
+                return HTTPResponse(status: 204)
+            }
+            guard let data = request.body,
+                let input = try? JSONDecoder().decode(ScheduleMessageRequest.self, from: data)
+            else { return HTTPResponse(status: 400) }
+            let now = Timestamp(Date(timeIntervalSince1970: Double(epochMs) / 1_000))
+            let item = ScheduledMessage(
+                attachments: [], channelId: channel, content: input.content, createdAt: now, failureCode: nil, id: id,
+                parentId: input.parentId, sendAt: input.sendAt, sentMessageId: nil, state: .pending, updatedAt: now)
+            state.withLock {
+                $0.scheduled.removeAll { $0.id == id }
+                $0.scheduled.append(item)
+            }
+            return json(200, Self.encoded(item))
         }
         switch (request.method, path) {
         case ("GET", "/api/client"):

@@ -182,6 +182,7 @@ public struct PurlayCommands: Commands {
         Button("Inbox") { Task { await model.openInbox() } }
             .keyboardShortcut("i", modifiers: [.command, .shift])
             .disabled(!ready)
+        if model.supportsScheduling { Button("Scheduled Messages") { model.scheduledOpen = true }.disabled(!ready) }
         Button("Saved Messages") { model.savedOpen = true }.disabled(!ready)
         Button("Open Topics") { Task { await model.openUnresolved() } }
             .keyboardShortcut("u", modifiers: [.command, .option])

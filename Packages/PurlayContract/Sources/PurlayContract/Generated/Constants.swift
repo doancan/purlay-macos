@@ -99,6 +99,10 @@ public enum ContractConstants {
 
     public static let savedMax = 1000
 
+    public static let scheduledMessagesMax = 100
+
+    public static let scheduleAheadMaxDays = 365
+
     public static let searchQueryMax = 200
 
     public static let searchQueryMin = 3
@@ -182,6 +186,9 @@ public enum ErrorStatus {
         "REAUTHENTICATION_REQUIRED": 403,
         "ROUTE_NOT_FOUND": 404,
         "SAVED_LIMIT": 409,
+        "SCHEDULED_MESSAGE_LIMIT": 409,
+        "SCHEDULED_MESSAGE_NOT_FOUND": 404,
+        "SCHEDULED_MESSAGE_SENT": 409,
         "SERVER_CHANGE_REFUSED": 409,
         "SESSION_NOT_FOUND": 404,
         "SETTINGS_CHANGE_FAILED": 500,

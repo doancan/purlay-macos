@@ -85,6 +85,13 @@ and workspace, wait through sign-in when needed, and show an error for inaccessi
 supersedes a pending navigation. `purlay://auth` remains owned by browser authentication. Arbitrary self-hosted
 HTTPS domains are not registered as universal links; the explicit app link or paste action opens them natively.
 
+Scheduled messages require a server advertising `capabilities.scheduledMessages`. The composer clock button
+opens a local-time date picker after all attachments finish uploading. Scheduled lists pending and failed
+messages with edit/cancel actions and refreshes every 15 seconds only while open. Scheduling uses one stable
+request ID across retries and clears draft text/files only after confirmation; late responses cannot restore
+a signed-out session. The server owns delivery while the app is closed. Ship the matching server migration
+and API from `codex/desktop-scheduling` before enabling the native feature on an installation.
+
 Settings group device preferences, profile/account details and workspace administration in a native sidebar.
 The workspace's active membership controls navigation: owners/admins see workspace settings, members, invitations,
 integrations and audit; only owners see data/history. Ordinary members see device and account settings.

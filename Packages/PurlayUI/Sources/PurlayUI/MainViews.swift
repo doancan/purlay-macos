@@ -278,6 +278,9 @@ private struct MainSheets: ViewModifier {
             .sheet(isPresented: Binding(get: { model.pinsOpen }, set: { model.pinsOpen = $0 })) {
                 PinsSheet(model: model)
             }
+            .sheet(isPresented: Binding(get: { model.scheduledOpen }, set: { model.scheduledOpen = $0 })) {
+                ScheduledSheet(model: model)
+            }
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
             }

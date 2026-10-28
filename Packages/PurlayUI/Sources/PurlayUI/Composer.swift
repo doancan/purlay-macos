@@ -19,6 +19,7 @@ struct ComposerView: View {
     @AppStorage("composer.hints") private var showHints = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var previewing = false
+    @State private var scheduling = false
     @State private var saving: Task<Void, Never>?
 
     init(model: AppModel, channel: Uuid, parent: Uuid? = nil, placeholder: String, compact: Bool = false) {
@@ -60,6 +61,13 @@ struct ComposerView: View {
             return !urls.isEmpty
         } isTargeted: {
             dropping = $0
+        }
+        .sheet(isPresented: $scheduling) {
+            ScheduleMessageSheet(model: model, channel: channel, parent: parent, text: state.text) {
+                saving?.cancel()
+                state.replaceAll?("")
+                state.text = ""
+            }
         }
         .onAppear {
             state.togglePreview = { previewing.toggle() }
@@ -157,6 +165,15 @@ struct ComposerView: View {
                     .foregroundStyle(left < 0 ? AnyShapeStyle(Colors.dangerText.style) : AnyShapeStyle(.tertiary))
                     .accessibilityLabel(
                         left < 0 ? Text("\(-left) characters over the limit") : Text("\(left) characters left"))
+            }
+            if model.supportsScheduling {
+                Button {
+                    scheduling = true
+                } label: {
+                    Image(systemName: "clock")
+                }
+                .help("Schedule message…").accessibilityLabel("Schedule message")
+                .disabled(!model.canSchedule(text: state.text, channel: channel, parent: parent) || state.isRewriting)
             }
             Button(action: send) {
                 Image(systemName: "arrow.up")

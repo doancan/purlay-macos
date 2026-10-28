@@ -264,6 +264,11 @@ public final class AppModel {
     public var paletteOpen = false
     public var searchOpen = false
     public var pinsOpen = false
+    public var scheduledOpen = false
+    public internal(set) var scheduledItems: [ScheduledMessage] = []
+    public internal(set) var scheduledLoading = false
+    public internal(set) var scheduledFailed = false
+    var scheduledGeneration = 0
     public var savedOpen = false
     public var shortcutsOpen = false
     public var draftsOpen = false
@@ -746,6 +751,11 @@ public final class AppModel {
         attachmentCacheOrder = []
         attachmentCacheBytes = 0
         savedIDs = [:]
+        scheduledItems = []
+        scheduledOpen = false
+        scheduledGeneration += 1
+        scheduledLoading = false
+        scheduledFailed = false
         savedItems = []
         savedGeneration += 1
         savedCursor = nil

@@ -253,6 +253,21 @@ public struct PurlayAPI: Sendable {
         try await client.sendEmpty(Endpoints.unsaveMessage, path: ["messageId": messageId])
     }
 
+    /// `PUT /api/channels/:channelId/scheduled/:scheduledId`
+    public func scheduleMessage(channelId: String, scheduledId: String, body: ScheduleMessageRequest) async throws -> ScheduledMessage {
+        try await client.send(Endpoints.scheduleMessage, path: ["channelId": channelId, "scheduledId": scheduledId], body: body, as: ScheduledMessage.self)
+    }
+
+    /// `DELETE /api/channels/:channelId/scheduled/:scheduledId`
+    public func cancelScheduledMessage(channelId: String, scheduledId: String) async throws {
+        try await client.sendEmpty(Endpoints.cancelScheduledMessage, path: ["channelId": channelId, "scheduledId": scheduledId])
+    }
+
+    /// `GET /api/workspaces/:workspaceId/scheduled`
+    public func listScheduledMessages(workspaceId: String) async throws -> ScheduledMessageList {
+        try await client.send(Endpoints.listScheduledMessages, path: ["workspaceId": workspaceId], as: ScheduledMessageList.self)
+    }
+
     /// `GET /api/workspaces/:workspaceId/unresolved`
     public func listUnresolved(workspaceId: String, query: UnresolvedQuery) async throws -> UnresolvedPage {
         try await client.send(Endpoints.listUnresolved, path: ["workspaceId": workspaceId], query: query, as: UnresolvedPage.self)

@@ -328,6 +328,9 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
             case workspaceNotFound
             case channelNotFound
             case messageNotFound
+            case scheduledMessageNotFound
+            case scheduledMessageSent
+            case scheduledMessageLimit
             case messageVersionNotFound
             case incidentNotFound
             case userNotFound
@@ -375,7 +378,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
             /// A value this client was not built for.
             case unknown(String)
 
-            public static let known: [Code] = [.invalidMessageId, .unsupportedMediaType, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .notAChannelMember, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .tooManyPendingUploads, .savedLimit, .pinsLimit, .githubFeedsLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .imageNotAvailable, .lastChannelMember, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .adminLinkNotFound, .`internal`]
+            public static let known: [Code] = [.invalidMessageId, .unsupportedMediaType, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .notAChannelMember, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .tooManyPendingUploads, .savedLimit, .pinsLimit, .githubFeedsLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .imageNotAvailable, .lastChannelMember, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .adminLinkNotFound, .`internal`]
 
             public init(rawValue: String) {
                 switch rawValue {
@@ -390,6 +393,9 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
                     case "WORKSPACE_NOT_FOUND": self = .workspaceNotFound
                     case "CHANNEL_NOT_FOUND": self = .channelNotFound
                     case "MESSAGE_NOT_FOUND": self = .messageNotFound
+                    case "SCHEDULED_MESSAGE_NOT_FOUND": self = .scheduledMessageNotFound
+                    case "SCHEDULED_MESSAGE_SENT": self = .scheduledMessageSent
+                    case "SCHEDULED_MESSAGE_LIMIT": self = .scheduledMessageLimit
                     case "MESSAGE_VERSION_NOT_FOUND": self = .messageVersionNotFound
                     case "INCIDENT_NOT_FOUND": self = .incidentNotFound
                     case "USER_NOT_FOUND": self = .userNotFound
@@ -451,6 +457,9 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
                     case .workspaceNotFound: return "WORKSPACE_NOT_FOUND"
                     case .channelNotFound: return "CHANNEL_NOT_FOUND"
                     case .messageNotFound: return "MESSAGE_NOT_FOUND"
+                    case .scheduledMessageNotFound: return "SCHEDULED_MESSAGE_NOT_FOUND"
+                    case .scheduledMessageSent: return "SCHEDULED_MESSAGE_SENT"
+                    case .scheduledMessageLimit: return "SCHEDULED_MESSAGE_LIMIT"
                     case .messageVersionNotFound: return "MESSAGE_VERSION_NOT_FOUND"
                     case .incidentNotFound: return "INCIDENT_NOT_FOUND"
                     case .userNotFound: return "USER_NOT_FOUND"
@@ -1743,23 +1752,28 @@ public struct ChannelsUpdatedFrame: Sendable, Hashable, Codable {
 
 public struct ClientCapabilities: Sendable, Hashable, Codable {
     public var notificationTypeFilters: Bool?
+    public var scheduledMessages: Bool?
 
-    public init(notificationTypeFilters: Bool? = nil) {
+    public init(notificationTypeFilters: Bool? = nil, scheduledMessages: Bool? = nil) {
         self.notificationTypeFilters = notificationTypeFilters
+        self.scheduledMessages = scheduledMessages
     }
 
     private enum CodingKeys: String, CodingKey {
         case notificationTypeFilters
+        case scheduledMessages
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.notificationTypeFilters = try container.decodeIfPresent(Bool.self, forKey: .notificationTypeFilters)
+        self.scheduledMessages = try container.decodeIfPresent(Bool.self, forKey: .scheduledMessages)
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(self.notificationTypeFilters, forKey: .notificationTypeFilters)
+        try container.encodeIfPresent(self.scheduledMessages, forKey: .scheduledMessages)
     }
 }
 
@@ -1851,23 +1865,28 @@ public struct ClientInfo: Sendable, Hashable, Codable {
 
     public struct Capabilities: Sendable, Hashable, Codable {
         public var notificationTypeFilters: Bool?
+        public var scheduledMessages: Bool?
 
-        public init(notificationTypeFilters: Bool? = nil) {
+        public init(notificationTypeFilters: Bool? = nil, scheduledMessages: Bool? = nil) {
             self.notificationTypeFilters = notificationTypeFilters
+            self.scheduledMessages = scheduledMessages
         }
 
         private enum CodingKeys: String, CodingKey {
             case notificationTypeFilters
+            case scheduledMessages
         }
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.notificationTypeFilters = try container.decodeIfPresent(Bool.self, forKey: .notificationTypeFilters)
+            self.scheduledMessages = try container.decodeIfPresent(Bool.self, forKey: .scheduledMessages)
         }
 
         public func encode(to encoder: any Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encodeIfPresent(self.notificationTypeFilters, forKey: .notificationTypeFilters)
+            try container.encodeIfPresent(self.scheduledMessages, forKey: .scheduledMessages)
         }
     }
 
@@ -2679,6 +2698,9 @@ public enum ErrorCode: Sendable, Hashable, Codable {
     case workspaceNotFound
     case channelNotFound
     case messageNotFound
+    case scheduledMessageNotFound
+    case scheduledMessageSent
+    case scheduledMessageLimit
     case messageVersionNotFound
     case incidentNotFound
     case userNotFound
@@ -2731,7 +2753,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [ErrorCode] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .notAChannelMember, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .githubFeedsLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .`internal`]
+    public static let known: [ErrorCode] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .notAChannelMember, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .githubFeedsLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .`internal`]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -2748,6 +2770,9 @@ public enum ErrorCode: Sendable, Hashable, Codable {
             case "WORKSPACE_NOT_FOUND": self = .workspaceNotFound
             case "CHANNEL_NOT_FOUND": self = .channelNotFound
             case "MESSAGE_NOT_FOUND": self = .messageNotFound
+            case "SCHEDULED_MESSAGE_NOT_FOUND": self = .scheduledMessageNotFound
+            case "SCHEDULED_MESSAGE_SENT": self = .scheduledMessageSent
+            case "SCHEDULED_MESSAGE_LIMIT": self = .scheduledMessageLimit
             case "MESSAGE_VERSION_NOT_FOUND": self = .messageVersionNotFound
             case "INCIDENT_NOT_FOUND": self = .incidentNotFound
             case "USER_NOT_FOUND": self = .userNotFound
@@ -2816,6 +2841,9 @@ public enum ErrorCode: Sendable, Hashable, Codable {
             case .workspaceNotFound: return "WORKSPACE_NOT_FOUND"
             case .channelNotFound: return "CHANNEL_NOT_FOUND"
             case .messageNotFound: return "MESSAGE_NOT_FOUND"
+            case .scheduledMessageNotFound: return "SCHEDULED_MESSAGE_NOT_FOUND"
+            case .scheduledMessageSent: return "SCHEDULED_MESSAGE_SENT"
+            case .scheduledMessageLimit: return "SCHEDULED_MESSAGE_LIMIT"
             case .messageVersionNotFound: return "MESSAGE_VERSION_NOT_FOUND"
             case .incidentNotFound: return "INCIDENT_NOT_FOUND"
             case .userNotFound: return "USER_NOT_FOUND"
@@ -2955,6 +2983,9 @@ public enum ExportFailure: Sendable, Hashable, Codable {
     case workspaceNotFound
     case channelNotFound
     case messageNotFound
+    case scheduledMessageNotFound
+    case scheduledMessageSent
+    case scheduledMessageLimit
     case messageVersionNotFound
     case incidentNotFound
     case userNotFound
@@ -3010,7 +3041,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [ExportFailure] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .notAChannelMember, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .githubFeedsLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .`internal`, .exportFailed, .exportAbandoned, .exportRequesterGone]
+    public static let known: [ExportFailure] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .notAChannelMember, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .githubFeedsLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .`internal`, .exportFailed, .exportAbandoned, .exportRequesterGone]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -3027,6 +3058,9 @@ public enum ExportFailure: Sendable, Hashable, Codable {
             case "WORKSPACE_NOT_FOUND": self = .workspaceNotFound
             case "CHANNEL_NOT_FOUND": self = .channelNotFound
             case "MESSAGE_NOT_FOUND": self = .messageNotFound
+            case "SCHEDULED_MESSAGE_NOT_FOUND": self = .scheduledMessageNotFound
+            case "SCHEDULED_MESSAGE_SENT": self = .scheduledMessageSent
+            case "SCHEDULED_MESSAGE_LIMIT": self = .scheduledMessageLimit
             case "MESSAGE_VERSION_NOT_FOUND": self = .messageVersionNotFound
             case "INCIDENT_NOT_FOUND": self = .incidentNotFound
             case "USER_NOT_FOUND": self = .userNotFound
@@ -3098,6 +3132,9 @@ public enum ExportFailure: Sendable, Hashable, Codable {
             case .workspaceNotFound: return "WORKSPACE_NOT_FOUND"
             case .channelNotFound: return "CHANNEL_NOT_FOUND"
             case .messageNotFound: return "MESSAGE_NOT_FOUND"
+            case .scheduledMessageNotFound: return "SCHEDULED_MESSAGE_NOT_FOUND"
+            case .scheduledMessageSent: return "SCHEDULED_MESSAGE_SENT"
+            case .scheduledMessageLimit: return "SCHEDULED_MESSAGE_LIMIT"
             case .messageVersionNotFound: return "MESSAGE_VERSION_NOT_FOUND"
             case .incidentNotFound: return "INCIDENT_NOT_FOUND"
             case .userNotFound: return "USER_NOT_FOUND"
@@ -7515,6 +7552,154 @@ public struct SavedUpdatedFrame: Sendable, Hashable, Codable {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(self.workspaceId, forKey: .workspaceId)
         }
+    }
+}
+
+public struct ScheduleMessageRequest: Sendable, Hashable, Codable {
+    public var attachmentIds: [Uuid]?
+    public var content: SendContent
+    public var parentId: Uuid?
+    public var sendAt: Timestamp
+
+    public init(attachmentIds: [Uuid]? = nil, content: SendContent, parentId: Uuid? = nil, sendAt: Timestamp) {
+        self.attachmentIds = attachmentIds
+        self.content = content
+        self.parentId = parentId
+        self.sendAt = sendAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case attachmentIds
+        case content
+        case parentId
+        case sendAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.attachmentIds = try container.decodeIfPresent([Uuid].self, forKey: .attachmentIds)
+        self.content = try container.decode(SendContent.self, forKey: .content)
+        self.parentId = try container.decodeIfPresent(Uuid.self, forKey: .parentId)
+        self.sendAt = try container.decode(Timestamp.self, forKey: .sendAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.attachmentIds, forKey: .attachmentIds)
+        try container.encode(self.content, forKey: .content)
+        try container.encodeIfPresent(self.parentId, forKey: .parentId)
+        try container.encode(self.sendAt, forKey: .sendAt)
+    }
+}
+
+public struct ScheduledMessage: Sendable, Hashable, Codable {
+    public var attachments: [Attachment]
+    public var channelId: Uuid
+    public var content: SendContent
+    public var createdAt: Timestamp
+    public var failureCode: String?
+    public var id: Uuid
+    public var parentId: Uuid?
+    public var sendAt: Timestamp
+    public var sentMessageId: Uuid?
+    public var state: ScheduledMessageState
+    public var updatedAt: Timestamp
+
+    public init(attachments: [Attachment], channelId: Uuid, content: SendContent, createdAt: Timestamp, failureCode: String?, id: Uuid, parentId: Uuid?, sendAt: Timestamp, sentMessageId: Uuid?, state: ScheduledMessageState, updatedAt: Timestamp) {
+        self.attachments = attachments
+        self.channelId = channelId
+        self.content = content
+        self.createdAt = createdAt
+        self.failureCode = failureCode
+        self.id = id
+        self.parentId = parentId
+        self.sendAt = sendAt
+        self.sentMessageId = sentMessageId
+        self.state = state
+        self.updatedAt = updatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case attachments
+        case channelId
+        case content
+        case createdAt
+        case failureCode
+        case id
+        case parentId
+        case sendAt
+        case sentMessageId
+        case state
+        case updatedAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.attachments = try container.decode([Attachment].self, forKey: .attachments)
+        self.channelId = try container.decode(Uuid.self, forKey: .channelId)
+        self.content = try container.decode(SendContent.self, forKey: .content)
+        self.createdAt = try container.decode(Timestamp.self, forKey: .createdAt)
+        self.failureCode = try container.decode(String?.self, forKey: .failureCode)
+        self.id = try container.decode(Uuid.self, forKey: .id)
+        self.parentId = try container.decode(Uuid?.self, forKey: .parentId)
+        self.sendAt = try container.decode(Timestamp.self, forKey: .sendAt)
+        self.sentMessageId = try container.decode(Uuid?.self, forKey: .sentMessageId)
+        self.state = try container.decode(ScheduledMessageState.self, forKey: .state)
+        self.updatedAt = try container.decode(Timestamp.self, forKey: .updatedAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.attachments, forKey: .attachments)
+        try container.encode(self.channelId, forKey: .channelId)
+        try container.encode(self.content, forKey: .content)
+        try container.encode(self.createdAt, forKey: .createdAt)
+        try container.encode(self.failureCode, forKey: .failureCode)
+        try container.encode(self.id, forKey: .id)
+        try container.encode(self.parentId, forKey: .parentId)
+        try container.encode(self.sendAt, forKey: .sendAt)
+        try container.encode(self.sentMessageId, forKey: .sentMessageId)
+        try container.encode(self.state, forKey: .state)
+        try container.encode(self.updatedAt, forKey: .updatedAt)
+    }
+}
+
+public typealias ScheduledMessageList = [ScheduledMessage]
+
+public enum ScheduledMessageState: Sendable, Hashable, Codable {
+    case pending
+    case sent
+    case failed
+    /// A value this client was not built for.
+    case unknown(String)
+
+    public static let known: [ScheduledMessageState] = [.pending, .sent, .failed]
+
+    public init(rawValue: String) {
+        switch rawValue {
+            case "pending": self = .pending
+            case "sent": self = .sent
+            case "failed": self = .failed
+            default: self = .unknown(rawValue)
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+            case .pending: return "pending"
+            case .sent: return "sent"
+            case .failed: return "failed"
+            case .unknown(let value): return value
+        }
+    }
+
+    public init(from decoder: any Decoder) throws {
+        self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 

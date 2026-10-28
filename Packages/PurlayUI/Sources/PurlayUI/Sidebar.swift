@@ -47,6 +47,9 @@ struct SidebarView: View {
                     .tag(SidebarSelection.inbox)
                 Label("Open Topics", systemImage: "bubble.left.and.text.bubble.right")
                     .tag(SidebarSelection.unresolved)
+                if model.supportsScheduling {
+                    DestinationRow(title: "Scheduled", systemImage: "clock") { model.scheduledOpen = true }
+                }
                 DestinationRow(title: "Saved", systemImage: "bookmark") { model.savedOpen = true }
                 DestinationRow(title: "Drafts", systemImage: "square.and.pencil", count: draftCount) {
                     model.draftsOpen = true
