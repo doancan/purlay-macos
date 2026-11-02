@@ -286,4 +286,253 @@ struct SearchModelTests {
         #expect(h.model.notices.map(\.kind).contains(.loadFailed))
         #expect(h.model.focus == nil)
     }
+
+    // MARK: The other filters
+
+    private func items(_ request: HTTPRequest?) -> [URLQueryItem] {
+        request.flatMap { URLComponents(url: $0.url, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+    }
+
+    @Test("every filter is sent with each page, and a filter alone searches without words")
+    func advancedFilters() async throws {
+        var withFile = msg(2_000, "the deploy log")
+        withFile.attachments = [
+            FakeServer.decoded(
+                PurlayContract.Attachment.self,
+                #"{"id":"\#(idAt(9).value)","fileName":"log.txt","mimeType":"text/plain","sizeBytes":3,"kind":"file","width":null,"height":null}"#
+            )
+        ]
+        let h = await opened([channel(1): [msg(1_000, "migration"), withFile, msg(3_000, "another")]])
+        h.server.edit { $0.searchPageSize = 1 }
+        let since = Timestamp(Date(timeIntervalSince1970: 1_700_000_000))
+        let until = Timestamp(Date(timeIntervalSince1970: 1_900_000_000))
+        await h.model.setSearchFilters(
+            SearchFilters(
+                kind: .file, question: SearchFilters.questionsOnly, repository: "  acme/api ", since: since,
+                status: .resolved, until: until))
+        #expect(h.model.searchFilters.repository == "acme/api", "trimmed")
+        #expect(h.model.searchQuery.isEmpty)
+        #expect(h.model.searchStatus == .done)
+        #expect(h.model.searchResults.map(\.id) == [withFile.id])
+        let sent = items(calls(h, "/search").last)
+        for expected in [
+            URLQueryItem(name: "q", value: ""), URLQueryItem(name: "kind", value: "file"),
+            URLQueryItem(name: "question", value: "yes"), URLQueryItem(name: "repository", value: "acme/api"),
+            URLQueryItem(name: "status", value: "resolved"), URLQueryItem(name: "since", value: since.description),
+            URLQueryItem(name: "until", value: until.description),
+        ] {
+            #expect(sent.contains(expected), "\(expected.name)")
+        }
+        await h.model.setSearchFilters(SearchFilters(status: .open))
+        #expect(h.model.searchResults.count == 1 && h.model.searchHasMore)
+        await h.model.loadMoreResults()
+        let more = items(calls(h, "/search").last)
+        #expect(more.contains(URLQueryItem(name: "status", value: "open")))
+        #expect(more.contains { $0.name == "before" })
+        #expect(!more.contains { $0.name == "kind" }, "a filter taken away is not sent")
+    }
+
+    @Test("no words and no filter, words too short even with a filter, or an end before the start ask nothing")
+    func filterBounds() async {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        await h.model.search("")
+        #expect(h.model.searchStatus == .idle)
+        await h.model.setSearchFilters(SearchFilters(status: .open))
+        let asked = calls(h, "/search").count
+        #expect(asked == 1)
+        await h.model.search("mi")
+        #expect(h.model.searchStatus == .idle)
+        #expect(calls(h, "/search").count == asked)
+        let late = Timestamp(Date(timeIntervalSince1970: 1_900_000_000))
+        let early = Timestamp(Date(timeIntervalSince1970: 1_800_000_000))
+        await h.model.setSearchFilters(SearchFilters(since: late, until: early))
+        #expect(h.model.searchFilters.rangeIsInverted)
+        #expect(h.model.searchStatus == .idle)
+        #expect(!h.model.canSaveSearch)
+        #expect(calls(h, "/search").count == asked)
+    }
+
+    @Test("filters the server refuses are said as refused, not as a lost connection")
+    func refusedFilters() async {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        await h.model.setSearchFilters(SearchFilters(repository: "not a repository"))
+        #expect(h.model.searchStatus == .refused)
+        #expect(h.model.searchResults.isEmpty)
+    }
+
+    @Test("clearing takes every filter away")
+    func clearsFilters() async {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        await h.model.setSearchFilters(SearchFilters(kind: .code))
+        h.model.clearSearch()
+        #expect(h.model.searchFilters.isEmpty)
+        #expect(!h.model.searchHasFilters)
+    }
+
+    @Test("recent searches keep the other filters, and history written before them still reads")
+    func recentKeepsFilters() async throws {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        let key = try #require(h.model.scopedPreferenceKey("search.history"))
+        let old = #"[{"query":"deploy","channelID":"\#(channel(1))"},{"query":"lunch","senderID":null}]"#
+        h.preferences.set(old, for: key)
+        h.model.openSearch()
+        #expect(h.model.recentSearches.map(\.query) == ["deploy", "lunch"])
+        #expect(h.model.recentSearches.allSatisfy { $0.filters == nil })
+
+        await h.model.setSearchFilters(SearchFilters(status: .resolved))
+        h.model.rememberSearch()
+        let entry = try #require(h.model.recentSearches.first)
+        #expect(entry.query.isEmpty)
+        #expect(entry.filters == SearchFilters(status: .resolved))
+        #expect(h.model.recentSearches.count == 3)
+
+        h.model.clearSearch()
+        await h.model.repeatSearch(entry)
+        #expect(h.model.searchFilters == SearchFilters(status: .resolved))
+        await h.model.repeatSearch(try #require(h.model.recentSearches.last))
+        #expect(h.model.searchFilters.isEmpty, "an old entry clears the filters it did not have")
+        #expect(MessageSearch(query: "x", channelID: nil, senderID: nil, filters: SearchFilters()).filters == nil)
+    }
+
+    // MARK: Saved searches
+
+    private func saved(_ at: Int, _ name: String, q: String = "migration", status: SearchCriteria.Status? = nil)
+        -> SavedSearch
+    {
+        SavedSearch(
+            createdAt: Timestamp(Date(timeIntervalSince1970: 1_800_000_000)), id: idAt(at), name: name,
+            query: SearchCriteria(q: q, status: status))
+    }
+
+    @Test("saved searches are read when search opens, every page, newest first")
+    func loadsSaved() async {
+        let h = await opened()
+        h.server.edit {
+            $0.savedSearches = [saved(1_000, "one"), saved(3_000, "three"), saved(2_000, "two")]
+            $0.savedSearchPageSize = 2
+        }
+        h.model.openSearch()
+        await h.settle()
+        #expect(h.model.savedSearches.map(\.name) == ["three", "two", "one"])
+        #expect(h.model.savedSearchesStatus == .loaded)
+        #expect(calls(h, "/saved-searches").count == 2)
+    }
+
+    @Test("a failed read says so, and the next read recovers")
+    func savedFailure() async {
+        let h = await opened()
+        h.server.edit { $0.savedSearchError = (500, "INTERNAL") }
+        await h.model.loadSavedSearches()
+        #expect(h.model.savedSearchesStatus == .failed)
+        h.server.edit {
+            $0.savedSearchError = nil
+            $0.savedSearches = [saved(1_000, "one")]
+        }
+        await h.model.loadSavedSearches()
+        #expect(h.model.savedSearchesStatus == .loaded)
+        #expect(h.model.savedSearches.count == 1)
+    }
+
+    @Test("the search on show is saved under a name with every filter, at the id given, and running it brings it back")
+    func savesAndRuns() async throws {
+        let h = await opened([channel(1): [msg(1_000, "migration")]])
+        await h.model.setSearchFilters(channel: Uuid(channel(1)), sender: nil)
+        await h.model.setSearchFilters(SearchFilters(kind: .code, status: .open))
+        await h.model.search("migration")
+        let id = h.model.newSavedSearchID()
+        let result = try await h.model.saveSearch(id: id, name: "  Open code  ")
+        #expect(result.id == id)
+        #expect(result.name == "Open code")
+        #expect(
+            result.query
+                == SearchCriteria(channelId: Uuid(channel(1)), kind: .code, q: "migration", status: .open))
+        // A retry after a lost answer is the same search, not a second one.
+        try await h.model.saveSearch(id: id, name: "Open code")
+        #expect(h.model.savedSearches.map(\.id) == [id])
+        #expect(h.server.state.withLock { $0.savedSearches.count } == 1)
+
+        h.model.clearSearch()
+        await h.model.runSearch(result.query)
+        #expect(h.model.searchQuery == "migration")
+        #expect(h.model.searchChannelID == Uuid(channel(1)))
+        #expect(h.model.searchFilters == SearchFilters(kind: .code, status: .open))
+        #expect(h.model.searchStatus == .done)
+    }
+
+    @Test("nothing to search for, or no name, is not saved")
+    func saveRefused() async {
+        let h = await opened()
+        await #expect(throws: SavedSearchFailure.invalid) {
+            try await h.model.saveSearch(id: h.model.newSavedSearchID(), name: "Nothing")
+        }
+        await h.model.setSearchFilters(SearchFilters(status: .open))
+        await #expect(throws: SavedSearchFailure.invalid) {
+            try await h.model.saveSearch(id: h.model.newSavedSearchID(), name: "   ")
+        }
+        #expect(calls(h, "/saved-searches").isEmpty)
+        #expect(h.server.requests.filter { $0.method == "PUT" }.isEmpty)
+    }
+
+    @Test("the limit and a search gone elsewhere are said as such; a gone one leaves the list")
+    func saveErrors() async {
+        let h = await opened()
+        h.server.edit {
+            $0.savedSearches = [saved(1_000, "one")]
+            $0.savedSearchLimit = 1
+        }
+        await h.model.loadSavedSearches()
+        await h.model.setSearchFilters(SearchFilters(status: .open))
+        await #expect(throws: SavedSearchFailure.limit) {
+            try await h.model.saveSearch(id: h.model.newSavedSearchID(), name: "Two")
+        }
+        h.server.edit { $0.savedSearchError = (404, "SAVED_SEARCH_NOT_FOUND") }
+        await #expect(throws: SavedSearchFailure.notFound) {
+            try await h.model.renameSavedSearch(saved(1_000, "one"), to: "Renamed")
+        }
+        #expect(h.model.savedSearches.isEmpty)
+    }
+
+    @Test("renaming writes the same id with the same criteria; deleting removes it")
+    func renamesAndDeletes() async throws {
+        let h = await opened()
+        let original = saved(1_000, "old", status: .resolved)
+        h.server.edit { $0.savedSearches = [original, saved(2_000, "other")] }
+        await h.model.loadSavedSearches()
+        let renamed = try await h.model.renameSavedSearch(original, to: "New")
+        #expect(renamed.id == original.id)
+        #expect(renamed.query == original.query)
+        #expect(h.model.savedSearches.map(\.name) == ["other", "New"])
+        try await h.model.deleteSavedSearch(renamed)
+        #expect(h.model.savedSearches.map(\.name) == ["other"])
+        #expect(h.server.state.withLock { $0.savedSearches.map(\.name) } == ["other"])
+        let deletes = h.server.requests.filter { $0.method == "DELETE" }
+        #expect(deletes.last?.url.path.hasSuffix("/saved-searches/\(original.id.value)") == true)
+    }
+
+    @Test("a slow read begun before a save does not take the saved search away")
+    func staleRead() async throws {
+        let h = await opened()
+        h.server.edit { $0.savedSearchDelay = 120 }
+        let read = Task { await h.model.loadSavedSearches() }
+        try? await Task.sleep(for: .milliseconds(20))
+        h.server.edit { $0.savedSearchDelay = 0 }
+        await h.model.setSearchFilters(SearchFilters(status: .open))
+        let id = h.model.newSavedSearchID()
+        try await h.model.saveSearch(id: id, name: "Open")
+        await read.value
+        #expect(h.model.savedSearches.map(\.id) == [id])
+        #expect(h.model.savedSearchesStatus == .loaded)
+    }
+
+    @Test("signing out forgets saved searches and the filters")
+    func savedSignOut() async {
+        let h = await opened()
+        h.server.edit { $0.savedSearches = [saved(1_000, "one")] }
+        await h.model.loadSavedSearches()
+        await h.model.setSearchFilters(SearchFilters(kind: .file))
+        _ = await h.model.signOut(.thisDevice)
+        #expect(h.model.savedSearches.isEmpty)
+        #expect(h.model.savedSearchesStatus == .idle)
+        #expect(h.model.searchFilters.isEmpty)
+    }
 }

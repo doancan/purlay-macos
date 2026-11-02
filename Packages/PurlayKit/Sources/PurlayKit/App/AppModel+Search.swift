@@ -1,11 +1,41 @@
 import Foundation
 import PurlayContract
 
-/// A recent search belongs to one account and workspace, including its channel and author filters.
+/// A recent search belongs to one account and workspace, including its channel, author and other filters.
+///
+/// History written before the other filters existed has no `filters` key, and reads as a search without them.
 public struct MessageSearch: Codable, Hashable, Sendable {
     public let query: String
     public let channelID: Uuid?
     public let senderID: Uuid?
+    /// Nil when none is set, so an old entry and the same search made again are one entry.
+    public let filters: SearchFilters?
+
+    public init(query: String, channelID: Uuid?, senderID: Uuid?, filters: SearchFilters? = nil) {
+        self.query = query
+        self.channelID = channelID
+        self.senderID = senderID
+        self.filters = filters.flatMap { $0.isEmpty ? nil : $0 }
+    }
+}
+
+extension SearchFilters {
+    /// The one value `question` takes: marked questions only.
+    public static let questionsOnly = "yes"
+
+    public var isEmpty: Bool { self == SearchFilters() }
+
+    /// How many filters are set, for a control that says so.
+    public var count: Int {
+        [kind != nil, question != nil, repository != nil, since != nil, until != nil, status != nil].filter { $0 }
+            .count
+    }
+
+    /// A start at or after the end, which the server refuses and nothing could match.
+    public var rangeIsInverted: Bool {
+        guard let since, let until else { return false }
+        return since >= until
+    }
 }
 
 extension AppModel {
@@ -25,10 +55,12 @@ extension AppModel {
             searchQuery = String(
                 query.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ContractConstants.searchQueryMax))
             Task { await search(query) }
-        } else if searchStatus == .idle && searchQuery.count >= ContractConstants.searchQueryMin {
+        } else if searchStatus == .idle, searchable(searchQuery), !searchQuery.isEmpty || !searchFilters.isEmpty {
+            // A channel alone, as search in a conversation opens, waits for words.
             let input = searchInput
             Task { await search(input) }
         }
+        Task { await loadSavedSearches() }
     }
 
     // MARK: Search
@@ -41,16 +73,55 @@ extension AppModel {
 
     public var searchHasMore: Bool { searchCursor != nil }
 
+    /// Some filter is set: where, from whom, or any of the others.
+    public var searchHasFilters: Bool { searchChannelID != nil || searchSenderID != nil || !searchFilters.isEmpty }
+
+    /// Words are asked for only from the shortest a search takes, but none at all will do when a filter narrows it.
+    func searchable(_ typed: String) -> Bool {
+        guard !searchFilters.rangeIsInverted else { return false }
+        return typed.count >= ContractConstants.searchQueryMin || (typed.isEmpty && searchHasFilters)
+    }
+
+    /// The search as asked for now, as it is saved.
+    public var searchCriteria: SearchCriteria {
+        SearchCriteria(
+            channelId: searchChannelID, kind: searchFilters.kind.map { .init(rawValue: $0.rawValue) },
+            q: searchQuery, question: searchFilters.question, repository: searchFilters.repository,
+            senderId: searchSenderID, since: searchFilters.since,
+            status: searchFilters.status.map { .init(rawValue: $0.rawValue) }, until: searchFilters.until)
+    }
+
     public func setSearchFilters(channel: Uuid?, sender: Uuid?) async {
         searchChannelID = channel
         searchSenderID = sender
         await search(searchQuery)
     }
 
+    /// Replaces the other filters and searches again with what was typed. A repository is trimmed, and an empty one is none.
+    public func setSearchFilters(_ filters: SearchFilters) async {
+        var filters = filters
+        let repository = filters.repository?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        filters.repository = repository.isEmpty ? nil : repository
+        searchFilters = filters
+        await search(searchQuery)
+    }
+
     public func repeatSearch(_ entry: MessageSearch) async {
         searchChannelID = entry.channelID
         searchSenderID = entry.senderID
+        searchFilters = entry.filters ?? SearchFilters()
         await search(entry.query)
+    }
+
+    /// Runs a search as it was saved: its words and every filter, the ones it does not set cleared.
+    public func runSearch(_ criteria: SearchCriteria) async {
+        searchChannelID = criteria.channelId
+        searchSenderID = criteria.senderId
+        searchFilters = SearchFilters(
+            kind: criteria.kind.map { .init(rawValue: $0.rawValue) }, question: criteria.question,
+            repository: criteria.repository, since: criteria.since,
+            status: criteria.status.map { .init(rawValue: $0.rawValue) }, until: criteria.until)
+        await search(criteria.q)
     }
 
     func scopedPreferenceKey(_ name: String) -> String? {
@@ -70,10 +141,11 @@ extension AppModel {
     }
 
     public func rememberSearch() {
-        guard searchStatus == .done, !searchQuery.isEmpty, let key = scopedPreferenceKey("search.history") else {
-            return
-        }
-        let entry = MessageSearch(query: searchQuery, channelID: searchChannelID, senderID: searchSenderID)
+        guard searchStatus == .done, !searchQuery.isEmpty || searchHasFilters,
+            let key = scopedPreferenceKey("search.history")
+        else { return }
+        let entry = MessageSearch(
+            query: searchQuery, channelID: searchChannelID, senderID: searchSenderID, filters: searchFilters)
         loadRecentSearches()
         recentSearches = Array(([entry] + recentSearches.filter { $0 != entry }).prefix(12))
         if let data = try? JSONEncoder().encode(recentSearches) {
@@ -86,8 +158,9 @@ extension AppModel {
         recentSearches = []
     }
 
-    /// Searches the workspace's messages for the words as typed. One too short asks nothing and clears; one past the limit is cut where
-    /// search stops. Only the answer to the newest query is kept: a slow one that was asked for earlier is let go.
+    /// Searches the workspace's messages for the words as typed, within the filters. Words too short, or none without a filter, or an
+    /// end that does not follow the start, ask nothing and clear; words past the limit are cut where search stops. Only the answer to
+    /// the newest query is kept: a slow one that was asked for earlier is let go.
     public func search(_ raw: String) async {
         searchGeneration += 1
         let generation = searchGeneration
@@ -97,7 +170,7 @@ extension AppModel {
         searchResults = []
         searchCursor = nil
         loadingMoreResults = false
-        guard typed.count >= ContractConstants.searchQueryMin, let api, let workspace else {
+        guard searchable(typed), let api, let workspace else {
             searchResults = []
             searchCursor = nil
             searchStatus = .idle
@@ -106,10 +179,7 @@ extension AppModel {
         searchStatus = .searching
         do {
             let page = try await api.searchMessages(
-                workspaceId: workspace.id.value,
-                query: SearchQuery(
-                    channelId: searchChannelID, limit: ContractConstants.pageLimit.default, q: typed,
-                    senderId: searchSenderID))
+                workspaceId: workspace.id.value, query: searchRequest(before: nil, q: typed))
             guard generation == searchGeneration else { return }
             try Task.checkCancellation()
             searchResults = page.data.filter { !isPersonallyDeleted($0.id) }
@@ -119,10 +189,20 @@ extension AppModel {
             guard generation == searchGeneration else { return }
             searchResults = []
             searchCursor = nil
-            searchStatus =
-                Task.isCancelled || error is CancellationError || (error as? TransportError) == .cancelled
-                ? .idle : .failed
+            if Task.isCancelled || error is CancellationError || (error as? TransportError) == .cancelled {
+                searchStatus = .idle
+            } else {
+                searchStatus = (error as? APIError)?.code == .validationFailed ? .refused : .failed
+            }
         }
+    }
+
+    private func searchRequest(before: Uuid?, q: String) -> SearchQuery {
+        SearchQuery(
+            before: before, channelId: searchChannelID, kind: searchFilters.kind.map { .init(rawValue: $0.rawValue) },
+            limit: ContractConstants.pageLimit.default, q: q, question: searchFilters.question,
+            repository: searchFilters.repository, senderId: searchSenderID, since: searchFilters.since,
+            status: searchFilters.status.map { .init(rawValue: $0.rawValue) }, until: searchFilters.until)
     }
 
     /// The next page of the same search, after what is held.
@@ -135,10 +215,7 @@ extension AppModel {
         defer { if generation == searchGeneration { loadingMoreResults = false } }
         do {
             let page = try await api.searchMessages(
-                workspaceId: workspace.id.value,
-                query: SearchQuery(
-                    before: cursor, channelId: searchChannelID, limit: ContractConstants.pageLimit.default,
-                    q: searchQuery, senderId: searchSenderID))
+                workspaceId: workspace.id.value, query: searchRequest(before: cursor, q: searchQuery))
             guard generation == searchGeneration else { return }
             let held = Set(searchResults.map(\.id))
             searchResults += page.data.filter { !held.contains($0.id) && !isPersonallyDeleted($0.id) }
@@ -154,6 +231,7 @@ extension AppModel {
         searchQuery = ""
         searchChannelID = nil
         searchSenderID = nil
+        searchFilters = SearchFilters()
         loadingMoreResults = false
         searchInput = ""
         searchResults = []
