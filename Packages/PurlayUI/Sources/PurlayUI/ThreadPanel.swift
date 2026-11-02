@@ -21,6 +21,18 @@ struct ThreadPanel: View {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             if let root = model.threadRoot {
                                 MessageRow(message: root, model: model, inThread: true)
+                                KnowledgeHeader(model: model, root: root) { answer in
+                                    withAnimation(
+                                        reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep)
+                                    ) {
+                                        proxy.scrollTo(answer, anchor: .center)
+                                    }
+                                    marked = answer
+                                    Task {
+                                        try? await Task.sleep(for: .seconds(2))
+                                        if marked == answer { marked = nil }
+                                    }
+                                }
                                 Status(model: model, root: root, replies: thread.replies.count)
                             }
                             if !thread.isLoaded {
@@ -110,6 +122,7 @@ private struct Header: View {
                     .lineLimit(1)
             }
             Spacer()
+            if let root = model.threadRoot { KnowledgeActions(model: model, root: root) }
             followButton
             Button {
                 model.closeThread()

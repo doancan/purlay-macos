@@ -47,6 +47,9 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case deleteFailed
         case reactionFailed
         case loadFailed
+        case knowledgeFailed
+        /// Somebody else changed a thread's question or decision first: it was read again, and nothing was written over theirs.
+        case knowledgeConflict
     }
 
     public let id: Int
@@ -165,6 +168,8 @@ public final class AppModel {
     var threadRootCopy: Message?
     var threadGeneration = 0
     var threadMarked: [Uuid: Uuid] = [:]
+    /// Roots whose questions and decisions are being written: one write at a time each, since each carries the version it read.
+    public internal(set) var knowledgeSaving: Set<Uuid> = []
 
     // MARK: The inbox
 
@@ -183,6 +188,7 @@ public final class AppModel {
     public internal(set) var unresolvedLoading = false
     public internal(set) var unresolvedFailed = false
     public internal(set) var unresolvedUpdating: Set<Uuid> = []
+    public internal(set) var unresolvedFilter: UnresolvedFilter = .all
     var unresolvedCursor: Uuid?
     var unresolvedGeneration = 0
     public internal(set) var inboxFilter: InboxFilter = .all
@@ -614,7 +620,7 @@ public final class AppModel {
 
     // MARK: Signed in
 
-    private func bootstrap() async {
+    func bootstrap() async {
         guard let server, let origin, let manager else { return }
         phase = .loading
         let context = contextGeneration
@@ -632,6 +638,13 @@ public final class AppModel {
             self.me = me
             await manager.identify(userID: me.user.id.value)
             guard context == contextGeneration else { return }
+            if me.mustEnrolTwoFactor {
+                // Held back until two-step verification is on (D-239): every route but this one answers 403, so nothing
+                // more is read. The window says why and where to turn it on, and reads this again when asked.
+                workspace = nil
+                phase = .ready
+                return
+            }
             let membership =
                 preferredWorkspaceID.map { id in
                     me.memberships.first { $0.workspace.id == id }
@@ -765,6 +778,7 @@ public final class AppModel {
         marking = []
         closeThread()
         threadMarked = [:]
+        knowledgeSaving = []
         readRetryAfter = [:]
         engine?.stop()
         engine = nil
@@ -896,7 +910,8 @@ public final class AppModel {
             ("notices", notices.count), ("pending", pending.count), ("degraded", degraded.count),
             ("markedRead", markedRead.count), ("readRetryAfter", readRetryAfter.count),
             ("workspacePeople", workspacePeople.count), ("channelPeople", channelPeople.count),
-            ("threadMarked", threadMarked.count), ("thread", thread == nil ? 0 : 1), ("inboxRows", inboxRows.count),
+            ("threadMarked", threadMarked.count), ("knowledgeSaving", knowledgeSaving.count),
+            ("thread", thread == nil ? 0 : 1), ("inboxRows", inboxRows.count),
             ("inboxNotes", inboxNotes.count), ("savedIDs", savedIDs.count), ("savedItems", savedItems.count),
             ("pins", pins.count), ("uploads", uploadsByPlace.count), ("uploadBytes", uploadBytes.count),
             ("attachmentCache", attachmentCache.count + attachmentCacheOrder.count + attachmentCacheBytes),
