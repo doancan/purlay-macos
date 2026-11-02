@@ -49,7 +49,8 @@ extension Words {
         searchSummary(
             channel: criteria.channelId, sender: criteria.senderId,
             filters: SearchFilters(
-                kind: criteria.kind.map { .init(rawValue: $0.rawValue) }, question: criteria.question,
+                kind: criteria.kind.map { .init(rawValue: $0.rawValue) },
+                question: criteria.question.map { .init(rawValue: $0.rawValue) },
                 repository: criteria.repository, since: criteria.since,
                 status: criteria.status.map { .init(rawValue: $0.rawValue) }, until: criteria.until),
             model: model)
