@@ -304,6 +304,8 @@ public final class AppModel {
         case searching
         case done
         case failed
+        /// The server would not take these filters as they stand: a repository not named owner/name, say.
+        case refused
     }
 
     /// Where the feed is told to look: a message found, to be scrolled to and marked. The number says it again for the same message.
@@ -315,6 +317,8 @@ public final class AppModel {
     public internal(set) var searchQuery = ""
     public internal(set) var searchChannelID: Uuid?
     public internal(set) var searchSenderID: Uuid?
+    /// The filters past where and from whom: thread status, questions, code or files, days and a repository.
+    public internal(set) var searchFilters = SearchFilters()
     public internal(set) var recentSearches: [MessageSearch] = []
     /// What the search field opens with, including the space after a channel scope such as `in:design `.
     public internal(set) var searchInput = ""
@@ -326,6 +330,10 @@ public final class AppModel {
     var loadingMoreResults = false
     var focusSequence = 0
     var navigationGeneration = 0
+    /// The person's named searches in this workspace, newest first, as the server keeps them.
+    public internal(set) var savedSearches: [SavedSearch] = []
+    public internal(set) var savedSearchesStatus: SavedStatus = .idle
+    var savedSearchGeneration = 0
 
     // MARK: What needs the person
 
@@ -764,6 +772,7 @@ public final class AppModel {
         me = nil
         clearSearch()
         recentSearches = []
+        clearSavedSearches()
         focus = nil
         editing = nil
         uploadsByPlace = [:]

@@ -54,6 +54,11 @@ final class FakeServer: HTTPTransport {
         var notificationReadStatus = 204
         var notificationReads: [ReadNotificationsRequest] = []
         var searchPageSize: Int?
+        var savedSearches: [SavedSearch] = []
+        var savedSearchPageSize = 20
+        var savedSearchError: (status: Int, code: String)?
+        var savedSearchLimit = 50
+        var savedSearchDelay = 0
         var searchDelays: [String: Int] = [:]
         var aroundNewer: String?
         var deepWorkUntil: String?
@@ -226,6 +231,46 @@ final class FakeServer: HTTPTransport {
             state.withLock {
                 $0.reminders.removeAll { $0.message.id == message.id }
                 $0.reminders.append(item)
+            }
+            return json(200, Self.encoded(item))
+        }
+        if path.contains("/saved-searches") {
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.savedSearchDelay > 0 { try await Task.sleep(for: .milliseconds(snapshot.savedSearchDelay)) }
+            if let error = snapshot.savedSearchError {
+                return json(error.status, "{\"error\":{\"code\":\"\(error.code)\",\"message\":\"x\"}}")
+            }
+            let all = snapshot.savedSearches.sorted { $0.id > $1.id }
+            if request.method == "GET" {
+                let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                let before = items.first { $0.name == "before" }?.value
+                let older = before.map { cursor in all.filter { $0.id.value < cursor } } ?? all
+                let page = Array(older.prefix(snapshot.savedSearchPageSize))
+                let next =
+                    older.count > page.count ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+                return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next)}")
+            }
+            guard let id = path.split(separator: "/").last.flatMap({ Uuid(String($0)) }) else {
+                return json(404, #"{"error":{"code":"SAVED_SEARCH_NOT_FOUND","message":"x"}}"#)
+            }
+            if request.method == "DELETE" {
+                state.withLock { $0.savedSearches.removeAll { $0.id == id } }
+                return HTTPResponse(status: 204)
+            }
+            guard let data = request.body, let input = try? JSONDecoder().decode(SaveSearchRequest.self, from: data),
+                !input.name.trimmingCharacters(in: .whitespaces).isEmpty
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            let existing = all.first { $0.id == id }
+            if existing == nil && all.count >= snapshot.savedSearchLimit {
+                return json(409, #"{"error":{"code":"SAVED_SEARCH_LIMIT","message":"x"}}"#)
+            }
+            let now = Timestamp(Date(timeIntervalSince1970: Double(epochMs) / 1_000))
+            let item = SavedSearch(
+                createdAt: existing?.createdAt ?? now, id: id, name: input.name.trimmingCharacters(in: .whitespaces),
+                query: input.query)
+            state.withLock {
+                $0.savedSearches.removeAll { $0.id == id }
+                $0.savedSearches.append(item)
             }
             return json(200, Self.encoded(item))
         }
@@ -465,13 +510,29 @@ final class FakeServer: HTTPTransport {
             if snapshot.searchStatus != 200 {
                 return json(snapshot.searchStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
             }
-            if q.count < 3 || q.count > 200 {
+            let filtered = items.contains { !["q", "before", "limit"].contains($0.name) }
+            if (q.isEmpty && !filtered) || (!q.isEmpty && q.count < 3) || q.count > 200 {
+                return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            let since = items.first { $0.name == "since" }?.value.flatMap(Timestamp.init)
+            let until = items.first { $0.name == "until" }?.value.flatMap(Timestamp.init)
+            if let since, let until, since >= until {
+                return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            if let repository = items.first(where: { $0.name == "repository" })?.value,
+                repository.split(separator: "/").count != 2
+            {
                 return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
             }
             let before = items.first { $0.name == "before" }?.value
             var found = (Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined()))
-                .filter { $0.deletedAt == nil && $0.content.lowercased().contains(q.lowercased()) }
+                .filter { $0.deletedAt == nil && (q.isEmpty || $0.content.lowercased().contains(q.lowercased())) }
+                .filter { message in since.map { message.createdAt >= $0 } ?? true }
+                .filter { message in until.map { message.createdAt < $0 } ?? true }
                 .sorted { $0.id > $1.id }
+            if items.contains(URLQueryItem(name: "kind", value: "file")) {
+                found = found.filter { !$0.attachments.isEmpty }
+            }
             if let before { found = found.filter { $0.id.value < before } }
             if let channel = items.first(where: { $0.name == "channelId" })?.value {
                 found = found.filter { $0.channelId.value == channel }
