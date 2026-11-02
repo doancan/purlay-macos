@@ -20,9 +20,6 @@ public struct MessageSearch: Codable, Hashable, Sendable {
 }
 
 extension SearchFilters {
-    /// The one value `question` takes: marked questions only.
-    public static let questionsOnly = "yes"
-
     public var isEmpty: Bool { self == SearchFilters() }
 
     /// How many filters are set, for a control that says so.
@@ -86,7 +83,7 @@ extension AppModel {
     public var searchCriteria: SearchCriteria {
         SearchCriteria(
             channelId: searchChannelID, kind: searchFilters.kind.map { .init(rawValue: $0.rawValue) },
-            q: searchQuery, question: searchFilters.question, repository: searchFilters.repository,
+            q: searchQuery, question: searchFilters.question.map { .init(rawValue: $0.rawValue) }, repository: searchFilters.repository,
             senderId: searchSenderID, since: searchFilters.since,
             status: searchFilters.status.map { .init(rawValue: $0.rawValue) }, until: searchFilters.until)
     }
@@ -118,7 +115,7 @@ extension AppModel {
         searchChannelID = criteria.channelId
         searchSenderID = criteria.senderId
         searchFilters = SearchFilters(
-            kind: criteria.kind.map { .init(rawValue: $0.rawValue) }, question: criteria.question,
+            kind: criteria.kind.map { .init(rawValue: $0.rawValue) }, question: criteria.question.map { .init(rawValue: $0.rawValue) },
             repository: criteria.repository, since: criteria.since,
             status: criteria.status.map { .init(rawValue: $0.rawValue) }, until: criteria.until)
         await search(criteria.q)
@@ -200,7 +197,7 @@ extension AppModel {
     private func searchRequest(before: Uuid?, q: String) -> SearchQuery {
         SearchQuery(
             before: before, channelId: searchChannelID, kind: searchFilters.kind.map { .init(rawValue: $0.rawValue) },
-            limit: ContractConstants.pageLimit.default, q: q, question: searchFilters.question,
+            limit: ContractConstants.pageLimit.default, q: q, question: searchFilters.question.map { .init(rawValue: $0.rawValue) },
             repository: searchFilters.repository, senderId: searchSenderID, since: searchFilters.since,
             status: searchFilters.status.map { .init(rawValue: $0.rawValue) }, until: searchFilters.until)
     }

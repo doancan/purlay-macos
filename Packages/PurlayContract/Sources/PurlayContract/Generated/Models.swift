@@ -9564,9 +9564,9 @@ public struct PushUnsubscribeRequest: Sendable, Hashable, Codable {
 public struct QuestionFilters: Sendable, Hashable, Codable {
     public var assigneeId: Uuid?
     public var order: Order?
-    public var unanswered: String?
+    public var unanswered: Unanswered?
 
-    public init(assigneeId: Uuid? = nil, order: Order? = nil, unanswered: String? = nil) {
+    public init(assigneeId: Uuid? = nil, order: Order? = nil, unanswered: Unanswered? = nil) {
         self.assigneeId = assigneeId
         self.order = order
         self.unanswered = unanswered
@@ -9582,7 +9582,7 @@ public struct QuestionFilters: Sendable, Hashable, Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.assigneeId = try container.decodeIfPresent(Uuid.self, forKey: .assigneeId)
         self.order = try container.decodeIfPresent(Order.self, forKey: .order)
-        self.unanswered = try container.decodeIfPresent(String.self, forKey: .unanswered)
+        self.unanswered = try container.decodeIfPresent(Unanswered.self, forKey: .unanswered)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -9612,6 +9612,37 @@ public struct QuestionFilters: Sendable, Hashable, Codable {
             switch self {
                 case .oldest: return "oldest"
                 case .newest: return "newest"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
+    public enum Unanswered: Sendable, Hashable, Codable {
+        case yes
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Unanswered] = [.yes]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "yes": self = .yes
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .yes: return "yes"
                 case .unknown(let value): return value
             }
         }
@@ -10654,14 +10685,14 @@ public struct SearchCriteria: Sendable, Hashable, Codable {
     public var channelId: Uuid?
     public var kind: Kind?
     public var q: String
-    public var question: String?
+    public var question: Question?
     public var repository: String?
     public var senderId: Uuid?
     public var since: Timestamp?
     public var status: Status?
     public var until: Timestamp?
 
-    public init(channelId: Uuid? = nil, kind: Kind? = nil, q: String, question: String? = nil, repository: String? = nil, senderId: Uuid? = nil, since: Timestamp? = nil, status: Status? = nil, until: Timestamp? = nil) {
+    public init(channelId: Uuid? = nil, kind: Kind? = nil, q: String, question: Question? = nil, repository: String? = nil, senderId: Uuid? = nil, since: Timestamp? = nil, status: Status? = nil, until: Timestamp? = nil) {
         self.channelId = channelId
         self.kind = kind
         self.q = q
@@ -10690,7 +10721,7 @@ public struct SearchCriteria: Sendable, Hashable, Codable {
         self.channelId = try container.decodeIfPresent(Uuid.self, forKey: .channelId)
         self.kind = try container.decodeIfPresent(Kind.self, forKey: .kind)
         self.q = try container.decode(String.self, forKey: .q)
-        self.question = try container.decodeIfPresent(String.self, forKey: .question)
+        self.question = try container.decodeIfPresent(Question.self, forKey: .question)
         self.repository = try container.decodeIfPresent(String.self, forKey: .repository)
         self.senderId = try container.decodeIfPresent(Uuid.self, forKey: .senderId)
         self.since = try container.decodeIfPresent(Timestamp.self, forKey: .since)
@@ -10745,6 +10776,37 @@ public struct SearchCriteria: Sendable, Hashable, Codable {
         }
     }
 
+    public enum Question: Sendable, Hashable, Codable {
+        case yes
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Question] = [.yes]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "yes": self = .yes
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .yes: return "yes"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
     public enum Status: Sendable, Hashable, Codable {
         case resolved
         case `open`
@@ -10782,13 +10844,13 @@ public struct SearchCriteria: Sendable, Hashable, Codable {
 
 public struct SearchFilters: Sendable, Hashable, Codable {
     public var kind: Kind?
-    public var question: String?
+    public var question: Question?
     public var repository: String?
     public var since: Timestamp?
     public var status: Status?
     public var until: Timestamp?
 
-    public init(kind: Kind? = nil, question: String? = nil, repository: String? = nil, since: Timestamp? = nil, status: Status? = nil, until: Timestamp? = nil) {
+    public init(kind: Kind? = nil, question: Question? = nil, repository: String? = nil, since: Timestamp? = nil, status: Status? = nil, until: Timestamp? = nil) {
         self.kind = kind
         self.question = question
         self.repository = repository
@@ -10809,7 +10871,7 @@ public struct SearchFilters: Sendable, Hashable, Codable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.kind = try container.decodeIfPresent(Kind.self, forKey: .kind)
-        self.question = try container.decodeIfPresent(String.self, forKey: .question)
+        self.question = try container.decodeIfPresent(Question.self, forKey: .question)
         self.repository = try container.decodeIfPresent(String.self, forKey: .repository)
         self.since = try container.decodeIfPresent(Timestamp.self, forKey: .since)
         self.status = try container.decodeIfPresent(Status.self, forKey: .status)
@@ -10846,6 +10908,37 @@ public struct SearchFilters: Sendable, Hashable, Codable {
             switch self {
                 case .code: return "code"
                 case .file: return "file"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
+    public enum Question: Sendable, Hashable, Codable {
+        case yes
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Question] = [.yes]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "yes": self = .yes
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .yes: return "yes"
                 case .unknown(let value): return value
             }
         }
@@ -10928,14 +11021,14 @@ public struct SearchQuery: Sendable, Hashable, Codable {
     public var kind: Kind?
     public var limit: Int?
     public var q: String
-    public var question: String?
+    public var question: Question?
     public var repository: String?
     public var senderId: Uuid?
     public var since: Timestamp?
     public var status: Status?
     public var until: Timestamp?
 
-    public init(before: Uuid? = nil, channelId: Uuid? = nil, kind: Kind? = nil, limit: Int? = nil, q: String, question: String? = nil, repository: String? = nil, senderId: Uuid? = nil, since: Timestamp? = nil, status: Status? = nil, until: Timestamp? = nil) {
+    public init(before: Uuid? = nil, channelId: Uuid? = nil, kind: Kind? = nil, limit: Int? = nil, q: String, question: Question? = nil, repository: String? = nil, senderId: Uuid? = nil, since: Timestamp? = nil, status: Status? = nil, until: Timestamp? = nil) {
         self.before = before
         self.channelId = channelId
         self.kind = kind
@@ -10970,7 +11063,7 @@ public struct SearchQuery: Sendable, Hashable, Codable {
         self.kind = try container.decodeIfPresent(Kind.self, forKey: .kind)
         self.limit = try container.decodeIfPresent(Int.self, forKey: .limit)
         self.q = try container.decode(String.self, forKey: .q)
-        self.question = try container.decodeIfPresent(String.self, forKey: .question)
+        self.question = try container.decodeIfPresent(Question.self, forKey: .question)
         self.repository = try container.decodeIfPresent(String.self, forKey: .repository)
         self.senderId = try container.decodeIfPresent(Uuid.self, forKey: .senderId)
         self.since = try container.decodeIfPresent(Timestamp.self, forKey: .since)
@@ -11013,6 +11106,37 @@ public struct SearchQuery: Sendable, Hashable, Codable {
             switch self {
                 case .code: return "code"
                 case .file: return "file"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
+    public enum Question: Sendable, Hashable, Codable {
+        case yes
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Question] = [.yes]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "yes": self = .yes
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .yes: return "yes"
                 case .unknown(let value): return value
             }
         }
@@ -13457,9 +13581,9 @@ public struct UnresolvedQuery: Sendable, Hashable, Codable {
     public var channelId: Uuid?
     public var limit: Int?
     public var order: Order?
-    public var unanswered: String?
+    public var unanswered: Unanswered?
 
-    public init(after: Uuid? = nil, assigneeId: Uuid? = nil, before: Uuid? = nil, channelId: Uuid? = nil, limit: Int? = nil, order: Order? = nil, unanswered: String? = nil) {
+    public init(after: Uuid? = nil, assigneeId: Uuid? = nil, before: Uuid? = nil, channelId: Uuid? = nil, limit: Int? = nil, order: Order? = nil, unanswered: Unanswered? = nil) {
         self.after = after
         self.assigneeId = assigneeId
         self.before = before
@@ -13487,7 +13611,7 @@ public struct UnresolvedQuery: Sendable, Hashable, Codable {
         self.channelId = try container.decodeIfPresent(Uuid.self, forKey: .channelId)
         self.limit = try container.decodeIfPresent(Int.self, forKey: .limit)
         self.order = try container.decodeIfPresent(Order.self, forKey: .order)
-        self.unanswered = try container.decodeIfPresent(String.self, forKey: .unanswered)
+        self.unanswered = try container.decodeIfPresent(Unanswered.self, forKey: .unanswered)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -13521,6 +13645,37 @@ public struct UnresolvedQuery: Sendable, Hashable, Codable {
             switch self {
                 case .oldest: return "oldest"
                 case .newest: return "newest"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
+    public enum Unanswered: Sendable, Hashable, Codable {
+        case yes
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Unanswered] = [.yes]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "yes": self = .yes
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .yes: return "yes"
                 case .unknown(let value): return value
             }
         }

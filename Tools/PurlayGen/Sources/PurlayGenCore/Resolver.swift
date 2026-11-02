@@ -194,6 +194,17 @@ final class Resolver {
                         required: required.contains(key), nullable: false, constant: literal))
                 continue
             }
+            // An optional text constant — a flag spelled `"yes"` — is an enumeration of its one value, so the client names
+            // the value instead of writing it.
+            if let literal = property.constant, case .string = literal {
+                let enumeration = LiteralEnumeration(name: try nestedName(key, in: nested), literals: [literal])
+                nested.append(.literals(enumeration))
+                fields.append(
+                    Field(
+                        name: Naming.member(key), key: key, type: enumeration.name, required: false, nullable: false,
+                        constant: nil))
+                continue
+            }
             let resolved = try resolve(property, hint: key, nested: &nested)
             let onlyNull = resolved.type == Self.onlyNull
             fields.append(

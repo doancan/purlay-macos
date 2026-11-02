@@ -98,7 +98,7 @@ struct SearchFiltersPopover: View {
                 "Marked questions only",
                 isOn: Binding(
                     get: { filters.question != nil },
-                    set: { on in change { $0.question = on ? SearchFilters.questionsOnly : nil } }))
+                    set: { on in change { $0.question = on ? .yes : nil } }))
             TextField("GitHub repository", text: $repository, prompt: Text("owner/name"))
                 .onSubmit(commitRepository)
             Section {

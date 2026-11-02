@@ -158,8 +158,7 @@ extension AppModel {
         UnresolvedQuery(
             assigneeId: unresolvedFilter == .assignedToMe ? me?.user.id : nil, before: before,
             channelId: unresolvedChannelID, limit: ContractConstants.pageLimit.default,
-            // The contract's one value for this flag (`UnresolvedQuery.unanswered`, a constant the generator keeps as text).
-            unanswered: unresolvedFilter == .unanswered ? "yes" : nil)
+            unanswered: unresolvedFilter == .unanswered ? .yes : nil)
     }
 }
 

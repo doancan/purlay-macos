@@ -308,7 +308,7 @@ struct SearchModelTests {
         let until = Timestamp(Date(timeIntervalSince1970: 1_900_000_000))
         await h.model.setSearchFilters(
             SearchFilters(
-                kind: .file, question: SearchFilters.questionsOnly, repository: "  acme/api ", since: since,
+                kind: .file, question: .yes, repository: "  acme/api ", since: since,
                 status: .resolved, until: until))
         #expect(h.model.searchFilters.repository == "acme/api", "trimmed")
         #expect(h.model.searchQuery.isEmpty)

@@ -176,6 +176,16 @@ struct GeneratorTests {
         #expect(text.contains("case unlisted(statusTag: String, payload: JSONValue)"))
     }
 
+    @Test("an optional text constant is an enumeration of its one value")
+    func optionalConstant() throws {
+        let text = try models(
+            #"""
+            "Query":{"type":"object","properties":{"question":{"const":"yes","type":"string"}}}
+            """#)
+        #expect(text.contains("public var question: Question?"))
+        #expect(text.contains("case yes"))
+    }
+
     @Test("a constant beside the open kind it belongs to is that kind")
     func widened() throws {
         let text = try models(
