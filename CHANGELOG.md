@@ -13,6 +13,7 @@ Requires a Purlay server 0.2.0 or later.
 - **Announcement channels.** In channels where only owners and admins post, everyone else sees a clear note in place of the composer and can still reply in threads.
 - **Questions and decisions.** Mark a thread as a question, accept a reply as its answer, assign it, and record a decision with a link. Open Topics can show unanswered questions or those assigned to you.
 - **Search filters and saved searches.** Filter by thread status, code or files, marked questions, repository and dates; save searches with a name, then run, rename or delete them.
+- **Reaction limit.** You can put at most three different reactions on one message; Purlay says so instead of sending a fourth, and removing one makes room.
 - **GitHub work and webhooks.** Issues and pull requests linked to a thread appear as chips, and messages posted by incoming webhooks show the hook's name.
 
 ### Improved

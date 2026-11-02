@@ -58,6 +58,21 @@ extension AppModel {
     /// An emoji is longer than a word is not: past this it is text, and no reaction.
     static let emojiLengthMax = 32
 
+    /// How many different emoji one person may put on one message (D-249). The server's `REACTIONS_PER_PERSON_MAX`, which its
+    /// contract bundle does not carry yet; it refuses one past it with `VALIDATION_FAILED`.
+    nonisolated public static let reactionsPerPersonMax = 3
+
+    /// The most different emoji a message holds (D-99 §6); the server refuses one past it as it does one past the person's limit.
+    static let reactionKindsMax = 20
+
+    /// Whether the person has as many reactions on the message as one may: a new emoji would be refused, though one of theirs can
+    /// still be taken back.
+    public func reactionLimitReached(on message: Message) -> Bool {
+        guard let me else { return false }
+        let current = chat.windows[message.channelId]?.messages.first { $0.id == message.id } ?? message
+        return current.reactions.filter { $0.userIds.contains(me.user.id) }.count >= Self.reactionsPerPersonMax
+    }
+
     /// Adds the person's reaction, or takes it back when it is already theirs. Whether it is theirs is read from the window as it is
     /// now, not from the row that was clicked, and a second click while the first is on its way is not a second request.
     public func toggleReaction(_ emoji: String, on message: Message) async {
@@ -70,6 +85,11 @@ extension AppModel {
         defer { reacting.remove(key) }
         let current = chat.windows[message.channelId]?.messages.first { $0.id == message.id } ?? message
         let mine = current.reactions.first { $0.emoji == emoji }?.userIds.contains(me.user.id) ?? false
+        // One past the person's limit is not sent: the notice says why and how to make room (D-249).
+        if !mine, reactionLimitReached(on: current) {
+            say(.reactionLimit)
+            return
+        }
         do {
             let answer =
                 mine
@@ -78,7 +98,9 @@ extension AppModel {
             engine?.revise(message.id, in: message.channelId) { $0.reactions = answer.reactions }
             sync()
         } catch {
-            say(.reactionFailed)
+            // Refused as too many: another click of the person's got there first, or the message is full of kinds.
+            let refused = !mine && (error as? APIError)?.code == .validationFailed
+            say(refused && current.reactions.count < Self.reactionKindsMax ? .reactionLimit : .reactionFailed)
         }
     }
 

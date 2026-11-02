@@ -71,6 +71,7 @@ final class FakeServer: HTTPTransport {
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
+        var reactionError: (status: Int, code: String)?
         var beforeHideResponse: (@Sendable () async -> Void)?
         var threads: [String: [Message]] = [:]
         var threadPageSize: Int?
@@ -797,6 +798,9 @@ final class FakeServer: HTTPTransport {
                 return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
             }
             if let wait = snapshot.reactionDelay { try? await Task.sleep(for: .milliseconds(wait)) }
+            if let failure = snapshot.reactionError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
             let emoji = String(path.split(separator: "/").last ?? "")
             let adds = request.method == "PUT"
             let set =

@@ -48,6 +48,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case editFailed
         case deleteFailed
         case reactionFailed
+        /// The person already has as many reactions on the message as one may (D-249).
+        case reactionLimit
         case loadFailed
         case knowledgeFailed
         /// Somebody else changed a thread's question or decision first: it was read again, and nothing was written over theirs.

@@ -86,6 +86,11 @@ enum Words {
             return String(localized: "Could not delete the message. Check your connection and try again.")
         case .reactionFailed:
             return String(localized: "Could not react to the message. Check your connection and try again.")
+        case .reactionLimit:
+            return String(
+                localized:
+                    "You can add at most \(AppModel.reactionsPerPersonMax) reactions to a message. Remove one to add another."
+            )
         case .loadFailed: return String(localized: "Could not load messages. Check your connection.")
         case .knowledgeFailed:
             return String(localized: "Could not change the question or decision. Check your connection and try again.")
