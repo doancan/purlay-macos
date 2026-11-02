@@ -7,8 +7,8 @@ import Testing
 @Suite("Handshake")
 struct HandshakeTests {
     private func info(
-        contract: Int = 1, minContract: Int? = 1, minApp: String? = "0.1.0", appUrl: String = "https://chat.example.com",
-        server: String = "0.2.0"
+        contract: Int = 1, minContract: Int? = 1, minApp: String? = "0.1.0",
+        appUrl: String = "https://chat.example.com", server: String = "0.2.0"
     ) throws -> ClientInfo {
         let minimum = """
             {"appVersion":\(minApp.map { "\"\($0)\"" } ?? "null"),"contractVersion":\(minContract.map(String.init) ?? "null"),"downloadUrl":null}

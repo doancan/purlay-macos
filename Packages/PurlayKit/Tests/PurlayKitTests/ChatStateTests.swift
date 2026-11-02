@@ -190,7 +190,8 @@ struct ChannelFramesTests {
         var s = state(window: [])
         func rename(_ name: String, version: Int) -> ServerFrame {
             envelope(
-                "CHANNEL_UPDATED", #"{"channelId":"\#(channel(1))","name":"\#(name)","topic":"about","onlyAdminsPost":false}"#,
+                "CHANNEL_UPDATED",
+                #"{"channelId":"\#(channel(1))","name":"\#(name)","topic":"about","onlyAdminsPost":false}"#,
                 version: version)
         }
         s.apply(rename("newer", version: 4), now: start)
@@ -217,7 +218,9 @@ struct ChannelFramesTests {
     func unknownChannel() {
         var s = ChatState(selfID: me)
         s.apply(
-            envelope("CHANNEL_UPDATED", #"{"channelId":"\#(channel(7))","name":"x","topic":null,"onlyAdminsPost":false}"#, version: 1),
+            envelope(
+                "CHANNEL_UPDATED", #"{"channelId":"\#(channel(7))","name":"x","topic":null,"onlyAdminsPost":false}"#,
+                version: 1),
             now: start)
         #expect(s.channels.isEmpty)
     }

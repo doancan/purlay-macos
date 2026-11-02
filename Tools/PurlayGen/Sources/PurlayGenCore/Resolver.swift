@@ -250,14 +250,15 @@ final class Resolver {
             guard kinds.insert(kind).inserted else {
                 throw GenerationError("two members of \(name) are both \(kind) and cannot be told apart")
             }
+            let spelling = kind == "string" ? "text" : kind
             if let literal = member.constant {
-                let enumeration = Naming.type(kind == "string" ? "text" : kind)
+                let enumeration = Naming.type(spelling)
                 nested.append(.literals(LiteralEnumeration(name: enumeration, literals: [literal])))
-                cases.append(TaggedCase(literal: kind, name: Naming.member(kind == "string" ? "text" : kind), payload: enumeration))
+                cases.append(TaggedCase(literal: kind, name: Naming.member(spelling), payload: enumeration))
             } else {
                 var unused: [Declaration] = []
                 let resolved = try resolve(member, hint: name, nested: &unused)
-                cases.append(TaggedCase(literal: kind, name: Naming.member(kind == "string" ? "text" : kind), payload: resolved.type))
+                cases.append(TaggedCase(literal: kind, name: Naming.member(spelling), payload: resolved.type))
             }
         }
         return UntaggedUnion(name: name, cases: cases, nested: nested)

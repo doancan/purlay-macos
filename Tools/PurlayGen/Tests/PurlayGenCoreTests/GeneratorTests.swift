@@ -148,7 +148,7 @@ struct GeneratorTests {
             #"""
             "ChannelRetentionFloor":{"anyOf":[{"type":"null"},{"const":"forever","type":"string"},{"minimum":30,"type":"integer"}]}
             """#)
-        #expect(text.contains("public typealias ChannelRetentionFloor = ChannelRetentionFloorValue?") || text.contains("public enum ChannelRetentionFloor"))
+        #expect(text.contains("public typealias ChannelRetentionFloor = ChannelRetentionFloorValue?"))
         #expect(text.contains("case text(Text)"))
         #expect(text.contains("case integer(Int)"))
         #expect(text.contains("case forever"))

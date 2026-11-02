@@ -241,7 +241,9 @@ struct Emitter {
                     if let other = value.catchAll {
                         out.line("default: self = .\(other.name)(try \(other.payload)(from: decoder))")
                     } else {
-                        out.line("default: self = .\(value.fallbackName)(\(tagLabel): tag, payload: try JSONValue(from: decoder))")
+                        out.line(
+                            "default: self = .\(value.fallbackName)(\(tagLabel): tag, payload: try JSONValue(from: decoder))"
+                        )
                     }
                 }
             }
