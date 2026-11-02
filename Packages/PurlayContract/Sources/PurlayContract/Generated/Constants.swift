@@ -95,6 +95,8 @@ public enum ContractConstants {
 
     public static let profileTitleMax = 80
 
+    public static let reactionsPerPersonMax = 3
+
     public static let replayOverlapMs = 65000
 
     public static let replayRetryDelaysMs: [Int] = [1000, 2000, 4000]

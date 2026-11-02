@@ -58,19 +58,16 @@ extension AppModel {
     /// An emoji is longer than a word is not: past this it is text, and no reaction.
     static let emojiLengthMax = 32
 
-    /// How many different emoji one person may put on one message (D-249). The server's `REACTIONS_PER_PERSON_MAX`, which its
-    /// contract bundle does not carry yet; it refuses one past it with `VALIDATION_FAILED`.
-    nonisolated public static let reactionsPerPersonMax = 3
-
     /// The most different emoji a message holds (D-99 §6); the server refuses one past it as it does one past the person's limit.
     static let reactionKindsMax = 20
 
-    /// Whether the person has as many reactions on the message as one may: a new emoji would be refused, though one of theirs can
-    /// still be taken back.
+    /// Whether the person has as many reactions on the message as one may (`REACTIONS_PER_PERSON_MAX`, D-249): a new emoji would be
+    /// refused with `VALIDATION_FAILED`, though one of theirs can still be taken back.
     public func reactionLimitReached(on message: Message) -> Bool {
         guard let me else { return false }
         let current = chat.windows[message.channelId]?.messages.first { $0.id == message.id } ?? message
-        return current.reactions.filter { $0.userIds.contains(me.user.id) }.count >= Self.reactionsPerPersonMax
+        return current.reactions.filter { $0.userIds.contains(me.user.id) }.count
+            >= ContractConstants.reactionsPerPersonMax
     }
 
     /// Adds the person's reaction, or takes it back when it is already theirs. Whether it is theirs is read from the window as it is

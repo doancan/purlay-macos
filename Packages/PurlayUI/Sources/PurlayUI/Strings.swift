@@ -89,7 +89,7 @@ enum Words {
         case .reactionLimit:
             return String(
                 localized:
-                    "You can add at most \(AppModel.reactionsPerPersonMax) reactions to a message. Remove one to add another."
+                    "You can add at most \(ContractConstants.reactionsPerPersonMax) reactions to a message. Remove one to add another."
             )
         case .loadFailed: return String(localized: "Could not load messages. Check your connection.")
         case .knowledgeFailed:
