@@ -2,6 +2,25 @@
 
 User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
+## [Unreleased]
+
+Requires a Purlay server 0.2.0 or later.
+
+### New
+
+- **Channel bookmarks.** Keep links at hand under the channel header, add them from the Channel menu or Channel Details, and remove them from the context menu.
+- **Mark Unread and Mark All as Read.** Mark a conversation unread from any message, or catch up on every channel at once from the Go menu (⇧⎋).
+- **Announcement channels.** In channels where only owners and admins post, everyone else sees a clear note in place of the composer and can still reply in threads.
+- **Questions and decisions.** Mark a thread as a question, accept a reply as its answer, assign it, and record a decision with a link. Open Topics can show unanswered questions or those assigned to you.
+- **Search filters and saved searches.** Filter by thread status, code or files, marked questions, repository and dates; save searches with a name, then run, rename or delete them.
+- **GitHub work and webhooks.** Issues and pull requests linked to a thread appear as chips, and messages posted by incoming webhooks show the hook's name.
+
+### Improved
+
+- Clear guidance when your server requires two-step verification, and a warning when a workspace you belong to is scheduled for deletion.
+- Settings explains where your display name comes from and how to change it.
+- A server older than 0.2.0 is now named as too old at sign-in instead of failing later.
+
 ## [0.1.1] — 2026-10-28
 
 A more native Mac experience, with built-in updates and clearer ways to catch up.
