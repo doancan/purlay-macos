@@ -52,8 +52,8 @@ struct PurlayTokensTests {
     func values() {
         #expect(Colors.surface100.light == RGBA(1, 1, 1, 1))
         #expect(Colors.accent.light == RGBA(0x25 / 255, 0x63 / 255, 0xeb / 255, 1))
-        // `{accent-text}` in dark is accent-text's dark value.
-        #expect(Colors.focusRing.dark == Colors.accentText.dark)
+        // Neutral in the dark themes: a blue ring glows on a dark surface.
+        #expect(Colors.focusRing.dark == RGBA(hex: 0xc4c4cc))
         #expect(Colors.scrim.light.alpha == 0.4)
         #expect(Spacing.space4 == 16)
         #expect(Radius.radiusPill == 9999)

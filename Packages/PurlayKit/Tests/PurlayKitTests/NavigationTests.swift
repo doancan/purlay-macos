@@ -14,7 +14,7 @@ struct NavigationTests {
             {"id":"\(channel(n))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":"\(name)","topic":null,"type":"public",\
             "lastMessageAt":null,\
             "state":{"lastReadMessageId":null,"unreadCount":\(unread),"unreadMentionCount":\(mentions)},"notificationLevel":"\(level)",\
-            "starred":\(starred),"incident":null,"peer":null,"peers":[],"memberCount":1}
+            "starred":\(starred),"incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
             """
         guard let channel = try? JSONDecoder().decode(Channel.self, from: Data(text.utf8)) else {
             preconditionFailure("channel")

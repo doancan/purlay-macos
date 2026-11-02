@@ -134,9 +134,9 @@ final class FakeServer: HTTPTransport {
         ].compactMap { $0 }.joined(separator: ",")
         let capability = flags.isEmpty ? "" : ",\"capabilities\":{\(flags)}"
         return """
-            {"server":{"version":"0.1.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
+            {"server":{"version":"0.2.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
             "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
-            "auth":{"email":true,"github":true,"signUp":"invite-only"}\(capability)}
+            "auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}\(capability)}
             """
     }
 
@@ -163,7 +163,7 @@ final class FakeServer: HTTPTransport {
         return """
             {"id":"\(channel(chan.n))","workspaceId":"\(workspaceID)","name":\(name),"topic":\(topic),"type":"\(chan.type)","lastMessageAt":null,\
             "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":\#(chan.mentions)}"# : "null"),"notificationLevel":"\(chan.level)",\
-            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1}
+            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
             """
     }
 
@@ -171,7 +171,7 @@ final class FakeServer: HTTPTransport {
         """
         {"id":"\(channel(n))","workspaceId":"\(workspaceID)","name":"\(name)","topic":null,"type":"public","lastMessageAt":null,\
         "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,\
-        "incident":null,"peer":null,"peers":[],"memberCount":1}
+        "incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
         """
     }
 
@@ -180,7 +180,7 @@ final class FakeServer: HTTPTransport {
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
         "profile":{"title":null,"timeZone":null,"status":null},\
         "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"member",\
-        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false}
+        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,"nameFromGitHub":false,"mustEnrolTwoFactor":false,"scheduledDeletions":[]}
         """
     }
 

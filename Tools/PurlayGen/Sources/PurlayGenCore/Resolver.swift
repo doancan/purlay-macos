@@ -13,6 +13,14 @@ final class Resolver {
         "Incident": "open"
     ]
 
+    /// Unions of plain values of different JSON kinds — a text or a number — that are read by trying each kind in
+    /// turn. A choice made here and nowhere else: such a union says nothing about which kind is the usual one, so each
+    /// one is named here before it is generated.
+    static let scalarUnions: Set<String> = [
+        // How long a channel keeps its history at least: "forever", or a number of days (D-225).
+        "ChannelRetentionFloor"
+    ]
+
     /// What a schema that is only `null` resolves to, before it is merged with its other variants.
     private static let onlyNull = "∅"
 
@@ -46,6 +54,23 @@ final class Resolver {
 
     private func declare(name: String, schema: JSON) throws -> [Declaration] {
         if let target = schema.reference { return [.alias(name: name, target: target)] }
+        if let alternatives = schema.alternatives, Self.scalarUnions.contains(name) {
+            let present = alternatives.filter { !$0.isNull }
+            // A value that may also be null is an optional union, declared beside the name for it.
+            guard present.count != alternatives.count else {
+                return [.untagged(try scalarUnion(name: name, members: present))]
+            }
+            let union = try scalarUnion(name: name + "Value", members: present)
+            return [.untagged(union), .alias(name: name, target: union.name + "?")]
+        }
+        if let alternatives = schema.alternatives {
+            let present = alternatives.filter { !$0.isNull }
+            // A union that may also be null: the union is declared as `<name>Value`, and the name is its optional.
+            if present.count >= 2, present.count != alternatives.count, widest(of: present) == nil {
+                let union = try self.union(name: name + "Value", members: present)
+                return [union, .alias(name: name, target: union.name + "?")]
+            }
+        }
         if let alternatives = schema.alternatives {
             let present = alternatives.filter { !$0.isNull }
             // A schema that may also be null is a name for an optional type; the union it holds, if it holds one, is
@@ -74,6 +99,12 @@ final class Resolver {
             if present.isEmpty { return Resolved(type: Self.onlyNull, nullable: true) }
             if present.count == 1 {
                 let inner = try resolve(present[0], hint: hint, nested: &nested)
+                return Resolved(type: inner.type, nullable: nullable || inner.nullable)
+            }
+            // A fixed value beside the open kind it is a value of — `""` or a text of three or more — is that kind:
+            // the constant says nothing a reader of the wider kind cannot hold.
+            if let wider = widest(of: present) {
+                let inner = try resolve(wider, hint: hint, nested: &nested)
                 return Resolved(type: inner.type, nullable: nullable || inner.nullable)
             }
             let declaration = try union(name: try nestedName(hint, in: nested), members: present)
@@ -119,6 +150,16 @@ final class Resolver {
         default:
             return Resolved(type: "JSONValue", nullable: false)
         }
+    }
+
+    /// The one open member of a union whose other members are constants of its own kind, if it is that.
+    private func widest(of members: [JSON]) -> JSON? {
+        guard members.allSatisfy({ $0.reference == nil && $0.alternatives == nil }) else { return nil }
+        let open = members.filter { $0.constant == nil }
+        guard open.count == 1, let wider = open.first, let kind = wider.kind,
+            ["string", "integer", "number"].contains(kind)
+        else { return nil }
+        return members.allSatisfy({ $0.kind == kind }) ? wider : nil
     }
 
     private func nestedName(_ hint: String, in nested: [Declaration]) throws -> String {
@@ -194,6 +235,32 @@ final class Resolver {
         }
         if let tagged = try taggedUnion(name: name, members: members) { return .tagged(tagged) }
         return .structure(try merged(name: name, members: members))
+    }
+
+    /// One case per JSON kind: the texts a member fixes are an open enumeration nested in the union, and a kind it
+    /// does not fix is held as itself. Two members of one kind could both read the same JSON, so they are refused.
+    private func scalarUnion(name: String, members: [JSON]) throws -> UntaggedUnion {
+        var cases: [TaggedCase] = []
+        var nested: [Declaration] = []
+        var kinds = Set<String>()
+        for member in members {
+            guard let kind = member.kind, ["string", "integer", "number", "boolean"].contains(kind) else {
+                throw GenerationError("\(name) is listed as a union of plain values, and a member is not one")
+            }
+            guard kinds.insert(kind).inserted else {
+                throw GenerationError("two members of \(name) are both \(kind) and cannot be told apart")
+            }
+            if let literal = member.constant {
+                let enumeration = Naming.type(kind == "string" ? "text" : kind)
+                nested.append(.literals(LiteralEnumeration(name: enumeration, literals: [literal])))
+                cases.append(TaggedCase(literal: kind, name: Naming.member(kind == "string" ? "text" : kind), payload: enumeration))
+            } else {
+                var unused: [Declaration] = []
+                let resolved = try resolve(member, hint: name, nested: &unused)
+                cases.append(TaggedCase(literal: kind, name: Naming.member(kind == "string" ? "text" : kind), payload: resolved.type))
+            }
+        }
+        return UntaggedUnion(name: name, cases: cases, nested: nested)
     }
 
     /// The values a schema is made of, if it is made of nothing else: constants, and references to such schemas.

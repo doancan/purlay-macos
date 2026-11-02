@@ -283,6 +283,7 @@ public final class Engine {
                 // A file sent, or its message deleted, in the gap is in no frame either.
                 options.refresh(.files(channel: state.channelId))
                 options.refresh(.pins(channel: state.channelId))
+                options.refresh(.bookmarks(channel: state.channelId))
             }
             options.refresh(.threads)
         case .error(let error):

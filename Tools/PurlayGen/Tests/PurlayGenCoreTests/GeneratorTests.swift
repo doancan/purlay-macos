@@ -142,6 +142,49 @@ struct GeneratorTests {
         #expect(text.contains("default: self = .open(try Open(from: decoder))"))
     }
 
+    @Test("a union of plain values the table names has a case per kind, and its texts are an open enumeration")
+    func scalarUnion() throws {
+        let text = try models(
+            #"""
+            "ChannelRetentionFloor":{"anyOf":[{"type":"null"},{"const":"forever","type":"string"},{"minimum":30,"type":"integer"}]}
+            """#)
+        #expect(text.contains("public typealias ChannelRetentionFloor = ChannelRetentionFloorValue?") || text.contains("public enum ChannelRetentionFloor"))
+        #expect(text.contains("case text(Text)"))
+        #expect(text.contains("case integer(Int)"))
+        #expect(text.contains("case forever"))
+    }
+
+    @Test("a named union that may be null is declared as its value and named as that value's optional")
+    func nullableNamedUnion() throws {
+        let text = try models(
+            #"""
+            "Hours":{"anyOf":[{"const":1,"type":"number"},{"const":8,"type":"number"},{"type":"null"}]}
+            """#)
+        #expect(text.contains("public enum HoursValue: Sendable, Hashable, Codable"))
+        #expect(text.contains("public typealias Hours = HoursValue?"))
+    }
+
+    @Test("a member tagged \"unknown\" keeps its name, and a tag this client was not built for is held as unlisted")
+    func memberNamedUnknown() throws {
+        let text = try models(
+            #"""
+            "Outcome":{"anyOf":[
+              {"type":"object","required":["status"],"properties":{"status":{"const":"done","type":"string"}}},
+              {"type":"object","required":["status"],"properties":{"status":{"const":"unknown","type":"string"}}}]}
+            """#)
+        #expect(text.contains("case unknown(Unknown)"))
+        #expect(text.contains("case unlisted(statusTag: String, payload: JSONValue)"))
+    }
+
+    @Test("a constant beside the open kind it belongs to is that kind")
+    func widened() throws {
+        let text = try models(
+            #"""
+            "Query":{"type":"object","required":["q"],"properties":{"q":{"anyOf":[{"const":"","type":"string"},{"minLength":3,"type":"string"}]}}}
+            """#)
+        #expect(text.contains("public var q: String\n"))
+    }
+
     @Test("a shape the generator cannot place is refused and says which schema")
     func refusal() {
         #expect {

@@ -28,7 +28,7 @@ private func makeChannel(_ n: Int, name: String = "api", workspaceID: Uuid = wor
     let text = """
         {"id":"\(channel(n))","workspaceId":"\(workspaceID.value)","name":"\(name)","topic":null,"type":"public","lastMessageAt":null,\
         "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,\
-        "incident":null,"peer":null,"peers":[],"memberCount":1}
+        "incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
         """
     guard let channel = try? JSONDecoder().decode(Channel.self, from: Data(text.utf8)) else {
         preconditionFailure("not a channel")
@@ -190,7 +190,7 @@ struct ChannelFramesTests {
         var s = state(window: [])
         func rename(_ name: String, version: Int) -> ServerFrame {
             envelope(
-                "CHANNEL_UPDATED", #"{"channelId":"\#(channel(1))","name":"\#(name)","topic":"about"}"#,
+                "CHANNEL_UPDATED", #"{"channelId":"\#(channel(1))","name":"\#(name)","topic":"about","onlyAdminsPost":false}"#,
                 version: version)
         }
         s.apply(rename("newer", version: 4), now: start)
@@ -217,7 +217,7 @@ struct ChannelFramesTests {
     func unknownChannel() {
         var s = ChatState(selfID: me)
         s.apply(
-            envelope("CHANNEL_UPDATED", #"{"channelId":"\#(channel(7))","name":"x","topic":null}"#, version: 1),
+            envelope("CHANNEL_UPDATED", #"{"channelId":"\#(channel(7))","name":"x","topic":null,"onlyAdminsPost":false}"#, version: 1),
             now: start)
         #expect(s.channels.isEmpty)
     }

@@ -24,7 +24,7 @@ struct PaletteTests {
             """
             {"id":"\(channel(n))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":\(nameText),"topic":\(topic.map { "\"\($0)\"" } ?? "null"),"type":"\(type)",\
             "lastMessageAt":null,"state":\(joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0}"# : "null"),\
-            "notificationLevel":"mentions","starred":\(starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":3}
+            "notificationLevel":"mentions","starred":\(starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":3,"codeRepository":null,"onlyAdminsPost":false}
             """)
     }
 
