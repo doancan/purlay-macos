@@ -120,7 +120,9 @@ struct MainView: View {
 
     @ViewBuilder private var detail: some View {
         Group {
-            if model.inboxOpen {
+            if model.mustEnrolTwoFactor && model.workspace == nil {
+                TwoFactorRequiredView(model: model)
+            } else if model.inboxOpen {
                 InboxPage(model: model)
             } else if model.unresolvedOpen {
                 UnresolvedPageView(model: model)
@@ -151,6 +153,7 @@ struct MainView: View {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
                 DeepWorkBar(model: model)
+                AccountNoticeBars(model: model)
                 ForEach(model.notices) { notice in
                     NoticeBanner(notice: notice) { model.dismiss(notice) }
                         .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))

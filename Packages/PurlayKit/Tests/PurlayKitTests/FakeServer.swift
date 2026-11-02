@@ -43,6 +43,11 @@ final class FakeServer: HTTPTransport {
         var unresolvedStatus = 200
         var unresolvedPageSize = 20
         var unresolvedDelay = 0
+        var knowledgeDelay = 0
+        var knowledgeWrites: [SetKnowledgeRequest] = []
+        var mustEnrolTwoFactor = false
+        var nameFromGitHub = false
+        var scheduledDeletions: [WorkspaceDeletion] = []
         /// What the person was told, newest first, as the server keeps it; reading one sets its time.
         var notifications: [PurlayContract.Notification] = []
         var notificationsStatus = 200
@@ -175,12 +180,16 @@ final class FakeServer: HTTPTransport {
         """
     }
 
-    static func meJSON(deepWorkUntil: String? = nil) -> String {
+    static func meJSON(
+        deepWorkUntil: String? = nil, mustEnrolTwoFactor: Bool = false, nameFromGitHub: Bool = false,
+        scheduledDeletions: [WorkspaceDeletion] = []
+    ) -> String {
         """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
         "profile":{"title":null,"timeZone":null,"status":null},\
         "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"member",\
-        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,"nameFromGitHub":false,"mustEnrolTwoFactor":false,"scheduledDeletions":[]}
+        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
+        "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions))}
         """
     }
 
@@ -272,7 +281,11 @@ final class FakeServer: HTTPTransport {
             return HTTPResponse(status: 204, headers: headers)
         case ("GET", "/api/me"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            return json(snapshot.meStatus, Self.meJSON(deepWorkUntil: snapshot.deepWorkUntil))
+            return json(
+                snapshot.meStatus,
+                Self.meJSON(
+                    deepWorkUntil: snapshot.deepWorkUntil, mustEnrolTwoFactor: snapshot.mustEnrolTwoFactor,
+                    nameFromGitHub: snapshot.nameFromGitHub, scheduledDeletions: snapshot.scheduledDeletions))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
@@ -369,6 +382,48 @@ final class FakeServer: HTTPTransport {
                 }
             }
             return json(200, Self.encoded(root))
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/knowledge"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.knowledgeDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.knowledgeDelay)) }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/knowledge".count))
+            guard let body = request.body.flatMap({ try? JSONDecoder().decode(SetKnowledgeRequest.self, from: $0) })
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            guard var root = snapshot.messages.values.joined().first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            // Versioned as the server versions it (D-204): a write from an older read is refused.
+            guard body.version == (root.thread?.knowledge?.version ?? 0) else {
+                return json(409, #"{"error":{"code":"KNOWLEDGE_CONFLICT","message":"x"}}"#)
+            }
+            let answer = body.acceptedAnswerId.flatMap { answer in
+                snapshot.threads[id]?.first { $0.id == answer }
+            }.map { ThreadSummary.Knowledge.AcceptedAnswer(content: $0.content, id: $0.id) }
+            var summary =
+                root.thread
+                ?? ThreadSummary(
+                    lastReplyAt: nil, replyCount: snapshot.threads[id]?.count ?? 0, resolvedAt: nil, resolvedBy: nil)
+            summary.knowledge = ThreadSummary.Knowledge(
+                acceptedAnswer: answer, assigneeId: body.assigneeId, decisionNote: body.decisionNote,
+                decisionUrl: body.decisionUrl, isQuestion: body.isQuestion, version: body.version + 1)
+            root.thread = summary
+            let updatedRoot = root
+            state.withLock { state in
+                state.knowledgeWrites.append(body)
+                if let at = state.messages[root.channelId.value]?.firstIndex(where: { $0.id == root.id }) {
+                    state.messages[root.channelId.value]?[at] = updatedRoot
+                }
+            }
+            return json(200, Self.encoded(root))
+        case ("GET", _) where path.hasPrefix("/api/messages/") && path.split(separator: "/").count == 3:
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/messages/".count))
+            guard let message = snapshot.messages.values.joined().first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            return json(200, Self.encoded(message))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/unresolved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.unresolvedDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.unresolvedDelay)) }
@@ -378,9 +433,15 @@ final class FakeServer: HTTPTransport {
             let query = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let before = query.first { $0.name == "before" }?.value
             let inChannel = query.first { $0.name == "channelId" }?.value
+            let unanswered = query.first { $0.name == "unanswered" }?.value == "yes"
+            let assignee = query.first { $0.name == "assigneeId" }?.value
             let found = snapshot.messages.values.joined().filter {
-                $0.parentId == nil && $0.deletedAt == nil && ($0.thread?.replyCount ?? 0) > 0
+                let knowledge = $0.thread?.knowledge
+                return $0.parentId == nil && $0.deletedAt == nil
+                    && (($0.thread?.replyCount ?? 0) > 0 || knowledge?.isQuestion == true)
                     && $0.thread?.resolvedAt == nil
+                    && (!unanswered || (knowledge?.isQuestion == true && knowledge?.acceptedAnswer == nil))
+                    && (assignee == nil || knowledge?.assigneeId?.value == assignee)
                     && (before == nil || $0.id.value < (before ?? ""))
                     && (inChannel == nil || $0.channelId.value == inChannel)
             }.sorted { $0.id > $1.id }

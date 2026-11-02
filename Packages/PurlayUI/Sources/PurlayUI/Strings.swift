@@ -84,6 +84,13 @@ enum Words {
         case .reactionFailed:
             return String(localized: "Could not react to the message. Check your connection and try again.")
         case .loadFailed: return String(localized: "Could not load messages. Check your connection.")
+        case .knowledgeFailed:
+            return String(localized: "Could not change the question or decision. Check your connection and try again.")
+        case .knowledgeConflict:
+            return String(
+                localized:
+                    "Someone else changed this question or decision first. It now shows their change; review it and try again."
+            )
         }
     }
 

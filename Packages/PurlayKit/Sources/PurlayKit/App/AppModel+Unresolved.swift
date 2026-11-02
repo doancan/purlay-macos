@@ -29,7 +29,7 @@ extension AppModel {
         do {
             let page = try await api.listUnresolved(
                 workspaceId: workspace.id.value,
-                query: UnresolvedQuery(channelId: unresolvedChannelID, limit: ContractConstants.pageLimit.default))
+                query: unresolvedQuery())
             guard generation == unresolvedGeneration else { return }
             unresolvedItems = page.data.filter { !isPersonallyDeleted($0.id) }
             unresolvedCursor = page.nextCursor
@@ -48,8 +48,7 @@ extension AppModel {
         do {
             let page = try await api.listUnresolved(
                 workspaceId: workspace.id.value,
-                query: UnresolvedQuery(
-                    before: cursor, channelId: unresolvedChannelID, limit: ContractConstants.pageLimit.default))
+                query: unresolvedQuery(before: cursor))
             guard generation == unresolvedGeneration else { return }
             let held = Set(unresolvedItems.map(\.id))
             unresolvedItems += page.data.filter { !held.contains($0.id) && !isPersonallyDeleted($0.id) }
@@ -90,6 +89,7 @@ extension AppModel {
         unresolvedOpen = false
         unresolvedItems = []
         unresolvedChannelID = nil
+        unresolvedFilter = .all
         unresolvedCursor = nil
         unresolvedLoading = false
         unresolvedFailed = false
