@@ -163,7 +163,15 @@ struct ScheduledSheet: View {
                         if !message.attachments.isEmpty {
                             Label("\(message.attachments.count) attachment(s)", systemImage: "paperclip").font(.caption)
                         }
-                        if message.state == .failed {
+                        if message.state == .failed,
+                            message.failureCode.map(ErrorCode.init(rawValue:)) == .onlyAdminsPost
+                        {
+                            Label(
+                                "Only owners and admins post in this channel. You can still reply in a thread.",
+                                systemImage: "megaphone"
+                            )
+                            .font(.caption).foregroundStyle(.red)
+                        } else if message.state == .failed {
                             Label(
                                 "Could not send. Check access and attachments, then edit to try again.",
                                 systemImage: "exclamationmark.triangle"

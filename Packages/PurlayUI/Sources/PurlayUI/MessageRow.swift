@@ -206,6 +206,9 @@ struct MessageRow: View {
             ) {
                 Task { await model.setPinned(!model.isPinned(message), message) }
             }
+            if !inThread && model.canMarkUnread(message) {
+                Button("Mark Unread", systemImage: "envelope.badge") { Task { await model.markUnread(from: message) } }
+            }
             if mine {
                 Divider()
                 Button("Edit", systemImage: "pencil") { model.beginEdit(message.id) }
@@ -234,6 +237,9 @@ struct MessageRow: View {
             }
             Button(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel") {
                 Task { await model.setPinned(!model.isPinned(message), message) }
+            }
+            if !inThread && model.canMarkUnread(message) {
+                Button("Mark Unread") { Task { await model.markUnread(from: message) } }
             }
             Button("Add Reaction") { picking = true }
             if mine {

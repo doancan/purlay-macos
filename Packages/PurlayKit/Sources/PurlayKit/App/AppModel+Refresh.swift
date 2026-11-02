@@ -34,6 +34,8 @@ extension AppModel {
             reread(refresh) { await $0.reloadSaved() }
         case .pins(let channel) where channel == selectedChannel:
             reread(refresh) { await $0.reloadPins(channel) }
+        case .bookmarks(let channel) where channel == selectedChannel:
+            reread(refresh) { await $0.reloadBookmarks(channel) }
         case .thread(let root) where root == thread?.root:
             Task { await self.reloadThread() }
         case .threads where thread != nil:

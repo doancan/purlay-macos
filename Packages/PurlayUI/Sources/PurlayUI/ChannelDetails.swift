@@ -143,6 +143,8 @@ struct ChannelDetails: View {
                     }
                 }
                 .background(NativePalette.fill.style, in: .rect(cornerRadius: Radius.radius2xl))
+                BookmarkDetails(model: model, channel: channel)
+                PostingDetails(model: model, channel: channel)
                 VStack(alignment: .leading, spacing: Spacing.space2) {
                     Text("NOTIFICATIONS").font(.caption.weight(.semibold)).foregroundStyle(
                         NativePalette.secondary.style)

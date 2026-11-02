@@ -62,6 +62,9 @@ enum Words {
         case .pinFailed: return String(localized: "Could not change the pin. Try again.")
         case .pinsFull:
             return String(localized: "This channel has as many pinned messages as it can hold. Unpin one first.")
+        case .bookmarkFailed: return String(localized: "Could not remove the bookmark. Try again.")
+        case .unreadFailed:
+            return String(localized: "Could not mark that as unread. Check your connection and try again.")
         case .tooManyFiles:
             return String(
                 localized:
