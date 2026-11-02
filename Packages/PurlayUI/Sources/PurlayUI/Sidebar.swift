@@ -443,6 +443,7 @@ private struct WorkspaceHeader: View {
                 Button("Browse Channels…", systemImage: "list.bullet") { sheet = .browse }
                 Button("New Conversation…", systemImage: "person.2") { sheet = .conversation }
             }
+            Section { MarkAllReadButton(model: model).disabled(!model.hasUnread) }
             if model.availableSettingsPages.contains(.workspace) {
                 Section("Administration") {
                     ForEach(model.availableSettingsPages.filter { $0.group == .workspace }) {

@@ -113,6 +113,7 @@ extension AppModel {
             if let newest = page.data.map(\.id).max() { engine.observe(channel: channelID, message: newest) }
             sync()
             await reloadPins(channelID)
+            await reloadBookmarks(channelID)
         } catch {
             say(.loadFailed)
         }

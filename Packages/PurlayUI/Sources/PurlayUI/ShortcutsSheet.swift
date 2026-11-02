@@ -29,6 +29,7 @@ struct ShortcutsSheet: View {
                 Row(keys: "⌥⇧⌘D", what: "Drafts"),
                 Row(keys: "⌥↑  ⌥↓", what: "Previous or next channel"),
                 Row(keys: "⌥⇧↑  ⌥⇧↓", what: "Previous or next channel with something to read"),
+                Row(keys: "⇧⎋", what: "Mark all channels as read"),
                 Row(keys: "⌃⌘S", what: "Show or hide the sidebar"),
                 Row(keys: "⎋", what: "Close what is open: the edit, then the thread"),
             ]),

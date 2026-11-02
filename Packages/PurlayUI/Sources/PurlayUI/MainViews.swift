@@ -292,6 +292,12 @@ private struct MainSheets: ViewModifier {
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
             }
+            .sheet(
+                isPresented: Binding(
+                    get: { model.addingBookmark != nil }, set: { if !$0 { model.addingBookmark = nil } })
+            ) {
+                if let channel = model.addingBookmark { AddBookmarkSheet(model: model, channel: channel) }
+            }
             .sheet(isPresented: Binding(get: { model.draftsOpen }, set: { model.draftsOpen = $0 })) {
                 DraftsSheet(model: model)
             }
@@ -481,12 +487,22 @@ struct ChannelView: View {
                 }
             }
             .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay), value: atBottom)
+            .safeAreaBar(edge: .top, spacing: 0) { ChannelBar(model: model, channel: channel) }
             .safeAreaBar(edge: .bottom) {
-                ComposerView(model: model, channel: channel.id, placeholder: placeholder).id(channel.id)
+                // An announcement channel's feed is its owners' and admins'; a thread stays everybody's (D-243).
+                if model.canPostRoot(in: channel.id) {
+                    ComposerView(model: model, channel: channel.id, placeholder: placeholder).id(channel.id)
+                } else {
+                    AnnouncementNote()
+                }
             }
         }
         .onAppear {
             newAfter = channel.isUnread ? channel.state?.lastReadMessageId : nil
+        }
+        // Marked unread from a message here: the "New" rule moves to where reading starts again.
+        .onChange(of: channel.state?.lastReadMessageId) { _, read in
+            if model.isHeldUnread { newAfter = read }
         }
     }
 
@@ -631,6 +647,8 @@ struct PendingRow: View {
             return String(localized: "You're sending too fast. Retry in a moment.")
         case .code(let code) where code == .notAChannelMember:
             return String(localized: "Join this channel to write in it.")
+        case .code(let code) where code == .onlyAdminsPost:
+            return String(localized: "Only owners and admins post in this channel. You can still reply in a thread.")
         default: return String(localized: "Not sent.")
         }
     }

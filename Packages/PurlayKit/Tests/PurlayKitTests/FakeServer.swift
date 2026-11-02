@@ -82,6 +82,14 @@ final class FakeServer: HTTPTransport {
         var sessionValid = true
         var readStatus = 200
         var reads: [(channel: String, id: String)] = []
+        /// The person's role in the workspace, as `/api/me` says it.
+        var role = "member"
+        var bookmarks: [String: [ChannelBookmark]] = [:]
+        var bookmarkError: (status: Int, code: String)?
+        var unreadStatus = 200
+        var unreads: [(channel: String, from: String)] = []
+        var readAllStatus = 200
+        var readAllCount = 0
     }
 
     let state = Mutex(State())
@@ -151,6 +159,7 @@ final class FakeServer: HTTPTransport {
         var peerName: String?
         var mentions = 0
         var level = "mentions"
+        var onlyAdminsPost = false
     }
 
     static func json(_ chan: Chan) -> String {
@@ -163,7 +172,8 @@ final class FakeServer: HTTPTransport {
         return """
             {"id":"\(channel(chan.n))","workspaceId":"\(workspaceID)","name":\(name),"topic":\(topic),"type":"\(chan.type)","lastMessageAt":null,\
             "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":\#(chan.mentions)}"# : "null"),"notificationLevel":"\(chan.level)",\
-            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
+            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,\
+            "onlyAdminsPost":\(chan.onlyAdminsPost)}
             """
     }
 
@@ -175,11 +185,11 @@ final class FakeServer: HTTPTransport {
         """
     }
 
-    static func meJSON(deepWorkUntil: String? = nil) -> String {
+    static func meJSON(deepWorkUntil: String? = nil, role: String = "member") -> String {
         """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
         "profile":{"title":null,"timeZone":null,"status":null},\
-        "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"member",\
+        "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
         "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,"nameFromGitHub":false,"mustEnrolTwoFactor":false,"scheduledDeletions":[]}
         """
     }
@@ -272,7 +282,7 @@ final class FakeServer: HTTPTransport {
             return HTTPResponse(status: 204, headers: headers)
         case ("GET", "/api/me"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            return json(snapshot.meStatus, Self.meJSON(deepWorkUntil: snapshot.deepWorkUntil))
+            return json(snapshot.meStatus, Self.meJSON(deepWorkUntil: snapshot.deepWorkUntil, role: snapshot.role))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
@@ -727,6 +737,39 @@ final class FakeServer: HTTPTransport {
                 }
             }
             return HTTPResponse(status: 204)
+        case (_, _) where path.hasPrefix("/api/channels/") && path.contains("/bookmarks"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            return bookmarks(request, snapshot)
+        case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/unread"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/unread".count))
+            let from = request.body.flatMap { try? JSONDecoder().decode(MarkUnreadRequest.self, from: $0) }?
+                .fromMessageId
+            state.withLock { $0.unreads.append((channelID, from?.value ?? "")) }
+            if snapshot.unreadStatus != 200 {
+                return json(snapshot.unreadStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            // Back to the newest root before the message, or to none; what is from there on is unread.
+            let roots = (snapshot.messages[channelID] ?? []).filter { $0.parentId == nil }.map(\.id).sorted()
+            let mark = from ?? roots.first ?? idAt(0)
+            let state = ChannelState(
+                lastReadMessageId: roots.last { $0 < mark }, unreadCount: roots.filter { $0 >= mark }.count,
+                unreadMentionCount: 0)
+            return json(200, Self.encoded(state))
+        case ("PUT", "/api/workspaces/\(Self.workspaceID)/read"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            state.withLock { $0.readAllCount += 1 }
+            if snapshot.readAllStatus != 200 {
+                return json(snapshot.readAllStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let items = snapshot.chans.filter(\.joined).compactMap { chan -> ReadAllChannelsResponse.DataItem? in
+                guard let id = Uuid(channel(chan.n)) else { return nil }
+                let newest = snapshot.messages[channel(chan.n)]?.map(\.id).max()
+                return ReadAllChannelsResponse.DataItem(
+                    channelId: id, state: ChannelState(lastReadMessageId: newest, unreadCount: 0, unreadMentionCount: 0)
+                )
+            }
+            return json(200, Self.encoded(ReadAllChannelsResponse(data: items)))
         case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/read"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/read".count))
@@ -757,6 +800,41 @@ final class FakeServer: HTTPTransport {
                 return json(200, #"{"data":\#(data),"nextCursor":\#(next)}"#)
             }
             return json(404, #"{"error":{"code":"ROUTE_NOT_FOUND","message":"x"}}"#)
+        }
+    }
+
+    /// A channel's bookmarks: listed oldest first, and the same address added again is the one already there.
+    private func bookmarks(_ request: HTTPRequest, _ snapshot: State) -> HTTPResponse {
+        func json(_ status: Int, _ body: String) -> HTTPResponse {
+            HTTPResponse(status: status, headers: ["Content-Type": "application/json"], body: Data(body.utf8))
+        }
+        let parts = request.url.path.split(separator: "/").map(String.init)
+        guard parts.count >= 4, let channelID = Uuid(parts[2]) else { return HTTPResponse(status: 400) }
+        let id = parts[2]
+        if let failure = snapshot.bookmarkError, request.method != "GET" {
+            return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+        }
+        let list = snapshot.bookmarks[id] ?? []
+        switch request.method {
+        case "GET":
+            return json(200, Self.encoded(list))
+        case "POST":
+            guard let body = request.body, let input = try? JSONDecoder().decode(AddBookmarkRequest.self, from: body)
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            if let held = list.first(where: { $0.url == input.url }) { return json(201, Self.encoded(held)) }
+            let made = ChannelBookmark(
+                addedAt: Timestamp(Date(timeIntervalSince1970: Double(epochMs) / 1_000)), addedBy: nil,
+                channelId: channelID, id: Uuid(UUID()), title: input.title, url: input.url)
+            state.withLock { $0.bookmarks[id, default: []].append(made) }
+            return json(201, Self.encoded(made))
+        case "DELETE":
+            guard parts.count == 5, list.contains(where: { $0.id.value == parts[4] }) else {
+                return json(404, #"{"error":{"code":"BOOKMARK_NOT_FOUND","message":"x"}}"#)
+            }
+            state.withLock { $0.bookmarks[id]?.removeAll { $0.id.value == parts[4] } }
+            return HTTPResponse(status: 204)
+        default:
+            return HTTPResponse(status: 405)
         }
     }
 }

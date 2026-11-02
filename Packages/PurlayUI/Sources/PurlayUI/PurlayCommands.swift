@@ -146,6 +146,8 @@ public struct PurlayCommands: Commands {
             if let message { Task { await model.setPinned(!model.isPinned(message), message) } }
         }
         .disabled(message == nil)
+        Button("Mark Unread") { if let message { Task { await model.markUnread(from: message) } } }
+            .disabled(message.map { !model.canMarkUnread($0) } ?? true)
         Divider()
         Button("Copy Text") { if let message { Clipboard.copy(message.content) } }
             .disabled(message == nil)
@@ -210,6 +212,9 @@ public struct PurlayCommands: Commands {
             .disabled(!ready)
         Button("Next Unread Channel") { Task { await model.goToUnread(.next) } }
             .keyboardShortcut(.downArrow, modifiers: [.option, .shift])
+            .disabled(!ready)
+        Button("Mark All as Read") { MarkAllReadButton.markAllRead(model) }
+            .keyboardShortcut(.escape, modifiers: .shift)
             .disabled(!ready)
     }
 }
