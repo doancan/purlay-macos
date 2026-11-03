@@ -7,14 +7,15 @@ import Testing
 @Suite("Handshake")
 struct HandshakeTests {
     private func info(
-        contract: Int = 1, minContract: Int? = 1, minApp: String? = "0.1.0", appUrl: String = "https://chat.example.com"
+        contract: Int = 1, minContract: Int? = 1, minApp: String? = "0.1.0",
+        appUrl: String = "https://chat.example.com", server: String = "0.2.0"
     ) throws -> ClientInfo {
         let minimum = """
             {"appVersion":\(minApp.map { "\"\($0)\"" } ?? "null"),"contractVersion":\(minContract.map(String.init) ?? "null"),"downloadUrl":null}
             """
         let text = """
-            {"server":{"version":"0.1.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",
-             "minClient":{"macos":\(minimum)},"auth":{"email":true,"github":true,"oidc":null,"signUp":"invite-only"}}
+            {"server":{"version":"\(server)"},"contractVersion":\(contract),"appUrl":"\(appUrl)",
+             "minClient":{"macos":\(minimum)},"auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}}
             """
         return try JSONDecoder().decode(ClientInfo.self, from: Data(text.utf8))
     }
@@ -87,6 +88,22 @@ struct HandshakeTests {
         }
         guard case .ready = outcome(try info(minApp: "later")) else {
             Issue.record("refused on an unreadable minimum")
+            return
+        }
+    }
+
+    @Test("a server older than the oldest this build reads is refused, and one it cannot read the version of is not")
+    func serverBelowMinimum() throws {
+        guard case .serverTooOld = outcome(try info(server: "0.1.9")) else {
+            Issue.record("a 0.1 server was served though its channels lack required fields")
+            return
+        }
+        guard case .ready = outcome(try info(server: "0.2.0")) else {
+            Issue.record("the minimum itself was refused")
+            return
+        }
+        guard case .ready = outcome(try info(server: "development")) else {
+            Issue.record("an unreadable server version was refused")
             return
         }
     }

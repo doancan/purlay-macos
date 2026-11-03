@@ -5,6 +5,10 @@ import PurlayContract
 /// ones it was tested against. A version is added here by a person, with a test, never by a default (§6.4).
 public enum CompatibleContracts {
     public static let supported: Set<Int> = [ContractConstants.contractVersion]
+    /// The oldest server this build reads. Within one contract version a server may make a field required that an older
+    /// one did not send (a channel's `onlyAdminsPost` arrived in 0.2.0); talking to an older one would fail on its first
+    /// list, so it is refused at the handshake with the words for it instead.
+    public static let minimumServer = SemanticVersion(0, 2, 0)
 }
 
 /// The one header every request and the socket upgrade carries: what the server gates on (D-187).
@@ -32,7 +36,8 @@ public enum Handshake {
     /// Both directions (§6.4), decided from what the server said and what this build is.
     public static func evaluate(
         _ info: ClientInfo, appVersion: SemanticVersion, appContract: Int = ContractConstants.contractVersion,
-        supported: Set<Int> = CompatibleContracts.supported, allowsLocalHTTP: Bool = false
+        supported: Set<Int> = CompatibleContracts.supported,
+        minimumServer: SemanticVersion = CompatibleContracts.minimumServer, allowsLocalHTTP: Bool = false
     ) -> HandshakeOutcome {
         let minimum = info.minClient.macos
         if let needed = minimum.contractVersion, appContract < needed {
@@ -46,6 +51,10 @@ public enum Handshake {
         }
         // An app newer than the server is allowed only where it lists that contract as one it was tested against.
         if info.contractVersion < appContract && !supported.contains(info.contractVersion) {
+            return .serverTooOld(serverContract: info.contractVersion, server: info)
+        }
+        // A version the app cannot read is not a reason to refuse: the contract's own check above still stands.
+        if let version = SemanticVersion(info.server.version), version < minimumServer {
             return .serverTooOld(serverContract: info.contractVersion, server: info)
         }
         guard let origin = try? ServerAddress.parse(info.appUrl, allowsLocalHTTP: allowsLocalHTTP) else {

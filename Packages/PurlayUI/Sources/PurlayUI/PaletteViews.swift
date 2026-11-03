@@ -144,6 +144,13 @@ struct SearchSheet: View {
     @State private var query = ""
     @State private var pending: Task<Void, Never>?
     @FocusState private var focused: Bool
+    @State private var filtersShown = false
+    @State private var savingName = ""
+    @State private var savingID: Uuid?
+    @State private var saving = false
+    @State private var renaming: SavedSearch?
+    @State private var renamingName = ""
+    @State private var savedFailure: SavedSearchFailure?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -154,7 +161,7 @@ struct SearchSheet: View {
                     .font(.title3)
                     .focused($focused)
                     .onSubmit(run)
-                if !query.isEmpty {
+                if !query.isEmpty || model.searchHasFilters {
                     Button("Clear Search", systemImage: "xmark.circle.fill") {
                         pending?.cancel()
                         model.clearSearch()
@@ -199,9 +206,38 @@ struct SearchSheet: View {
                         Text(person.displayName).tag(Optional(person.id))
                     }
                 }
+                filtersButton
+                savedMenu
+            }
+            if let savedFailure {
+                HStack {
+                    Label(Words.savedSearchFailure(savedFailure), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Dismiss") { self.savedFailure = nil }.buttonStyle(.link)
+                }
+                .font(.caption)
             }
             Divider()
             content
+        }
+        .alert("Save Search", isPresented: $saving) {
+            TextField("Name", text: $savingName)
+            Button("Save") { save() }
+                .disabled(savingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A saved search keeps its words and filters, not its results.")
+        }
+        .alert(
+            "Rename Saved Search",
+            isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
+            presenting: renaming
+        ) { saved in
+            TextField("Name", text: $renamingName)
+            Button("Rename") { rename(saved) }
+                .disabled(renamingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {}
         }
         .padding(Spacing.space4)
         .frame(
@@ -239,38 +275,159 @@ struct SearchSheet: View {
         Task { await model.search(query) }
     }
 
+    private var filtersButton: some View {
+        let count = model.searchFilters.count
+        return Button {
+            filtersShown.toggle()
+        } label: {
+            Label(
+                count == 0 ? "Filters" : "Filters (\(count))",
+                systemImage: count == 0
+                    ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+        }
+        .help("Thread status, content, questions, a repository and dates")
+        .popover(isPresented: $filtersShown, arrowEdge: .bottom) {
+            SearchFiltersPopover(model: model) { filters in
+                pending?.cancel()
+                pending = Task { await model.setSearchFilters(filters) }
+            }
+        }
+    }
+
+    private var savedMenu: some View {
+        Menu {
+            Button("Save Search…") {
+                savingName = ""
+                if savingID == nil { savingID = model.newSavedSearchID() }
+                saving = true
+            }
+            .disabled(!model.canSaveSearch)
+            if !model.savedSearches.isEmpty {
+                Section("Saved Searches") {
+                    ForEach(model.savedSearches, id: \.id) { saved in
+                        Button(saved.name) { runSaved(saved) }
+                    }
+                }
+            }
+        } label: {
+            Label("Saved Searches", systemImage: "bookmark")
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Save this search, or run a saved one")
+    }
+
+    private func runSaved(_ saved: SavedSearch) {
+        pending?.cancel()
+        query = saved.query.q
+        pending = Task { await model.runSearch(saved.query) }
+    }
+
+    private func save() {
+        let id = savingID ?? model.newSavedSearchID()
+        savingID = id
+        let name = savingName
+        Task {
+            do throws(SavedSearchFailure) {
+                try await model.saveSearch(id: id, name: name)
+                // Kept until the save is known: a retry after a lost answer replaces the same one.
+                savingID = nil
+                savedFailure = nil
+            } catch {
+                savedFailure = error
+            }
+        }
+    }
+
+    private func rename(_ saved: SavedSearch) {
+        let name = renamingName
+        Task {
+            do throws(SavedSearchFailure) {
+                try await model.renameSavedSearch(saved, to: name)
+                savedFailure = nil
+            } catch {
+                savedFailure = error
+            }
+        }
+    }
+
+    private func delete(_ saved: SavedSearch) {
+        Task {
+            do throws(SavedSearchFailure) {
+                try await model.deleteSavedSearch(saved)
+                savedFailure = nil
+            } catch {
+                savedFailure = error
+            }
+        }
+    }
+
+    private func summary(_ parts: [String]) -> some View {
+        Text(parts.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.searchStatus {
-        case .idle where !model.recentSearches.isEmpty:
+        case .idle where !model.recentSearches.isEmpty || !model.savedSearches.isEmpty:
             List {
-                Section {
-                    ForEach(model.recentSearches, id: \.self) { entry in
-                        Button {
-                            pending?.cancel()
-                            query = entry.query
-                            pending = Task { await model.repeatSearch(entry) }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Label(entry.query, systemImage: "clock")
-                                HStack {
-                                    if let channel = entry.channelID.flatMap({ model.chat.channels[$0] }) {
-                                        Text(Words.channelLabel(channel))
-                                    }
-                                    if let sender = model.workspacePeople.first(where: { $0.id == entry.senderID }) {
-                                        Text(sender.displayName)
-                                    }
+                if !model.savedSearches.isEmpty {
+                    Section("Saved Searches") {
+                        ForEach(model.savedSearches, id: \.id) { saved in
+                            Button {
+                                runSaved(saved)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label(saved.name, systemImage: "bookmark")
+                                    let parts =
+                                        (saved.query.q.isEmpty ? [] : ["“\(saved.query.q)”"])
+                                        + Words.searchSummary(saved.query, model: model)
+                                    if !parts.isEmpty { summary(parts) }
                                 }
-                                .font(.caption).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Rename…") {
+                                    renamingName = saved.name
+                                    renaming = saved
+                                }
+                                Button("Delete", role: .destructive) { delete(saved) }
                             }
                         }
-                        .buttonStyle(.plain)
                     }
-                } header: {
-                    HStack {
-                        Text("Recent Searches")
-                        Spacer()
-                        Button("Clear History") { model.clearRecentSearches() }
+                }
+                if !model.recentSearches.isEmpty {
+                    Section {
+                        ForEach(model.recentSearches, id: \.self) { entry in
+                            Button {
+                                pending?.cancel()
+                                query = entry.query
+                                pending = Task { await model.repeatSearch(entry) }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if entry.query.isEmpty {
+                                        Label("Filters only", systemImage: "clock")
+                                    } else {
+                                        Label(entry.query, systemImage: "clock")
+                                    }
+                                    let parts = Words.searchSummary(
+                                        channel: entry.channelID, sender: entry.senderID, filters: entry.filters,
+                                        model: model)
+                                    if !parts.isEmpty { summary(parts) }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } header: {
+                        HStack {
+                            Text("Recent Searches")
+                            Spacer()
+                            Button("Clear History") { model.clearRecentSearches() }
+                        }
                     }
                 }
             }
@@ -278,7 +435,10 @@ struct SearchSheet: View {
         case .idle:
             EmptyState(
                 "Search messages", systemImage: "magnifyingglass",
-                description: Text("Type at least three letters. Results are newest first.")
+                description: Text(
+                    model.searchFilters.rangeIsInverted
+                        ? "The end date must come after the start date."
+                        : "Type at least three letters, or choose a filter. Results are newest first.")
             )
             .frame(maxHeight: .infinity)
         case .searching where model.searchResults.isEmpty:
@@ -290,6 +450,15 @@ struct SearchSheet: View {
                 Text("Check your connection and try again.")
             } actions: {
                 Button("Try Again", action: run)
+            }
+            .frame(maxHeight: .infinity)
+        case .refused:
+            ContentUnavailableView {
+                Label("These filters cannot be searched", systemImage: "line.3.horizontal.decrease.circle")
+            } description: {
+                Text("Name a repository as owner/name, and make the end date come after the start date.")
+            } actions: {
+                Button("Show Filters") { filtersShown = true }
             }
             .frame(maxHeight: .infinity)
         case .done where model.searchResults.isEmpty:

@@ -84,6 +84,8 @@ struct MessageRow: View {
                 .frame(width: Size.sizeAvatarLg, alignment: .trailing)
                 .padding(.top, Stroke.strokeFocus)
                 .accessibilityHidden(true)
+        } else if message.webhookName != nil {
+            AppAvatar(size: Size.sizeAvatarLg)
         } else {
             Avatar(user: message.sender, size: Size.sizeAvatarLg)
         }
@@ -91,11 +93,12 @@ struct MessageRow: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
-            Text(message.sender?.displayName ?? String(localized: "Purlay"))
+            Text(message.webhookName ?? message.sender?.displayName ?? String(localized: "Purlay"))
                 .typeStyle(Typography.heading)
                 .foregroundStyle(NativePalette.ink.style)
                 .lineLimit(1)
                 .layoutPriority(-1)
+            if message.webhookName != nil { WebhookBadge() }
             Text(message.createdAt.date, format: .dateTime.hour().minute())
                 .typeStyle(Typography.caption)
                 .monospacedDigit()
@@ -116,6 +119,11 @@ struct MessageRow: View {
                     .imageScale(.small)
                     .foregroundStyle(Colors.accentText.style)
             }
+            if inThread && !deleted && model.isAcceptedAnswer(message) {
+                Label("Accepted Answer", systemImage: "checkmark.seal.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Colors.successText.style)
+            }
         }
     }
 
@@ -132,8 +140,12 @@ struct MessageRow: View {
             AttachmentList(model: model, attachments: message.attachments)
         }
         if !deleted && !message.reactions.isEmpty { ReactionRow(message: message, model: model) }
-        if !inThread && message.parentId == nil, let summary = message.thread, summary.replyCount > 0 {
+        // A question is shown as one before anybody has answered it (D-204).
+        if !inThread && message.parentId == nil, let summary = message.thread,
+            summary.replyCount > 0 || message.questionState != nil
+        {
             ThreadAffordance(message: message, summary: summary, model: model)
+            if !deleted, let work = summary.githubWork, !work.isEmpty { GitHubWorkChips(links: work).padding(.top, 2) }
         }
     }
 
@@ -181,6 +193,7 @@ struct MessageRow: View {
             if !inThread && message.parentId == nil {
                 Button("Reply in Thread", systemImage: "bubble.left") { Task { await model.openThread(message) } }
             }
+            KnowledgeMenuItems(message: message, model: model, inThread: inThread)
             Button(
                 model.isSaved(message) ? "Remove from Saved" : "Save",
                 systemImage: model.isSaved(message) ? "bookmark.slash" : "bookmark"
@@ -192,6 +205,9 @@ struct MessageRow: View {
                 systemImage: model.isPinned(message) ? "pin.slash" : "pin"
             ) {
                 Task { await model.setPinned(!model.isPinned(message), message) }
+            }
+            if !inThread && model.canMarkUnread(message) {
+                Button("Mark Unread", systemImage: "envelope.badge") { Task { await model.markUnread(from: message) } }
             }
             if mine {
                 Divider()
@@ -221,6 +237,9 @@ struct MessageRow: View {
             }
             Button(model.isPinned(message) ? "Unpin from Channel" : "Pin to Channel") {
                 Task { await model.setPinned(!model.isPinned(message), message) }
+            }
+            if !inThread && model.canMarkUnread(message) {
+                Button("Mark Unread") { Task { await model.markUnread(from: message) } }
             }
             Button("Add Reaction") { picking = true }
             if mine {
@@ -441,6 +460,7 @@ private struct ThreadAffordance: View {
             Task { await model.openThread(message) }
         } label: {
             HStack(spacing: Spacing.space1 + Stroke.strokeFocus) {
+                if let question = message.questionState { QuestionMarker(state: question) }
                 if let resolvedBy = summary.resolvedBy, summary.resolvedAt != nil {
                     Label("Resolved by \(resolvedBy.displayName)", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(Colors.successText.style)

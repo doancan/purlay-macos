@@ -24,6 +24,7 @@ public enum Refresh: Sendable, Hashable {
     case channels(workspace: Uuid)
     case hidden(channel: Uuid, message: Uuid, at: Timestamp)
     case pins(channel: Uuid)
+    case bookmarks(channel: Uuid)
     case reminders(workspace: Uuid)
     case saved(workspace: Uuid)
     case notifications(workspace: Uuid)
@@ -158,6 +159,7 @@ public struct ChatState: Sendable, Equatable {
             guard isNewest("channel", data.channelId, changed.version) else { return [] }
             channels[data.channelId]?.name = data.name
             channels[data.channelId]?.topic = data.topic
+            channels[data.channelId]?.onlyAdminsPost = data.onlyAdminsPost
             return []
 
         case .channelAdded(let added):
@@ -213,6 +215,7 @@ public struct ChatState: Sendable, Equatable {
         case .savedUpdated(let changed): return [.refresh(.saved(workspace: changed.data.workspaceId))]
         case .notificationsUpdated(let changed): return [.refresh(.notifications(workspace: changed.data.workspaceId))]
         case .pinsUpdated(let changed): return [.refresh(.pins(channel: changed.data.channelId))]
+        case .bookmarksUpdated(let changed): return [.refresh(.bookmarks(channel: changed.data.channelId))]
         case .incidentUpdated(let changed): return [.refresh(.incident(channel: changed.data.channelId))]
         case .messageVersionsUpdated(let changed):
             return [.refresh(.versions(channel: changed.data.channelId, message: changed.data.messageId))]

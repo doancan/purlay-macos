@@ -113,7 +113,7 @@ struct Emitter {
             }.joined(separator: ", ")
             out.block("public init(\(parameters))") { out in
                 if stored.isEmpty { out.line("// Nothing to hold: every property of this shape is fixed.") }
-                for field in stored { out.line("self.\(field.name) = \(Self.unquoted(field.name))") }
+                for field in stored { out.line("self.\(field.name) = \(field.name)") }
             }
 
             if !value.fields.isEmpty {
@@ -208,6 +208,7 @@ struct Emitter {
                     for item in value.cases { out.line("case .\(item.name)(let value): try value.encode(to: encoder)") }
                 }
             }
+            out.nested(value.nested)
         }
     }
 
@@ -222,7 +223,7 @@ struct Emitter {
                 out.line("case \(other.name)(\(other.payload))")
             } else {
                 out.line("/// A member this client was not built for, held as it came.")
-                out.line("case unknown(\(tagLabel): String, payload: JSONValue)")
+                out.line("case \(value.fallbackName)(\(tagLabel): String, payload: JSONValue)")
             }
             out.line()
             out.block("private enum TagKey: String, CodingKey") { out in
@@ -240,7 +241,9 @@ struct Emitter {
                     if let other = value.catchAll {
                         out.line("default: self = .\(other.name)(try \(other.payload)(from: decoder))")
                     } else {
-                        out.line("default: self = .unknown(\(tagLabel): tag, payload: try JSONValue(from: decoder))")
+                        out.line(
+                            "default: self = .\(value.fallbackName)(\(tagLabel): tag, payload: try JSONValue(from: decoder))"
+                        )
                     }
                 }
             }
@@ -251,7 +254,7 @@ struct Emitter {
                     if let other = value.catchAll {
                         out.line("case .\(other.name)(let value): try value.encode(to: encoder)")
                     } else {
-                        out.line("case .unknown(_, let payload): try payload.encode(to: encoder)")
+                        out.line("case .\(value.fallbackName)(_, let payload): try payload.encode(to: encoder)")
                     }
                 }
             }

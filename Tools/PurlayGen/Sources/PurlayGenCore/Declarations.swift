@@ -39,6 +39,10 @@ struct TaggedUnion {
     /// The one member whose tag is a set of values rather than one: every tag no other case names is read as it.
     let catchAll: TaggedCase?
     let nested: [Declaration]
+
+    /// The case a member this client was not built for is held in: `unknown`, unless a member is itself tagged
+    /// "unknown" — a status the server knows, which is not the same as one this client does not.
+    var fallbackName: String { cases.contains { $0.name == "unknown" } ? "unlisted" : "unknown" }
 }
 
 /// Members that share a tag and differ only in the shape of what they hold: tried in order, which is safe because
@@ -46,6 +50,7 @@ struct TaggedUnion {
 struct UntaggedUnion {
     let name: String
     let cases: [TaggedCase]
+    var nested: [Declaration] = []
 }
 
 indirect enum Declaration {

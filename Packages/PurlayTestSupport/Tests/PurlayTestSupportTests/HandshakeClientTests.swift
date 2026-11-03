@@ -9,7 +9,7 @@ import Testing
 @Suite("HandshakeClient")
 struct HandshakeClientTests {
     private let body = """
-        {"server":{"version":"0.1.0"},"contractVersion":1,"appUrl":"https://chat.example.com",
+        {"server":{"version":"0.2.0"},"contractVersion":1,"appUrl":"https://chat.example.com",
          "minClient":{"macos":{"appVersion":"0.1.0","contractVersion":1,"downloadUrl":null}},
          "auth":{"email":true,"github":true,"signUp":"invite-only"}}
         """
@@ -31,7 +31,7 @@ struct HandshakeClientTests {
             Issue.record("not ready: \(outcome)")
             return
         }
-        #expect(info.server.version == "0.1.0")
+        #expect(info.server.version == "0.2.0")
         #expect(info.capabilities == nil)
         #expect(origin.description == "https://chat.example.com")
         let request = try #require(await transport.requests.first)

@@ -35,6 +35,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case savedFull
         case pinFailed
         case pinsFull
+        case bookmarkFailed
+        case unreadFailed
         case deepWorkFailed
         case joinFailed
         case leaveFailed
@@ -46,7 +48,12 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case editFailed
         case deleteFailed
         case reactionFailed
+        /// The person already has as many reactions on the message as one may (D-249).
+        case reactionLimit
         case loadFailed
+        case knowledgeFailed
+        /// Somebody else changed a thread's question or decision first: it was read again, and nothing was written over theirs.
+        case knowledgeConflict
     }
 
     public let id: Int
@@ -102,7 +109,10 @@ public final class AppModel {
         set { if let sessionOwner { sessionOwner.me = newValue } else { sessionMe = newValue } }
     }
     public private(set) var workspace: Workspace?
-    public internal(set) var selectedChannel: Uuid?
+    public internal(set) var selectedChannel: Uuid? {
+        // Leaving a channel marked unread lets it go: the next visit reads it as usual (D-212).
+        didSet { if unreadHold != selectedChannel { unreadHold = nil } }
+    }
     public private(set) var notices: [Notice] = []
 
     // What the engine holds, copied when it changes so a view observes it.
@@ -165,6 +175,8 @@ public final class AppModel {
     var threadRootCopy: Message?
     var threadGeneration = 0
     var threadMarked: [Uuid: Uuid] = [:]
+    /// Roots whose questions and decisions are being written: one write at a time each, since each carries the version it read.
+    public internal(set) var knowledgeSaving: Set<Uuid> = []
 
     // MARK: The inbox
 
@@ -183,6 +195,7 @@ public final class AppModel {
     public internal(set) var unresolvedLoading = false
     public internal(set) var unresolvedFailed = false
     public internal(set) var unresolvedUpdating: Set<Uuid> = []
+    public internal(set) var unresolvedFilter: UnresolvedFilter = .all
     var unresolvedCursor: Uuid?
     var unresolvedGeneration = 0
     public internal(set) var inboxFilter: InboxFilter = .all
@@ -223,6 +236,19 @@ public final class AppModel {
         }
         set { if let sessionOwner { sessionOwner.pins = newValue } else { sessionPins = newValue } }
     }
+    /// The bookmarks of each channel that was opened, oldest first as the server gives them (D-218).
+    private var sessionBookmarks: [Uuid: [ChannelBookmark]] = [:]
+    var bookmarks: [Uuid: [ChannelBookmark]] {
+        get {
+            if let sessionOwner { return sessionOwner.bookmarks }
+            return sessionBookmarks
+        }
+        set { if let sessionOwner { sessionOwner.bookmarks = newValue } else { sessionBookmarks = newValue } }
+    }
+    /// The channel a bookmark is being added to in this window: the sheet is open while it is set.
+    public var addingBookmark: Uuid?
+    /// The open channel, marked unread from a message here: not read again while it stays open (D-212).
+    var unreadHold: Uuid?
     public internal(set) var savedItems: [SavedItem] = []
     public enum SavedStatus: Equatable, Sendable { case idle, loading, loaded, failed }
     public internal(set) var savedStatus: SavedStatus = .idle
@@ -304,6 +330,8 @@ public final class AppModel {
         case searching
         case done
         case failed
+        /// The server would not take these filters as they stand: a repository not named owner/name, say.
+        case refused
     }
 
     /// Where the feed is told to look: a message found, to be scrolled to and marked. The number says it again for the same message.
@@ -315,6 +343,8 @@ public final class AppModel {
     public internal(set) var searchQuery = ""
     public internal(set) var searchChannelID: Uuid?
     public internal(set) var searchSenderID: Uuid?
+    /// The filters past where and from whom: thread status, questions, code or files, days and a repository.
+    public internal(set) var searchFilters = SearchFilters()
     public internal(set) var recentSearches: [MessageSearch] = []
     /// What the search field opens with, including the space after a channel scope such as `in:design `.
     public internal(set) var searchInput = ""
@@ -326,6 +356,10 @@ public final class AppModel {
     var loadingMoreResults = false
     var focusSequence = 0
     var navigationGeneration = 0
+    /// The person's named searches in this workspace, newest first, as the server keeps them.
+    public internal(set) var savedSearches: [SavedSearch] = []
+    public internal(set) var savedSearchesStatus: SavedStatus = .idle
+    var savedSearchGeneration = 0
 
     // MARK: What needs the person
 
@@ -606,7 +640,7 @@ public final class AppModel {
 
     // MARK: Signed in
 
-    private func bootstrap() async {
+    func bootstrap() async {
         guard let server, let origin, let manager else { return }
         phase = .loading
         let context = contextGeneration
@@ -624,6 +658,13 @@ public final class AppModel {
             self.me = me
             await manager.identify(userID: me.user.id.value)
             guard context == contextGeneration else { return }
+            if me.mustEnrolTwoFactor {
+                // Held back until two-step verification is on (D-239): every route but this one answers 403, so nothing
+                // more is read. The window says why and where to turn it on, and reads this again when asked.
+                workspace = nil
+                phase = .ready
+                return
+            }
             let membership =
                 preferredWorkspaceID.map { id in
                     me.memberships.first { $0.workspace.id == id }
@@ -757,6 +798,7 @@ public final class AppModel {
         marking = []
         closeThread()
         threadMarked = [:]
+        knowledgeSaving = []
         readRetryAfter = [:]
         engine?.stop()
         engine = nil
@@ -764,6 +806,7 @@ public final class AppModel {
         me = nil
         clearSearch()
         recentSearches = []
+        clearSavedSearches()
         focus = nil
         editing = nil
         uploadsByPlace = [:]
@@ -794,6 +837,9 @@ public final class AppModel {
         savedUpdating = []
         savedState = .inProgress
         pins = [:]
+        bookmarks = [:]
+        addingBookmark = nil
+        unreadHold = nil
         // After the engine is gone: stopping it says it changed, and that would count what is no longer anybody's.
         attention = Attention()
         deepWorkTimer?()
@@ -851,7 +897,7 @@ public final class AppModel {
     /// view, and the window reaches the present. Nothing is marked read from a window short of the present, and a message already read
     /// is not marked again.
     private func markReadIfSeen() {
-        guard isActive, atBottom, !inboxOpen, !unresolvedOpen, let channel = selectedChannel,
+        guard isActive, atBottom, !inboxOpen, !unresolvedOpen, let channel = selectedChannel, unreadHold != channel,
             let window = chat.windows[channel],
             window.reachesNewest,
             let newest = window.messages.last?.id, let api, engine != nil, !marking.contains(channel),
@@ -878,6 +924,15 @@ public final class AppModel {
         }
     }
 
+    /// The read position of a channel moved back: what any window marked read is forgotten, so the next look reads it again.
+    func forgetRead(_ channel: Uuid) {
+        let owner = sessionOwner ?? self
+        for model in [owner] + owner.liveConversationWindows {
+            model.markedRead[channel] = nil
+            model.readRetryAfter[channel] = nil
+        }
+    }
+
     // MARK: What is held
 
     /// How much of the person's the model holds, by kind: what "Memory after sign-out" (§14) can count. A new collection that is not
@@ -887,9 +942,11 @@ public final class AppModel {
             ("notices", notices.count), ("pending", pending.count), ("degraded", degraded.count),
             ("markedRead", markedRead.count), ("readRetryAfter", readRetryAfter.count),
             ("workspacePeople", workspacePeople.count), ("channelPeople", channelPeople.count),
-            ("threadMarked", threadMarked.count), ("thread", thread == nil ? 0 : 1), ("inboxRows", inboxRows.count),
+            ("threadMarked", threadMarked.count), ("knowledgeSaving", knowledgeSaving.count),
+            ("thread", thread == nil ? 0 : 1), ("inboxRows", inboxRows.count),
             ("inboxNotes", inboxNotes.count), ("savedIDs", savedIDs.count), ("savedItems", savedItems.count),
-            ("pins", pins.count), ("uploads", uploadsByPlace.count), ("uploadBytes", uploadBytes.count),
+            ("pins", pins.count), ("bookmarks", bookmarks.count), ("unreadHold", unreadHold == nil ? 0 : 1),
+            ("uploads", uploadsByPlace.count), ("uploadBytes", uploadBytes.count),
             ("attachmentCache", attachmentCache.count + attachmentCacheOrder.count + attachmentCacheBytes),
             ("waitingSends", waitingSends.count), ("handedBack", handedBack.count),
             ("searchResults", searchResults.count), ("problems", problems.entries.count),

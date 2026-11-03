@@ -20,6 +20,19 @@ struct UnresolvedPageView: View {
                     }
                 }
                 .frame(maxWidth: 320)
+                Picker(
+                    "Show",
+                    selection: Binding(
+                        get: { model.unresolvedFilter },
+                        set: { filter in Task { await model.setUnresolvedFilter(filter) } })
+                ) {
+                    Text("All").tag(UnresolvedFilter.all)
+                    Text("Unanswered").tag(UnresolvedFilter.unanswered)
+                    Text("Assigned to Me").tag(UnresolvedFilter.assignedToMe)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
                 Spacer()
                 Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.loadUnresolved() } }
                     .disabled(model.unresolvedLoading)
@@ -60,14 +73,17 @@ struct UnresolvedPageView: View {
                                         model.chat.channels[message.channelId].map(Words.channelLabel) ?? "Conversation"
                                     )
                                     .font(.caption.bold())
-                                    Text(message.sender?.displayName ?? "Purlay").font(.caption)
+                                    Text(message.webhookName ?? message.sender?.displayName ?? "Purlay").font(.caption)
                                     Spacer()
                                     Text(message.createdAt.date, style: .date).font(.caption)
                                 }
                                 .foregroundStyle(.secondary)
                                 Text(message.content).lineLimit(4)
-                                Text("\(message.thread?.replyCount ?? 0) replies").font(.caption).foregroundStyle(
-                                    .secondary)
+                                HStack(spacing: 6) {
+                                    if let question = message.questionState { QuestionMarker(state: question) }
+                                    Text("\(message.thread?.replyCount ?? 0) replies").font(.caption).foregroundStyle(
+                                        .secondary)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
@@ -77,7 +93,9 @@ struct UnresolvedPageView: View {
                             Task { await model.resolveUnresolved(message) }
                         }
                         .buttonStyle(.borderless)
-                        .disabled(model.unresolvedUpdating.contains(message.id))
+                        // A question nobody has replied to has nothing to resolve yet (D-204).
+                        .disabled(
+                            model.unresolvedUpdating.contains(message.id) || (message.thread?.replyCount ?? 0) == 0)
                     }
                     .padding(.vertical, 8)
                 }

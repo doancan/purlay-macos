@@ -43,6 +43,11 @@ final class FakeServer: HTTPTransport {
         var unresolvedStatus = 200
         var unresolvedPageSize = 20
         var unresolvedDelay = 0
+        var knowledgeDelay = 0
+        var knowledgeWrites: [SetKnowledgeRequest] = []
+        var mustEnrolTwoFactor = false
+        var nameFromGitHub = false
+        var scheduledDeletions: [WorkspaceDeletion] = []
         /// What the person was told, newest first, as the server keeps it; reading one sets its time.
         var notifications: [PurlayContract.Notification] = []
         var notificationsStatus = 200
@@ -54,6 +59,11 @@ final class FakeServer: HTTPTransport {
         var notificationReadStatus = 204
         var notificationReads: [ReadNotificationsRequest] = []
         var searchPageSize: Int?
+        var savedSearches: [SavedSearch] = []
+        var savedSearchPageSize = 20
+        var savedSearchError: (status: Int, code: String)?
+        var savedSearchLimit = 50
+        var savedSearchDelay = 0
         var searchDelays: [String: Int] = [:]
         var aroundNewer: String?
         var deepWorkUntil: String?
@@ -61,6 +71,7 @@ final class FakeServer: HTTPTransport {
         var chans: [Chan] = [Chan(n: 1, name: "api"), Chan(n: 2, name: "design")]
         var channelWriteError: (status: Int, code: String)?
         var mutationStatus = 200
+        var reactionError: (status: Int, code: String)?
         var beforeHideResponse: (@Sendable () async -> Void)?
         var threads: [String: [Message]] = [:]
         var threadPageSize: Int?
@@ -82,6 +93,14 @@ final class FakeServer: HTTPTransport {
         var sessionValid = true
         var readStatus = 200
         var reads: [(channel: String, id: String)] = []
+        /// The person's role in the workspace, as `/api/me` says it.
+        var role = "member"
+        var bookmarks: [String: [ChannelBookmark]] = [:]
+        var bookmarkError: (status: Int, code: String)?
+        var unreadStatus = 200
+        var unreads: [(channel: String, from: String)] = []
+        var readAllStatus = 200
+        var readAllCount = 0
     }
 
     let state = Mutex(State())
@@ -134,9 +153,9 @@ final class FakeServer: HTTPTransport {
         ].compactMap { $0 }.joined(separator: ",")
         let capability = flags.isEmpty ? "" : ",\"capabilities\":{\(flags)}"
         return """
-            {"server":{"version":"0.1.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
+            {"server":{"version":"0.2.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
             "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
-            "auth":{"email":true,"github":true,"signUp":"invite-only"}\(capability)}
+            "auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}\(capability)}
             """
     }
 
@@ -151,6 +170,7 @@ final class FakeServer: HTTPTransport {
         var peerName: String?
         var mentions = 0
         var level = "mentions"
+        var onlyAdminsPost = false
     }
 
     static func json(_ chan: Chan) -> String {
@@ -163,7 +183,8 @@ final class FakeServer: HTTPTransport {
         return """
             {"id":"\(channel(chan.n))","workspaceId":"\(workspaceID)","name":\(name),"topic":\(topic),"type":"\(chan.type)","lastMessageAt":null,\
             "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":\#(chan.mentions)}"# : "null"),"notificationLevel":"\(chan.level)",\
-            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1}
+            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,\
+            "onlyAdminsPost":\(chan.onlyAdminsPost)}
             """
     }
 
@@ -171,16 +192,20 @@ final class FakeServer: HTTPTransport {
         """
         {"id":"\(channel(n))","workspaceId":"\(workspaceID)","name":"\(name)","topic":null,"type":"public","lastMessageAt":null,\
         "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,\
-        "incident":null,"peer":null,"peers":[],"memberCount":1}
+        "incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
         """
     }
 
-    static func meJSON(deepWorkUntil: String? = nil) -> String {
+    static func meJSON(
+        deepWorkUntil: String? = nil, role: String = "member", mustEnrolTwoFactor: Bool = false,
+        nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = []
+    ) -> String {
         """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
         "profile":{"title":null,"timeZone":null,"status":null},\
-        "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"member",\
-        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false}
+        "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
+        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
+        "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions))}
         """
     }
 
@@ -229,6 +254,46 @@ final class FakeServer: HTTPTransport {
             }
             return json(200, Self.encoded(item))
         }
+        if path.contains("/saved-searches") {
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.savedSearchDelay > 0 { try await Task.sleep(for: .milliseconds(snapshot.savedSearchDelay)) }
+            if let error = snapshot.savedSearchError {
+                return json(error.status, "{\"error\":{\"code\":\"\(error.code)\",\"message\":\"x\"}}")
+            }
+            let all = snapshot.savedSearches.sorted { $0.id > $1.id }
+            if request.method == "GET" {
+                let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                let before = items.first { $0.name == "before" }?.value
+                let older = before.map { cursor in all.filter { $0.id.value < cursor } } ?? all
+                let page = Array(older.prefix(snapshot.savedSearchPageSize))
+                let next =
+                    older.count > page.count ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+                return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next)}")
+            }
+            guard let id = path.split(separator: "/").last.flatMap({ Uuid(String($0)) }) else {
+                return json(404, #"{"error":{"code":"SAVED_SEARCH_NOT_FOUND","message":"x"}}"#)
+            }
+            if request.method == "DELETE" {
+                state.withLock { $0.savedSearches.removeAll { $0.id == id } }
+                return HTTPResponse(status: 204)
+            }
+            guard let data = request.body, let input = try? JSONDecoder().decode(SaveSearchRequest.self, from: data),
+                !input.name.trimmingCharacters(in: .whitespaces).isEmpty
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            let existing = all.first { $0.id == id }
+            if existing == nil && all.count >= snapshot.savedSearchLimit {
+                return json(409, #"{"error":{"code":"SAVED_SEARCH_LIMIT","message":"x"}}"#)
+            }
+            let now = Timestamp(Date(timeIntervalSince1970: Double(epochMs) / 1_000))
+            let item = SavedSearch(
+                createdAt: existing?.createdAt ?? now, id: id, name: input.name.trimmingCharacters(in: .whitespaces),
+                query: input.query)
+            state.withLock {
+                $0.savedSearches.removeAll { $0.id == id }
+                $0.savedSearches.append(item)
+            }
+            return json(200, Self.encoded(item))
+        }
         if path.contains("/scheduled") {
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.scheduledDelay > 0 { try await Task.sleep(for: .milliseconds(snapshot.scheduledDelay)) }
@@ -272,7 +337,12 @@ final class FakeServer: HTTPTransport {
             return HTTPResponse(status: 204, headers: headers)
         case ("GET", "/api/me"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
-            return json(snapshot.meStatus, Self.meJSON(deepWorkUntil: snapshot.deepWorkUntil))
+            return json(
+                snapshot.meStatus,
+                Self.meJSON(
+                    deepWorkUntil: snapshot.deepWorkUntil, role: snapshot.role,
+                    mustEnrolTwoFactor: snapshot.mustEnrolTwoFactor, nameFromGitHub: snapshot.nameFromGitHub,
+                    scheduledDeletions: snapshot.scheduledDeletions))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
@@ -369,6 +439,48 @@ final class FakeServer: HTTPTransport {
                 }
             }
             return json(200, Self.encoded(root))
+        case ("PUT", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/knowledge"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.knowledgeDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.knowledgeDelay)) }
+            if snapshot.mutationStatus != 200 {
+                return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
+            }
+            let id = String(path.dropFirst("/api/messages/".count).dropLast("/knowledge".count))
+            guard let body = request.body.flatMap({ try? JSONDecoder().decode(SetKnowledgeRequest.self, from: $0) })
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            guard var root = snapshot.messages.values.joined().first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            // Versioned as the server versions it (D-204): a write from an older read is refused.
+            guard body.version == (root.thread?.knowledge?.version ?? 0) else {
+                return json(409, #"{"error":{"code":"KNOWLEDGE_CONFLICT","message":"x"}}"#)
+            }
+            let answer = body.acceptedAnswerId.flatMap { answer in
+                snapshot.threads[id]?.first { $0.id == answer }
+            }.map { ThreadSummary.Knowledge.AcceptedAnswer(content: $0.content, id: $0.id) }
+            var summary =
+                root.thread
+                ?? ThreadSummary(
+                    lastReplyAt: nil, replyCount: snapshot.threads[id]?.count ?? 0, resolvedAt: nil, resolvedBy: nil)
+            summary.knowledge = ThreadSummary.Knowledge(
+                acceptedAnswer: answer, assigneeId: body.assigneeId, decisionNote: body.decisionNote,
+                decisionUrl: body.decisionUrl, isQuestion: body.isQuestion, version: body.version + 1)
+            root.thread = summary
+            let updatedRoot = root
+            state.withLock { state in
+                state.knowledgeWrites.append(body)
+                if let at = state.messages[root.channelId.value]?.firstIndex(where: { $0.id == root.id }) {
+                    state.messages[root.channelId.value]?[at] = updatedRoot
+                }
+            }
+            return json(200, Self.encoded(root))
+        case ("GET", _) where path.hasPrefix("/api/messages/") && path.split(separator: "/").count == 3:
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let id = String(path.dropFirst("/api/messages/".count))
+            guard let message = snapshot.messages.values.joined().first(where: { $0.id.value == id }) else {
+                return json(404, #"{"error":{"code":"MESSAGE_NOT_FOUND","message":"x"}}"#)
+            }
+            return json(200, Self.encoded(message))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/unresolved"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.unresolvedDelay > 0 { try? await Task.sleep(for: .milliseconds(snapshot.unresolvedDelay)) }
@@ -378,9 +490,15 @@ final class FakeServer: HTTPTransport {
             let query = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let before = query.first { $0.name == "before" }?.value
             let inChannel = query.first { $0.name == "channelId" }?.value
+            let unanswered = query.first { $0.name == "unanswered" }?.value == "yes"
+            let assignee = query.first { $0.name == "assigneeId" }?.value
             let found = snapshot.messages.values.joined().filter {
-                $0.parentId == nil && $0.deletedAt == nil && ($0.thread?.replyCount ?? 0) > 0
+                let knowledge = $0.thread?.knowledge
+                return $0.parentId == nil && $0.deletedAt == nil
+                    && (($0.thread?.replyCount ?? 0) > 0 || knowledge?.isQuestion == true)
                     && $0.thread?.resolvedAt == nil
+                    && (!unanswered || (knowledge?.isQuestion == true && knowledge?.acceptedAnswer == nil))
+                    && (assignee == nil || knowledge?.assigneeId?.value == assignee)
                     && (before == nil || $0.id.value < (before ?? ""))
                     && (inChannel == nil || $0.channelId.value == inChannel)
             }.sorted { $0.id > $1.id }
@@ -465,13 +583,29 @@ final class FakeServer: HTTPTransport {
             if snapshot.searchStatus != 200 {
                 return json(snapshot.searchStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
             }
-            if q.count < 3 || q.count > 200 {
+            let filtered = items.contains { !["q", "before", "limit"].contains($0.name) }
+            if (q.isEmpty && !filtered) || (!q.isEmpty && q.count < 3) || q.count > 200 {
+                return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            let since = items.first { $0.name == "since" }?.value.flatMap(Timestamp.init)
+            let until = items.first { $0.name == "until" }?.value.flatMap(Timestamp.init)
+            if let since, let until, since >= until {
+                return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            if let repository = items.first(where: { $0.name == "repository" })?.value,
+                repository.split(separator: "/").count != 2
+            {
                 return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
             }
             let before = items.first { $0.name == "before" }?.value
             var found = (Array(snapshot.messages.values.joined()) + Array(snapshot.threads.values.joined()))
-                .filter { $0.deletedAt == nil && $0.content.lowercased().contains(q.lowercased()) }
+                .filter { $0.deletedAt == nil && (q.isEmpty || $0.content.lowercased().contains(q.lowercased())) }
+                .filter { message in since.map { message.createdAt >= $0 } ?? true }
+                .filter { message in until.map { message.createdAt < $0 } ?? true }
                 .sorted { $0.id > $1.id }
+            if items.contains(URLQueryItem(name: "kind", value: "file")) {
+                found = found.filter { !$0.attachments.isEmpty }
+            }
             if let before { found = found.filter { $0.id.value < before } }
             if let channel = items.first(where: { $0.name == "channelId" })?.value {
                 found = found.filter { $0.channelId.value == channel }
@@ -664,6 +798,9 @@ final class FakeServer: HTTPTransport {
                 return json(snapshot.mutationStatus, #"{"error":{"code":"FORBIDDEN","message":"x"}}"#)
             }
             if let wait = snapshot.reactionDelay { try? await Task.sleep(for: .milliseconds(wait)) }
+            if let failure = snapshot.reactionError {
+                return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+            }
             let emoji = String(path.split(separator: "/").last ?? "")
             let adds = request.method == "PUT"
             let set =
@@ -727,6 +864,39 @@ final class FakeServer: HTTPTransport {
                 }
             }
             return HTTPResponse(status: 204)
+        case (_, _) where path.hasPrefix("/api/channels/") && path.contains("/bookmarks"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            return bookmarks(request, snapshot)
+        case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/unread"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/unread".count))
+            let from = request.body.flatMap { try? JSONDecoder().decode(MarkUnreadRequest.self, from: $0) }?
+                .fromMessageId
+            state.withLock { $0.unreads.append((channelID, from?.value ?? "")) }
+            if snapshot.unreadStatus != 200 {
+                return json(snapshot.unreadStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            // Back to the newest root before the message, or to none; what is from there on is unread.
+            let roots = (snapshot.messages[channelID] ?? []).filter { $0.parentId == nil }.map(\.id).sorted()
+            let mark = from ?? roots.first ?? idAt(0)
+            let state = ChannelState(
+                lastReadMessageId: roots.last { $0 < mark }, unreadCount: roots.filter { $0 >= mark }.count,
+                unreadMentionCount: 0)
+            return json(200, Self.encoded(state))
+        case ("PUT", "/api/workspaces/\(Self.workspaceID)/read"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            state.withLock { $0.readAllCount += 1 }
+            if snapshot.readAllStatus != 200 {
+                return json(snapshot.readAllStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let items = snapshot.chans.filter(\.joined).compactMap { chan -> ReadAllChannelsResponse.DataItem? in
+                guard let id = Uuid(channel(chan.n)) else { return nil }
+                let newest = snapshot.messages[channel(chan.n)]?.map(\.id).max()
+                return ReadAllChannelsResponse.DataItem(
+                    channelId: id, state: ChannelState(lastReadMessageId: newest, unreadCount: 0, unreadMentionCount: 0)
+                )
+            }
+            return json(200, Self.encoded(ReadAllChannelsResponse(data: items)))
         case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/read"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let channelID = String(path.dropFirst("/api/channels/".count).dropLast("/read".count))
@@ -757,6 +927,41 @@ final class FakeServer: HTTPTransport {
                 return json(200, #"{"data":\#(data),"nextCursor":\#(next)}"#)
             }
             return json(404, #"{"error":{"code":"ROUTE_NOT_FOUND","message":"x"}}"#)
+        }
+    }
+
+    /// A channel's bookmarks: listed oldest first, and the same address added again is the one already there.
+    private func bookmarks(_ request: HTTPRequest, _ snapshot: State) -> HTTPResponse {
+        func json(_ status: Int, _ body: String) -> HTTPResponse {
+            HTTPResponse(status: status, headers: ["Content-Type": "application/json"], body: Data(body.utf8))
+        }
+        let parts = request.url.path.split(separator: "/").map(String.init)
+        guard parts.count >= 4, let channelID = Uuid(parts[2]) else { return HTTPResponse(status: 400) }
+        let id = parts[2]
+        if let failure = snapshot.bookmarkError, request.method != "GET" {
+            return json(failure.status, #"{"error":{"code":"\#(failure.code)","message":"x"}}"#)
+        }
+        let list = snapshot.bookmarks[id] ?? []
+        switch request.method {
+        case "GET":
+            return json(200, Self.encoded(list))
+        case "POST":
+            guard let body = request.body, let input = try? JSONDecoder().decode(AddBookmarkRequest.self, from: body)
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            if let held = list.first(where: { $0.url == input.url }) { return json(201, Self.encoded(held)) }
+            let made = ChannelBookmark(
+                addedAt: Timestamp(Date(timeIntervalSince1970: Double(epochMs) / 1_000)), addedBy: nil,
+                channelId: channelID, id: Uuid(UUID()), title: input.title, url: input.url)
+            state.withLock { $0.bookmarks[id, default: []].append(made) }
+            return json(201, Self.encoded(made))
+        case "DELETE":
+            guard parts.count == 5, list.contains(where: { $0.id.value == parts[4] }) else {
+                return json(404, #"{"error":{"code":"BOOKMARK_NOT_FOUND","message":"x"}}"#)
+            }
+            state.withLock { $0.bookmarks[id]?.removeAll { $0.id.value == parts[4] } }
+            return HTTPResponse(status: 204)
+        default:
+            return HTTPResponse(status: 405)
         }
     }
 }

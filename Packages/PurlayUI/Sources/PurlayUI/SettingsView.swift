@@ -208,12 +208,21 @@ public struct SettingsView: View {
                 Text(page.detail).foregroundStyle(.secondary)
             }
             if page == .profile, let me = model.me {
-                Section("Profile") {
+                Section {
                     LabeledContent("Name", value: me.user.displayName)
                     LabeledContent("Handle", value: "@" + me.user.username)
                     if let title = me.profile.title { LabeledContent("Title", value: title) }
                     if let status = me.profile.status { LabeledContent("Status", value: status) }
                     if let zone = me.profile.timeZone { LabeledContent("Time Zone", value: zone) }
+                } header: {
+                    Text("Profile")
+                } footer: {
+                    Text(
+                        model.nameFollowsGitHub
+                            ? "Your name comes from your GitHub account. Change it on GitHub and it updates here."
+                            : "Change your name, title, status and time zone in your browser."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
                 }
             }
             if page == .account, let me = model.me {

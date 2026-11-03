@@ -154,6 +154,39 @@ struct MessageActionTests {
         #expect(h.model.notices.map(\.kind).contains(.reactionFailed))
     }
 
+    @Test(
+        "a fourth emoji of mine on a message is not sent and is said, while one of my three can still be taken back (D-249)"
+    )
+    func reactionLimit() async throws {
+        let me = FakeServer.userID
+        let other = "00000000-0000-4000-8000-0000000000aa"
+        let full = message(
+            1_000, by: "bob", "hello",
+            reactions: #"[{"emoji":"👍","userIds":["\#(me)"]},{"emoji":"👀","userIds":["\#(me)","\#(other)"]},"#
+                + #"{"emoji":"✅","userIds":["\#(me)"]},{"emoji":"🎉","userIds":["\#(other)"]}]"#)
+        let h = await opened([full])
+        #expect(h.model.reactionLimitReached(on: full))
+        await h.model.toggleReaction("🔥", on: full)
+        await h.model.toggleReaction("🎉", on: full)
+        #expect(calls(h, "PUT").isEmpty)
+        #expect(h.model.notices.map(\.kind) == [.reactionLimit, .reactionLimit])
+        await h.model.toggleReaction("👍", on: full)
+        #expect(calls(h, "DELETE").count == 1)
+    }
+
+    @Test("under the limit a reaction is sent, and the server's refusal of one too many is said as the limit")
+    func reactionLimitRefused() async {
+        let theirs = message(
+            1_000, by: "bob", "hello", reactions: #"[{"emoji":"👍","userIds":["\#(FakeServer.userID)"]}]"#)
+        let h = await opened([theirs])
+        #expect(!h.model.reactionLimitReached(on: theirs))
+        h.server.edit { $0.reactionError = (400, "VALIDATION_FAILED") }
+        await h.model.toggleReaction("👀", on: theirs)
+        #expect(calls(h, "PUT").count == 1)
+        #expect(h.model.notices.map(\.kind).contains(.reactionLimit))
+        #expect(h.model.window?.messages.first?.reactions.map(\.emoji) == ["👍"])
+    }
+
     @Test("a message of a deleted row is not reacted to")
     func notOnDeleted() async {
         let gone = message(1_000, by: "bob", "gone", deleted: true)

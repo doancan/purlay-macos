@@ -1,6 +1,6 @@
 {
   "bundleFormat": 1,
   "contractVersion": 1,
-  "manifestSha256": "25323fc8451232ae80ac052bdf1dc0e813a9f2f44d70310ff03b21fad9afa0be",
-  "serverVersion": "0.1.0"
+  "manifestSha256": "5300a1de828d99936731b3b60b991df81a9d4f7b0e4389174affe1e69facacec",
+  "serverVersion": "0.2.0"
 }

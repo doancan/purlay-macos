@@ -62,6 +62,9 @@ enum Words {
         case .pinFailed: return String(localized: "Could not change the pin. Try again.")
         case .pinsFull:
             return String(localized: "This channel has as many pinned messages as it can hold. Unpin one first.")
+        case .bookmarkFailed: return String(localized: "Could not remove the bookmark. Try again.")
+        case .unreadFailed:
+            return String(localized: "Could not mark that as unread. Check your connection and try again.")
         case .tooManyFiles:
             return String(
                 localized:
@@ -83,7 +86,19 @@ enum Words {
             return String(localized: "Could not delete the message. Check your connection and try again.")
         case .reactionFailed:
             return String(localized: "Could not react to the message. Check your connection and try again.")
+        case .reactionLimit:
+            return String(
+                localized:
+                    "You can add at most \(ContractConstants.reactionsPerPersonMax) reactions to a message. Remove one to add another."
+            )
         case .loadFailed: return String(localized: "Could not load messages. Check your connection.")
+        case .knowledgeFailed:
+            return String(localized: "Could not change the question or decision. Check your connection and try again.")
+        case .knowledgeConflict:
+            return String(
+                localized:
+                    "Someone else changed this question or decision first. It now shows their change; review it and try again."
+            )
         }
     }
 

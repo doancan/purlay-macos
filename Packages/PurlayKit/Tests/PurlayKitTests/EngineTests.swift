@@ -265,7 +265,7 @@ struct RoutingTests {
         let h = EngineHarness()
         let socket = h.openOne()
         let channelJSON =
-            #"{"id":"\#(channel(5))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":"new","topic":null,"type":"public","lastMessageAt":null,"state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,"incident":null,"peer":null,"peers":[],"memberCount":1}"#
+            #"{"id":"\#(channel(5))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":"new","topic":null,"type":"public","lastMessageAt":null,"state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,"incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}"#
         socket.handlers.message(#"{"event":"CHANNEL_ADDED","ts":1,"data":\#(channelJSON)}"#)
         #expect(h.subscribes(socket).last?.channels.map(\.channelId) == [channel(5)])
         socket.handlers.message(#"{"event":"PINS_UPDATED","ts":1,"data":{"channelId":"\#(channel(5))"}}"#)
@@ -313,7 +313,7 @@ struct RoutingTests {
         let h = EngineHarness()
         h.engine.setChannels([])
         let channelJSON =
-            #"{"id":"\#(channel(5))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":"new","topic":null,"type":"public","lastMessageAt":null,"state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,"incident":null,"peer":null,"peers":[],"memberCount":1}"#
+            #"{"id":"\#(channel(5))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":"new","topic":null,"type":"public","lastMessageAt":null,"state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,"incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}"#
         guard let channel = try? JSONDecoder().decode(Channel.self, from: Data(channelJSON.utf8)) else {
             Issue.record("channel")
             return

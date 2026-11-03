@@ -55,6 +55,7 @@ struct ChannelMenu: View {
                 .disabled(position == 0)
             Button("Move Down", systemImage: "arrow.down") { model.moveSidebarChannel(channel.id, by: 1) }
                 .disabled(position >= sectionCount - 1)
+            Button("Add Bookmark…", systemImage: "link.badge.plus") { model.addingBookmark = channel.id }
         }
         if let showDetails {
             Divider()

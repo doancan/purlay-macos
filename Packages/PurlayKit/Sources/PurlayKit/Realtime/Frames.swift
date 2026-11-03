@@ -30,6 +30,7 @@ extension ServerFrame {
         case .savedUpdated(let frame): return frame.refId
         case .notificationsUpdated(let frame): return frame.refId
         case .pinsUpdated(let frame): return frame.refId
+        case .bookmarksUpdated(let frame): return frame.refId
         case .incidentUpdated(let frame): return frame.refId
         case .messageVersionsUpdated(let frame): return frame.refId
         case .channelsUpdated(let frame): return frame.refId
