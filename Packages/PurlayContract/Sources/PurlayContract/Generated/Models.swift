@@ -363,6 +363,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
             case bookmarkNotFound
             case messageVersionNotFound
             case incidentNotFound
+            case issueNotFound
             case userNotFound
             case workspaceSlugTaken
             case channelNameTaken
@@ -370,6 +371,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
             case knowledgeConflict
             case savedSearchNotFound
             case savedSearchLimit
+            case issuesLimit
             case threadNotResolvable
             case accountEmailConflict
             case githubAccountTaken
@@ -421,7 +423,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
             /// A value this client was not built for.
             case unknown(String)
 
-            public static let known: [Code] = [.invalidMessageId, .unsupportedMediaType, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .twoFactorRequired, .notAChannelMember, .onlyAdminsPost, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .bookmarkNotFound, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .knowledgeConflict, .savedSearchNotFound, .savedSearchLimit, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .githubNotConnected, .githubAuthorizationRequired, .githubUnavailable, .githubRequestConflict, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .tooManyPendingUploads, .savedLimit, .pinsLimit, .bookmarksLimit, .githubFeedsLimit, .incomingWebhooksLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .incomingWebhookNotFound, .imageNotAvailable, .lastChannelMember, .retentionTooShort, .workspaceDeletionStarted, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .adminLinkNotFound, .mailLinkNotFound, .`internal`]
+            public static let known: [Code] = [.invalidMessageId, .unsupportedMediaType, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .twoFactorRequired, .notAChannelMember, .onlyAdminsPost, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .bookmarkNotFound, .messageVersionNotFound, .incidentNotFound, .issueNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .knowledgeConflict, .savedSearchNotFound, .savedSearchLimit, .issuesLimit, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .githubNotConnected, .githubAuthorizationRequired, .githubUnavailable, .githubRequestConflict, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .tooManyPendingUploads, .savedLimit, .pinsLimit, .bookmarksLimit, .githubFeedsLimit, .incomingWebhooksLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .incomingWebhookNotFound, .imageNotAvailable, .lastChannelMember, .retentionTooShort, .workspaceDeletionStarted, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .adminLinkNotFound, .mailLinkNotFound, .`internal`]
 
             public init(rawValue: String) {
                 switch rawValue {
@@ -444,6 +446,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
                     case "BOOKMARK_NOT_FOUND": self = .bookmarkNotFound
                     case "MESSAGE_VERSION_NOT_FOUND": self = .messageVersionNotFound
                     case "INCIDENT_NOT_FOUND": self = .incidentNotFound
+                    case "ISSUE_NOT_FOUND": self = .issueNotFound
                     case "USER_NOT_FOUND": self = .userNotFound
                     case "WORKSPACE_SLUG_TAKEN": self = .workspaceSlugTaken
                     case "CHANNEL_NAME_TAKEN": self = .channelNameTaken
@@ -451,6 +454,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
                     case "KNOWLEDGE_CONFLICT": self = .knowledgeConflict
                     case "SAVED_SEARCH_NOT_FOUND": self = .savedSearchNotFound
                     case "SAVED_SEARCH_LIMIT": self = .savedSearchLimit
+                    case "ISSUES_LIMIT": self = .issuesLimit
                     case "THREAD_NOT_RESOLVABLE": self = .threadNotResolvable
                     case "ACCOUNT_EMAIL_CONFLICT": self = .accountEmailConflict
                     case "GITHUB_ACCOUNT_TAKEN": self = .githubAccountTaken
@@ -524,6 +528,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
                     case .bookmarkNotFound: return "BOOKMARK_NOT_FOUND"
                     case .messageVersionNotFound: return "MESSAGE_VERSION_NOT_FOUND"
                     case .incidentNotFound: return "INCIDENT_NOT_FOUND"
+                    case .issueNotFound: return "ISSUE_NOT_FOUND"
                     case .userNotFound: return "USER_NOT_FOUND"
                     case .workspaceSlugTaken: return "WORKSPACE_SLUG_TAKEN"
                     case .channelNameTaken: return "CHANNEL_NAME_TAKEN"
@@ -531,6 +536,7 @@ public enum AppErrorBody: Sendable, Hashable, Codable {
                     case .knowledgeConflict: return "KNOWLEDGE_CONFLICT"
                     case .savedSearchNotFound: return "SAVED_SEARCH_NOT_FOUND"
                     case .savedSearchLimit: return "SAVED_SEARCH_LIMIT"
+                    case .issuesLimit: return "ISSUES_LIMIT"
                     case .threadNotResolvable: return "THREAD_NOT_RESOLVABLE"
                     case .accountEmailConflict: return "ACCOUNT_EMAIL_CONFLICT"
                     case .githubAccountTaken: return "GITHUB_ACCOUNT_TAKEN"
@@ -1089,10 +1095,14 @@ public enum AuditActionName: Sendable, Hashable, Codable {
     case auditExported
     case workspaceDeletionRequested
     case workspaceDeletionCancelled
+    case issueCreated
+    case issueStatusChanged
+    case issueAssigned
+    case issueDeleted
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [AuditActionName] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled]
+    public static let known: [AuditActionName] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled, .issueCreated, .issueStatusChanged, .issueAssigned, .issueDeleted]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -1133,6 +1143,10 @@ public enum AuditActionName: Sendable, Hashable, Codable {
             case "audit.exported": self = .auditExported
             case "workspace.deletion_requested": self = .workspaceDeletionRequested
             case "workspace.deletion_cancelled": self = .workspaceDeletionCancelled
+            case "issue.created": self = .issueCreated
+            case "issue.status_changed": self = .issueStatusChanged
+            case "issue.assigned": self = .issueAssigned
+            case "issue.deleted": self = .issueDeleted
             default: self = .unknown(rawValue)
         }
     }
@@ -1176,6 +1190,10 @@ public enum AuditActionName: Sendable, Hashable, Codable {
             case .auditExported: return "audit.exported"
             case .workspaceDeletionRequested: return "workspace.deletion_requested"
             case .workspaceDeletionCancelled: return "workspace.deletion_cancelled"
+            case .issueCreated: return "issue.created"
+            case .issueStatusChanged: return "issue.status_changed"
+            case .issueAssigned: return "issue.assigned"
+            case .issueDeleted: return "issue.deleted"
             case .unknown(let value): return value
         }
     }
@@ -1383,10 +1401,14 @@ public struct AuditExportQuery: Sendable, Hashable, Codable {
         case auditExported
         case workspaceDeletionRequested
         case workspaceDeletionCancelled
+        case issueCreated
+        case issueStatusChanged
+        case issueAssigned
+        case issueDeleted
         /// A value this client was not built for.
         case unknown(String)
 
-        public static let known: [Action] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled]
+        public static let known: [Action] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled, .issueCreated, .issueStatusChanged, .issueAssigned, .issueDeleted]
 
         public init(rawValue: String) {
             switch rawValue {
@@ -1427,6 +1449,10 @@ public struct AuditExportQuery: Sendable, Hashable, Codable {
                 case "audit.exported": self = .auditExported
                 case "workspace.deletion_requested": self = .workspaceDeletionRequested
                 case "workspace.deletion_cancelled": self = .workspaceDeletionCancelled
+                case "issue.created": self = .issueCreated
+                case "issue.status_changed": self = .issueStatusChanged
+                case "issue.assigned": self = .issueAssigned
+                case "issue.deleted": self = .issueDeleted
                 default: self = .unknown(rawValue)
             }
         }
@@ -1470,6 +1496,10 @@ public struct AuditExportQuery: Sendable, Hashable, Codable {
                 case .auditExported: return "audit.exported"
                 case .workspaceDeletionRequested: return "workspace.deletion_requested"
                 case .workspaceDeletionCancelled: return "workspace.deletion_cancelled"
+                case .issueCreated: return "issue.created"
+                case .issueStatusChanged: return "issue.status_changed"
+                case .issueAssigned: return "issue.assigned"
+                case .issueDeleted: return "issue.deleted"
                 case .unknown(let value): return value
             }
         }
@@ -1593,10 +1623,14 @@ public struct AuditFilter: Sendable, Hashable, Codable {
         case auditExported
         case workspaceDeletionRequested
         case workspaceDeletionCancelled
+        case issueCreated
+        case issueStatusChanged
+        case issueAssigned
+        case issueDeleted
         /// A value this client was not built for.
         case unknown(String)
 
-        public static let known: [Action] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled]
+        public static let known: [Action] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled, .issueCreated, .issueStatusChanged, .issueAssigned, .issueDeleted]
 
         public init(rawValue: String) {
             switch rawValue {
@@ -1637,6 +1671,10 @@ public struct AuditFilter: Sendable, Hashable, Codable {
                 case "audit.exported": self = .auditExported
                 case "workspace.deletion_requested": self = .workspaceDeletionRequested
                 case "workspace.deletion_cancelled": self = .workspaceDeletionCancelled
+                case "issue.created": self = .issueCreated
+                case "issue.status_changed": self = .issueStatusChanged
+                case "issue.assigned": self = .issueAssigned
+                case "issue.deleted": self = .issueDeleted
                 default: self = .unknown(rawValue)
             }
         }
@@ -1680,6 +1718,10 @@ public struct AuditFilter: Sendable, Hashable, Codable {
                 case .auditExported: return "audit.exported"
                 case .workspaceDeletionRequested: return "workspace.deletion_requested"
                 case .workspaceDeletionCancelled: return "workspace.deletion_cancelled"
+                case .issueCreated: return "issue.created"
+                case .issueStatusChanged: return "issue.status_changed"
+                case .issueAssigned: return "issue.assigned"
+                case .issueDeleted: return "issue.deleted"
                 case .unknown(let value): return value
             }
         }
@@ -1806,10 +1848,14 @@ public struct AuditQuery: Sendable, Hashable, Codable {
         case auditExported
         case workspaceDeletionRequested
         case workspaceDeletionCancelled
+        case issueCreated
+        case issueStatusChanged
+        case issueAssigned
+        case issueDeleted
         /// A value this client was not built for.
         case unknown(String)
 
-        public static let known: [Action] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled]
+        public static let known: [Action] = [.memberRoleChanged, .memberRemoved, .memberLeft, .memberJoined, .channelCreated, .channelRenamed, .channelArchived, .channelRestored, .channelMemberAdded, .channelMemberRemoved, .integrationTokenSet, .integrationTokenRemoved, .integrationFeedCreated, .integrationFeedRemoved, .integrationWebhookCreated, .integrationWebhookRevoked, .integrationAppConnected, .integrationAppDisconnected, .integrationIssueCreated, .integrationWorkLinked, .integrationFeedSecretRegenerated, .invitationCreated, .invitationRevoked, .messageRemovedByModerator, .workspaceRenamed, .retentionChanged, .channelRetentionChanged, .channelPostingChanged, .accountErased, .contentErased, .workspaceExportRequested, .workspaceExported, .retentionPurged, .storageQuotaChanged, .auditExported, .workspaceDeletionRequested, .workspaceDeletionCancelled, .issueCreated, .issueStatusChanged, .issueAssigned, .issueDeleted]
 
         public init(rawValue: String) {
             switch rawValue {
@@ -1850,6 +1896,10 @@ public struct AuditQuery: Sendable, Hashable, Codable {
                 case "audit.exported": self = .auditExported
                 case "workspace.deletion_requested": self = .workspaceDeletionRequested
                 case "workspace.deletion_cancelled": self = .workspaceDeletionCancelled
+                case "issue.created": self = .issueCreated
+                case "issue.status_changed": self = .issueStatusChanged
+                case "issue.assigned": self = .issueAssigned
+                case "issue.deleted": self = .issueDeleted
                 default: self = .unknown(rawValue)
             }
         }
@@ -1893,6 +1943,10 @@ public struct AuditQuery: Sendable, Hashable, Codable {
                 case .auditExported: return "audit.exported"
                 case .workspaceDeletionRequested: return "workspace.deletion_requested"
                 case .workspaceDeletionCancelled: return "workspace.deletion_cancelled"
+                case .issueCreated: return "issue.created"
+                case .issueStatusChanged: return "issue.status_changed"
+                case .issueAssigned: return "issue.assigned"
+                case .issueDeleted: return "issue.deleted"
                 case .unknown(let value): return value
             }
         }
@@ -1911,13 +1965,15 @@ public struct AuditQuery: Sendable, Hashable, Codable {
 public struct AuthMethods: Sendable, Hashable, Codable {
     public var email: Bool
     public var github: Bool
+    public var google: Bool
     public var oidc: Oidc?
     public var password: Bool
     public var signUp: SignUp
 
-    public init(email: Bool, github: Bool, oidc: Oidc?, password: Bool, signUp: SignUp) {
+    public init(email: Bool, github: Bool, google: Bool, oidc: Oidc?, password: Bool, signUp: SignUp) {
         self.email = email
         self.github = github
+        self.google = google
         self.oidc = oidc
         self.password = password
         self.signUp = signUp
@@ -1926,6 +1982,7 @@ public struct AuthMethods: Sendable, Hashable, Codable {
     private enum CodingKeys: String, CodingKey {
         case email
         case github
+        case google
         case oidc
         case password
         case signUp
@@ -1935,6 +1992,7 @@ public struct AuthMethods: Sendable, Hashable, Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.email = try container.decode(Bool.self, forKey: .email)
         self.github = try container.decode(Bool.self, forKey: .github)
+        self.google = try container.decode(Bool.self, forKey: .google)
         self.oidc = try container.decode(Oidc?.self, forKey: .oidc)
         self.password = try container.decode(Bool.self, forKey: .password)
         self.signUp = try container.decode(SignUp.self, forKey: .signUp)
@@ -1944,6 +2002,7 @@ public struct AuthMethods: Sendable, Hashable, Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.email, forKey: .email)
         try container.encode(self.github, forKey: .github)
+        try container.encode(self.google, forKey: .google)
         try container.encode(self.oidc, forKey: .oidc)
         try container.encode(self.password, forKey: .password)
         try container.encode(self.signUp, forKey: .signUp)
@@ -3433,6 +3492,38 @@ public struct CreateInvitationRequest: Sendable, Hashable, Codable {
     }
 }
 
+public struct CreateIssueRequest: Sendable, Hashable, Codable {
+    public var assigneeId: Uuid?
+    public var body: String?
+    public var title: String
+
+    public init(assigneeId: Uuid? = nil, body: String? = nil, title: String) {
+        self.assigneeId = assigneeId
+        self.body = body
+        self.title = title
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case assigneeId
+        case body
+        case title
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.assigneeId = try container.decodeIfPresent(Uuid.self, forKey: .assigneeId)
+        self.body = try container.decodeIfPresent(String.self, forKey: .body)
+        self.title = try container.decode(String.self, forKey: .title)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.assigneeId, forKey: .assigneeId)
+        try container.encodeIfPresent(self.body, forKey: .body)
+        try container.encode(self.title, forKey: .title)
+    }
+}
+
 public struct CreateWorkspaceRequest: Sendable, Hashable, Codable {
     public var name: String
     public var slug: String
@@ -4015,6 +4106,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
     case bookmarkNotFound
     case messageVersionNotFound
     case incidentNotFound
+    case issueNotFound
     case userNotFound
     case workspaceSlugTaken
     case channelNameTaken
@@ -4022,6 +4114,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
     case knowledgeConflict
     case savedSearchNotFound
     case savedSearchLimit
+    case issuesLimit
     case threadNotResolvable
     case accountEmailConflict
     case githubAccountTaken
@@ -4078,7 +4171,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [ErrorCode] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .twoFactorRequired, .notAChannelMember, .onlyAdminsPost, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .bookmarkNotFound, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .knowledgeConflict, .savedSearchNotFound, .savedSearchLimit, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .githubNotConnected, .githubAuthorizationRequired, .githubUnavailable, .githubRequestConflict, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .bookmarksLimit, .githubFeedsLimit, .incomingWebhooksLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .incomingWebhookNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .retentionTooShort, .workspaceDeletionStarted, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .mailLinkNotFound, .`internal`]
+    public static let known: [ErrorCode] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .twoFactorRequired, .notAChannelMember, .onlyAdminsPost, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .bookmarkNotFound, .messageVersionNotFound, .incidentNotFound, .issueNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .knowledgeConflict, .savedSearchNotFound, .savedSearchLimit, .issuesLimit, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .githubNotConnected, .githubAuthorizationRequired, .githubUnavailable, .githubRequestConflict, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .bookmarksLimit, .githubFeedsLimit, .incomingWebhooksLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .incomingWebhookNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .retentionTooShort, .workspaceDeletionStarted, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .mailLinkNotFound, .`internal`]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -4103,6 +4196,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
             case "BOOKMARK_NOT_FOUND": self = .bookmarkNotFound
             case "MESSAGE_VERSION_NOT_FOUND": self = .messageVersionNotFound
             case "INCIDENT_NOT_FOUND": self = .incidentNotFound
+            case "ISSUE_NOT_FOUND": self = .issueNotFound
             case "USER_NOT_FOUND": self = .userNotFound
             case "WORKSPACE_SLUG_TAKEN": self = .workspaceSlugTaken
             case "CHANNEL_NAME_TAKEN": self = .channelNameTaken
@@ -4110,6 +4204,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
             case "KNOWLEDGE_CONFLICT": self = .knowledgeConflict
             case "SAVED_SEARCH_NOT_FOUND": self = .savedSearchNotFound
             case "SAVED_SEARCH_LIMIT": self = .savedSearchLimit
+            case "ISSUES_LIMIT": self = .issuesLimit
             case "THREAD_NOT_RESOLVABLE": self = .threadNotResolvable
             case "ACCOUNT_EMAIL_CONFLICT": self = .accountEmailConflict
             case "GITHUB_ACCOUNT_TAKEN": self = .githubAccountTaken
@@ -4190,6 +4285,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
             case .bookmarkNotFound: return "BOOKMARK_NOT_FOUND"
             case .messageVersionNotFound: return "MESSAGE_VERSION_NOT_FOUND"
             case .incidentNotFound: return "INCIDENT_NOT_FOUND"
+            case .issueNotFound: return "ISSUE_NOT_FOUND"
             case .userNotFound: return "USER_NOT_FOUND"
             case .workspaceSlugTaken: return "WORKSPACE_SLUG_TAKEN"
             case .channelNameTaken: return "CHANNEL_NAME_TAKEN"
@@ -4197,6 +4293,7 @@ public enum ErrorCode: Sendable, Hashable, Codable {
             case .knowledgeConflict: return "KNOWLEDGE_CONFLICT"
             case .savedSearchNotFound: return "SAVED_SEARCH_NOT_FOUND"
             case .savedSearchLimit: return "SAVED_SEARCH_LIMIT"
+            case .issuesLimit: return "ISSUES_LIMIT"
             case .threadNotResolvable: return "THREAD_NOT_RESOLVABLE"
             case .accountEmailConflict: return "ACCOUNT_EMAIL_CONFLICT"
             case .githubAccountTaken: return "GITHUB_ACCOUNT_TAKEN"
@@ -4348,6 +4445,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
     case bookmarkNotFound
     case messageVersionNotFound
     case incidentNotFound
+    case issueNotFound
     case userNotFound
     case workspaceSlugTaken
     case channelNameTaken
@@ -4355,6 +4453,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
     case knowledgeConflict
     case savedSearchNotFound
     case savedSearchLimit
+    case issuesLimit
     case threadNotResolvable
     case accountEmailConflict
     case githubAccountTaken
@@ -4414,7 +4513,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [ExportFailure] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .twoFactorRequired, .notAChannelMember, .onlyAdminsPost, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .bookmarkNotFound, .messageVersionNotFound, .incidentNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .knowledgeConflict, .savedSearchNotFound, .savedSearchLimit, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .githubNotConnected, .githubAuthorizationRequired, .githubUnavailable, .githubRequestConflict, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .bookmarksLimit, .githubFeedsLimit, .incomingWebhooksLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .incomingWebhookNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .retentionTooShort, .workspaceDeletionStarted, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .mailLinkNotFound, .`internal`, .exportFailed, .exportAbandoned, .exportRequesterGone]
+    public static let known: [ExportFailure] = [.validationFailed, .invalidMessageId, .unsupportedMediaType, .clientTooOld, .unauthenticated, .webhookSignatureInvalid, .forbidden, .reauthenticationRequired, .twoFactorRequired, .notAChannelMember, .onlyAdminsPost, .routeNotFound, .workspaceNotFound, .channelNotFound, .messageNotFound, .scheduledMessageNotFound, .scheduledMessageSent, .scheduledMessageLimit, .bookmarkNotFound, .messageVersionNotFound, .incidentNotFound, .issueNotFound, .userNotFound, .workspaceSlugTaken, .channelNameTaken, .messageIdConflict, .knowledgeConflict, .savedSearchNotFound, .savedSearchLimit, .issuesLimit, .threadNotResolvable, .accountEmailConflict, .githubAccountTaken, .githubFeedExists, .githubNotConnected, .githubAuthorizationRequired, .githubUnavailable, .githubRequestConflict, .incidentOpen, .incidentIdConflict, .incidentPostmortemChanged, .incidentRespondersLimit, .incidentResolved, .githubRepositoryMismatch, .payloadTooLarge, .lengthRequired, .imageUnreadable, .imageTooLarge, .storageQuotaExceeded, .tooManyPendingUploads, .savedLimit, .pinsLimit, .bookmarksLimit, .githubFeedsLimit, .incomingWebhooksLimit, .attachmentIdConflict, .attachmentNotFound, .sessionNotFound, .invitationNotFound, .exportNotFound, .exportInProgress, .signInLinkNotFound, .nativeCodeNotFound, .githubFeedNotFound, .incomingWebhookNotFound, .imageNotAvailable, .lastOwner, .lastChannelMember, .retentionTooShort, .workspaceDeletionStarted, .rateLimited, .databaseUnavailable, .storageUnavailable, .pushUnavailable, .emailSignInUnavailable, .setupUnavailable, .setupLocked, .setupStepRefused, .settingsChangeFailed, .serverChangeRefused, .adminLinkNotFound, .mailLinkNotFound, .`internal`, .exportFailed, .exportAbandoned, .exportRequesterGone]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -4439,6 +4538,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
             case "BOOKMARK_NOT_FOUND": self = .bookmarkNotFound
             case "MESSAGE_VERSION_NOT_FOUND": self = .messageVersionNotFound
             case "INCIDENT_NOT_FOUND": self = .incidentNotFound
+            case "ISSUE_NOT_FOUND": self = .issueNotFound
             case "USER_NOT_FOUND": self = .userNotFound
             case "WORKSPACE_SLUG_TAKEN": self = .workspaceSlugTaken
             case "CHANNEL_NAME_TAKEN": self = .channelNameTaken
@@ -4446,6 +4546,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
             case "KNOWLEDGE_CONFLICT": self = .knowledgeConflict
             case "SAVED_SEARCH_NOT_FOUND": self = .savedSearchNotFound
             case "SAVED_SEARCH_LIMIT": self = .savedSearchLimit
+            case "ISSUES_LIMIT": self = .issuesLimit
             case "THREAD_NOT_RESOLVABLE": self = .threadNotResolvable
             case "ACCOUNT_EMAIL_CONFLICT": self = .accountEmailConflict
             case "GITHUB_ACCOUNT_TAKEN": self = .githubAccountTaken
@@ -4529,6 +4630,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
             case .bookmarkNotFound: return "BOOKMARK_NOT_FOUND"
             case .messageVersionNotFound: return "MESSAGE_VERSION_NOT_FOUND"
             case .incidentNotFound: return "INCIDENT_NOT_FOUND"
+            case .issueNotFound: return "ISSUE_NOT_FOUND"
             case .userNotFound: return "USER_NOT_FOUND"
             case .workspaceSlugTaken: return "WORKSPACE_SLUG_TAKEN"
             case .channelNameTaken: return "CHANNEL_NAME_TAKEN"
@@ -4536,6 +4638,7 @@ public enum ExportFailure: Sendable, Hashable, Codable {
             case .knowledgeConflict: return "KNOWLEDGE_CONFLICT"
             case .savedSearchNotFound: return "SAVED_SEARCH_NOT_FOUND"
             case .savedSearchLimit: return "SAVED_SEARCH_LIMIT"
+            case .issuesLimit: return "ISSUES_LIMIT"
             case .threadNotResolvable: return "THREAD_NOT_RESOLVABLE"
             case .accountEmailConflict: return "ACCOUNT_EMAIL_CONFLICT"
             case .githubAccountTaken: return "GITHUB_ACCOUNT_TAKEN"
@@ -7394,6 +7497,190 @@ public struct InvitationTokenRequest: Sendable, Hashable, Codable {
     }
 }
 
+public struct Issue: Sendable, Hashable, Codable {
+    public var assigneeId: Uuid?
+    public var body: String
+    public var createdAt: Timestamp
+    public var createdBy: Uuid?
+    public var id: Uuid
+    public var status: IssueStatus
+    public var title: String
+    public var updatedAt: Timestamp
+
+    public init(assigneeId: Uuid?, body: String, createdAt: Timestamp, createdBy: Uuid?, id: Uuid, status: IssueStatus, title: String, updatedAt: Timestamp) {
+        self.assigneeId = assigneeId
+        self.body = body
+        self.createdAt = createdAt
+        self.createdBy = createdBy
+        self.id = id
+        self.status = status
+        self.title = title
+        self.updatedAt = updatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case assigneeId
+        case body
+        case createdAt
+        case createdBy
+        case id
+        case status
+        case title
+        case updatedAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.assigneeId = try container.decode(Uuid?.self, forKey: .assigneeId)
+        self.body = try container.decode(String.self, forKey: .body)
+        self.createdAt = try container.decode(Timestamp.self, forKey: .createdAt)
+        self.createdBy = try container.decode(Uuid?.self, forKey: .createdBy)
+        self.id = try container.decode(Uuid.self, forKey: .id)
+        self.status = try container.decode(IssueStatus.self, forKey: .status)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.updatedAt = try container.decode(Timestamp.self, forKey: .updatedAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.assigneeId, forKey: .assigneeId)
+        try container.encode(self.body, forKey: .body)
+        try container.encode(self.createdAt, forKey: .createdAt)
+        try container.encode(self.createdBy, forKey: .createdBy)
+        try container.encode(self.id, forKey: .id)
+        try container.encode(self.status, forKey: .status)
+        try container.encode(self.title, forKey: .title)
+        try container.encode(self.updatedAt, forKey: .updatedAt)
+    }
+}
+
+public struct IssuePage: Sendable, Hashable, Codable {
+    public var data: [Issue]
+    public var nextCursor: Uuid?
+
+    public init(data: [Issue], nextCursor: Uuid?) {
+        self.data = data
+        self.nextCursor = nextCursor
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case data
+        case nextCursor
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.data = try container.decode([Issue].self, forKey: .data)
+        self.nextCursor = try container.decode(Uuid?.self, forKey: .nextCursor)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.data, forKey: .data)
+        try container.encode(self.nextCursor, forKey: .nextCursor)
+    }
+}
+
+public struct IssueQuery: Sendable, Hashable, Codable {
+    public var before: Uuid?
+    public var limit: Int?
+    public var status: Status?
+
+    public init(before: Uuid? = nil, limit: Int? = nil, status: Status? = nil) {
+        self.before = before
+        self.limit = limit
+        self.status = status
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case before
+        case limit
+        case status
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.before = try container.decodeIfPresent(Uuid.self, forKey: .before)
+        self.limit = try container.decodeIfPresent(Int.self, forKey: .limit)
+        self.status = try container.decodeIfPresent(Status.self, forKey: .status)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.before, forKey: .before)
+        try container.encodeIfPresent(self.limit, forKey: .limit)
+        try container.encodeIfPresent(self.status, forKey: .status)
+    }
+
+    public enum Status: Sendable, Hashable, Codable {
+        case `open`
+        case done
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Status] = [.`open`, .done]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "open": self = .`open`
+                case "done": self = .done
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .`open`: return "open"
+                case .done: return "done"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+}
+
+public enum IssueStatus: Sendable, Hashable, Codable {
+    case `open`
+    case done
+    /// A value this client was not built for.
+    case unknown(String)
+
+    public static let known: [IssueStatus] = [.`open`, .done]
+
+    public init(rawValue: String) {
+        switch rawValue {
+            case "open": self = .`open`
+            case "done": self = .done
+            default: self = .unknown(rawValue)
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+            case .`open`: return "open"
+            case .done: return "done"
+            case .unknown(let value): return value
+        }
+    }
+
+    public init(from decoder: any Decoder) throws {
+        self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 public struct LastOwnerDetails: Sendable, Hashable, Codable {
     public var workspaceIds: [Uuid]
 
@@ -7520,19 +7807,23 @@ public struct MarkUnreadRequest: Sendable, Hashable, Codable {
 }
 
 public struct MeResponse: Sendable, Hashable, Codable {
+    public var awayChosen: Bool
     public var isServerAdmin: Bool
     public var mayCreateWorkspace: Bool
     public var memberships: [Membership]
+    public var modules: [String]
     public var mustEnrolTwoFactor: Bool
     public var nameFromGitHub: Bool
     public var profile: Profile
     public var scheduledDeletions: [WorkspaceDeletion]
     public var user: CurrentUser
 
-    public init(isServerAdmin: Bool, mayCreateWorkspace: Bool, memberships: [Membership], mustEnrolTwoFactor: Bool, nameFromGitHub: Bool, profile: Profile, scheduledDeletions: [WorkspaceDeletion], user: CurrentUser) {
+    public init(awayChosen: Bool, isServerAdmin: Bool, mayCreateWorkspace: Bool, memberships: [Membership], modules: [String], mustEnrolTwoFactor: Bool, nameFromGitHub: Bool, profile: Profile, scheduledDeletions: [WorkspaceDeletion], user: CurrentUser) {
+        self.awayChosen = awayChosen
         self.isServerAdmin = isServerAdmin
         self.mayCreateWorkspace = mayCreateWorkspace
         self.memberships = memberships
+        self.modules = modules
         self.mustEnrolTwoFactor = mustEnrolTwoFactor
         self.nameFromGitHub = nameFromGitHub
         self.profile = profile
@@ -7541,9 +7832,11 @@ public struct MeResponse: Sendable, Hashable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case awayChosen
         case isServerAdmin
         case mayCreateWorkspace
         case memberships
+        case modules
         case mustEnrolTwoFactor
         case nameFromGitHub
         case profile
@@ -7553,9 +7846,11 @@ public struct MeResponse: Sendable, Hashable, Codable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.awayChosen = try container.decode(Bool.self, forKey: .awayChosen)
         self.isServerAdmin = try container.decode(Bool.self, forKey: .isServerAdmin)
         self.mayCreateWorkspace = try container.decode(Bool.self, forKey: .mayCreateWorkspace)
         self.memberships = try container.decode([Membership].self, forKey: .memberships)
+        self.modules = try container.decode([String].self, forKey: .modules)
         self.mustEnrolTwoFactor = try container.decode(Bool.self, forKey: .mustEnrolTwoFactor)
         self.nameFromGitHub = try container.decode(Bool.self, forKey: .nameFromGitHub)
         self.profile = try container.decode(Profile.self, forKey: .profile)
@@ -7565,9 +7860,11 @@ public struct MeResponse: Sendable, Hashable, Codable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.awayChosen, forKey: .awayChosen)
         try container.encode(self.isServerAdmin, forKey: .isServerAdmin)
         try container.encode(self.mayCreateWorkspace, forKey: .mayCreateWorkspace)
         try container.encode(self.memberships, forKey: .memberships)
+        try container.encode(self.modules, forKey: .modules)
         try container.encode(self.mustEnrolTwoFactor, forKey: .mustEnrolTwoFactor)
         try container.encode(self.nameFromGitHub, forKey: .nameFromGitHub)
         try container.encode(self.profile, forKey: .profile)
@@ -8277,15 +8574,17 @@ public struct MySignIn: Sendable, Hashable, Codable {
     public var email: String
     public var emailLinks: Bool
     public var github: Github?
+    public var google: Bool
     public var hasPassword: Bool
     public var oidc: Bool
     public var twoFactor: Bool
     public var twoFactorRequired: Bool
 
-    public init(email: String, emailLinks: Bool, github: Github?, hasPassword: Bool, oidc: Bool, twoFactor: Bool, twoFactorRequired: Bool) {
+    public init(email: String, emailLinks: Bool, github: Github?, google: Bool, hasPassword: Bool, oidc: Bool, twoFactor: Bool, twoFactorRequired: Bool) {
         self.email = email
         self.emailLinks = emailLinks
         self.github = github
+        self.google = google
         self.hasPassword = hasPassword
         self.oidc = oidc
         self.twoFactor = twoFactor
@@ -8296,6 +8595,7 @@ public struct MySignIn: Sendable, Hashable, Codable {
         case email
         case emailLinks
         case github
+        case google
         case hasPassword
         case oidc
         case twoFactor
@@ -8307,6 +8607,7 @@ public struct MySignIn: Sendable, Hashable, Codable {
         self.email = try container.decode(String.self, forKey: .email)
         self.emailLinks = try container.decode(Bool.self, forKey: .emailLinks)
         self.github = try container.decode(Github?.self, forKey: .github)
+        self.google = try container.decode(Bool.self, forKey: .google)
         self.hasPassword = try container.decode(Bool.self, forKey: .hasPassword)
         self.oidc = try container.decode(Bool.self, forKey: .oidc)
         self.twoFactor = try container.decode(Bool.self, forKey: .twoFactor)
@@ -8318,6 +8619,7 @@ public struct MySignIn: Sendable, Hashable, Codable {
         try container.encode(self.email, forKey: .email)
         try container.encode(self.emailLinks, forKey: .emailLinks)
         try container.encode(self.github, forKey: .github)
+        try container.encode(self.google, forKey: .google)
         try container.encode(self.hasPassword, forKey: .hasPassword)
         try container.encode(self.oidc, forKey: .oidc)
         try container.encode(self.twoFactor, forKey: .twoFactor)
@@ -9205,17 +9507,20 @@ public struct PongFrame: Sendable, Hashable, Codable {
 }
 
 public struct PresenceChange: Sendable, Hashable, Codable {
+    public var away: Bool
     public var online: Bool
     public var userId: Uuid
     public var version: Int
 
-    public init(online: Bool, userId: Uuid, version: Int) {
+    public init(away: Bool, online: Bool, userId: Uuid, version: Int) {
+        self.away = away
         self.online = online
         self.userId = userId
         self.version = version
     }
 
     private enum CodingKeys: String, CodingKey {
+        case away
         case online
         case userId
         case version
@@ -9223,6 +9528,7 @@ public struct PresenceChange: Sendable, Hashable, Codable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.away = try container.decode(Bool.self, forKey: .away)
         self.online = try container.decode(Bool.self, forKey: .online)
         self.userId = try container.decode(Uuid.self, forKey: .userId)
         self.version = try container.decode(Int.self, forKey: .version)
@@ -9230,6 +9536,7 @@ public struct PresenceChange: Sendable, Hashable, Codable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.away, forKey: .away)
         try container.encode(self.online, forKey: .online)
         try container.encode(self.userId, forKey: .userId)
         try container.encode(self.version, forKey: .version)
@@ -11722,6 +12029,33 @@ public struct ServerGitHubRequest: Sendable, Hashable, Codable {
     }
 }
 
+public struct ServerGoogleRequest: Sendable, Hashable, Codable {
+    public var clientId: String
+    public var clientSecret: String
+
+    public init(clientId: String, clientSecret: String) {
+        self.clientId = clientId
+        self.clientSecret = clientSecret
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case clientId
+        case clientSecret
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.clientId = try container.decode(String.self, forKey: .clientId)
+        self.clientSecret = try container.decode(String.self, forKey: .clientSecret)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.clientId, forKey: .clientId)
+        try container.encode(self.clientSecret, forKey: .clientSecret)
+    }
+}
+
 public struct ServerOidcRequest: Sendable, Hashable, Codable {
     public var clientId: String
     public var clientSecret: String
@@ -12049,6 +12383,50 @@ public enum SessionMaxAgeValue: Sendable, Hashable, Codable {
 }
 
 public typealias SessionMaxAge = SessionMaxAgeValue?
+
+public struct SetAwayRequest: Sendable, Hashable, Codable {
+    public var away: Bool
+
+    public init(away: Bool) {
+        self.away = away
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case away
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.away = try container.decode(Bool.self, forKey: .away)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.away, forKey: .away)
+    }
+}
+
+public struct SetAwayResponse: Sendable, Hashable, Codable {
+    public var away: Bool
+
+    public init(away: Bool) {
+        self.away = away
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case away
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.away = try container.decode(Bool.self, forKey: .away)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.away, forKey: .away)
+    }
+}
 
 public struct SetChannelRetentionRequest: Sendable, Hashable, Codable {
     public var keepsAtLeast: ChannelRetentionFloor
@@ -12708,13 +13086,14 @@ public enum SignInFailure: Sendable, Hashable, Codable {
     case signupClosed
     case githubUnavailable
     case oidcUnavailable
+    case googleUnavailable
     case emailUnverified
     case busy
     case failed
     /// A value this client was not built for.
     case unknown(String)
 
-    public static let known: [SignInFailure] = [.cancelled, .expired, .emailRequired, .emailTaken, .signupClosed, .githubUnavailable, .oidcUnavailable, .emailUnverified, .busy, .failed]
+    public static let known: [SignInFailure] = [.cancelled, .expired, .emailRequired, .emailTaken, .signupClosed, .githubUnavailable, .oidcUnavailable, .googleUnavailable, .emailUnverified, .busy, .failed]
 
     public init(rawValue: String) {
         switch rawValue {
@@ -12725,6 +13104,7 @@ public enum SignInFailure: Sendable, Hashable, Codable {
             case "signup-closed": self = .signupClosed
             case "github-unavailable": self = .githubUnavailable
             case "oidc-unavailable": self = .oidcUnavailable
+            case "google-unavailable": self = .googleUnavailable
             case "email-unverified": self = .emailUnverified
             case "busy": self = .busy
             case "failed": self = .failed
@@ -12741,6 +13121,7 @@ public enum SignInFailure: Sendable, Hashable, Codable {
             case .signupClosed: return "signup-closed"
             case .githubUnavailable: return "github-unavailable"
             case .oidcUnavailable: return "oidc-unavailable"
+            case .googleUnavailable: return "google-unavailable"
             case .emailUnverified: return "email-unverified"
             case .busy: return "busy"
             case .failed: return "failed"
@@ -13839,6 +14220,77 @@ public struct UpdateChannelRequest: Sendable, Hashable, Codable {
         try container.encodeIfPresent(self.name, forKey: .name)
         try container.encodeIfPresent(self.onlyAdminsPost, forKey: .onlyAdminsPost)
         try container.encodeIfPresent(self.topic, forKey: .topic)
+    }
+}
+
+public struct UpdateIssueRequest: Sendable, Hashable, Codable {
+    public var assigneeId: Uuid?
+    public var body: String?
+    public var status: Status?
+    public var title: String?
+
+    public init(assigneeId: Uuid? = nil, body: String? = nil, status: Status? = nil, title: String? = nil) {
+        self.assigneeId = assigneeId
+        self.body = body
+        self.status = status
+        self.title = title
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case assigneeId
+        case body
+        case status
+        case title
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.assigneeId = try container.decodeIfPresent(Uuid.self, forKey: .assigneeId)
+        self.body = try container.decodeIfPresent(String.self, forKey: .body)
+        self.status = try container.decodeIfPresent(Status.self, forKey: .status)
+        self.title = try container.decodeIfPresent(String.self, forKey: .title)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.assigneeId, forKey: .assigneeId)
+        try container.encodeIfPresent(self.body, forKey: .body)
+        try container.encodeIfPresent(self.status, forKey: .status)
+        try container.encodeIfPresent(self.title, forKey: .title)
+    }
+
+    public enum Status: Sendable, Hashable, Codable {
+        case `open`
+        case done
+        /// A value this client was not built for.
+        case unknown(String)
+
+        public static let known: [Status] = [.`open`, .done]
+
+        public init(rawValue: String) {
+            switch rawValue {
+                case "open": self = .`open`
+                case "done": self = .done
+                default: self = .unknown(rawValue)
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+                case .`open`: return "open"
+                case .done: return "done"
+                case .unknown(let value): return value
+            }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
     }
 }
 

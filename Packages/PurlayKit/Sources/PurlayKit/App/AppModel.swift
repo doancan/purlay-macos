@@ -38,6 +38,10 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case bookmarkFailed
         case unreadFailed
         case deepWorkFailed
+        /// Appearing away, or active again, was not saved.
+        case awayFailed
+        /// The server has no way to appear away (a release before D-257).
+        case awayUnsupported
         case joinFailed
         case leaveFailed
         case lastMember
@@ -70,6 +74,8 @@ public enum ServerProblem: Equatable, Sendable {
     /// The server is older than this app can talk to.
     case serverTooOld(contract: Int)
     case unusableOrigin(String)
+    /// The server runs without chat (D-250): there is nothing here for this app to show.
+    case chatNotRunning
 }
 
 /// The app's one model: where it is pointed, whether a person is signed in, what they see, and what they do. A view reads it and calls
@@ -370,6 +376,9 @@ public final class AppModel {
     var refreshRetry: [Refresh: () -> Void] = [:]
 
     var deepWorkChange = 0
+    var awayChange = 0
+    /// The server answered that it has no way to appear away (a release before D-257): the choice is not offered again.
+    public internal(set) var awayUnsupported = false
 
     public init(_ environment: AppEnvironment, workspaceID: Uuid? = nil) {
         self.environment = environment
@@ -658,6 +667,10 @@ public final class AppModel {
             self.me = me
             await manager.identify(userID: me.user.id.value)
             guard context == contextGeneration else { return }
+            guard serverRunsChat else {
+                phase = .problem(.chatNotRunning)
+                return
+            }
             if me.mustEnrolTwoFactor {
                 // Held back until two-step verification is on (D-239): every route but this one answers 403, so nothing
                 // more is read. The window says why and where to turn it on, and reads this again when asked.
@@ -695,6 +708,8 @@ public final class AppModel {
             sync()
             await refreshPeople()
             guard context == contextGeneration else { return }
+            noteActivity()
+            reread(.presence(workspace: membership.workspace.id)) { await $0.loadPresence() }
             reread(.reminders(workspace: membership.workspace.id)) { await $0.loadReminders() }
             reread(.saved(workspace: membership.workspace.id)) { await $0.reloadSaved() }
             let remembered = environment.preferences.string(for: "channel.\(membership.workspace.slug)").flatMap(
@@ -864,7 +879,10 @@ public final class AppModel {
         guard let engine else { return }
         chat = engine.chat
         pending = engine.pending
+        let wasOpen = connection == .open
         connection = engine.status
+        // Connected while the person is in front of the app: they are here, and a server that restarted has to be told.
+        if !wasOpen, connection == .open { noteActivity() }
         degraded = engine.degraded
         markReadIfSeen()
         if sessionOwner == nil {
@@ -883,6 +901,8 @@ public final class AppModel {
         markReadIfSeen()
         markThreadReadIfSeen()
         (sessionOwner ?? self).tellAttention()
+        // Coming to the front is an act of the person's own (D-143).
+        noteActivity()
     }
 
     /// The person is at the end of the messages, or has scrolled up.

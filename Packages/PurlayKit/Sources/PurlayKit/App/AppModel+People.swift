@@ -35,12 +35,8 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// Whether a person is here, as the server last said; nobody is, until it says so. The person themselves is here while
-    /// this app is connected: the server tells others about them, not them about themselves.
-    public func isOnline(_ user: Uuid) -> Bool {
-        if user == me?.user.id { return connection == .open }
-        return chat.presence[user]?.online ?? false
-    }
+    /// Whether a person is here at all, away or active: what a list of people is ordered by.
+    public func isOnline(_ user: Uuid) -> Bool { presence(of: user) != .offline }
 }
 
 extension AppModel {

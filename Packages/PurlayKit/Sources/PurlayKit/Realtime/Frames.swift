@@ -68,7 +68,12 @@ public enum ServerMessage: Sendable, Equatable {
     case malformed
 
     public static func parse(_ text: String) -> ServerMessage {
-        guard let frame = try? JSONDecoder().decode(ServerFrame.self, from: Data(text.utf8)) else { return .malformed }
+        // A released server's presence, without what was added since it, is read with what that absence means.
+        guard
+            let frame = (try? JSONDecoder().decode(ServerFrame.self, from: Data(text.utf8)))
+                ?? WireCompatibility.filledFrame(text).flatMap({ try? JSONDecoder().decode(ServerFrame.self, from: $0) }
+                )
+        else { return .malformed }
         if case .unknown(let tag, _) = frame { return .unknown(tag: tag) }
         return .frame(frame)
     }

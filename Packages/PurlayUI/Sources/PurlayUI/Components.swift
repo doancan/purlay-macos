@@ -152,33 +152,53 @@ struct Avatar: View {
     }
 }
 
-/// A person's face with whether they are here, as a dot at its corner. Presence is decoration (`UX.md` §2): it is never the
-/// only way something is said, so VoiceOver hears it with the name.
+/// A person's face with whether they are here: a green dot, a hollow ring in the muted ink while they are away (D-257), and a muted
+/// dot while they are not. Presence is decoration (`UX.md` §2): it is never the only way something is said, so VoiceOver hears it
+/// with the name.
 struct PresenceAvatar: View {
     let avatar: Avatar
-    let online: Bool
+    let state: PresenceState
 
-    init(user: User?, online: Bool, size: Double = Size.sizeAvatarSm) {
+    init(user: User?, state: PresenceState, size: Double = Size.sizeAvatarSm) {
         avatar = Avatar(user: user, size: size)
-        self.online = online
+        self.state = state
     }
 
-    init(current: CurrentUser?, online: Bool, size: Double = Size.sizeAvatarSm) {
+    init(current: CurrentUser?, state: PresenceState, size: Double = Size.sizeAvatarSm) {
         avatar = Avatar(current: current, size: size)
-        self.online = online
+        self.state = state
     }
 
     private var size: Double { avatar.size }
+    private var mark: Double { size * 0.36 }
 
     var body: some View {
         avatar
             .overlay(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(online ? Colors.success.style : NativePalette.tertiary.style)
-                    .frame(width: size * 0.36, height: size * 0.36)
-                    .overlay(Circle().stroke(NativePalette.canvas.style, lineWidth: Stroke.strokeFocus))
-                    .offset(x: Stroke.strokeHairline, y: Stroke.strokeHairline)
+                Group {
+                    switch state {
+                    case .active: Circle().fill(Colors.success.style)
+                    case .offline: Circle().fill(NativePalette.tertiary.style)
+                    case .away:
+                        Circle()
+                            .strokeBorder(NativePalette.secondary.style, lineWidth: max(1.5, mark * 0.28))
+                            .background(Circle().fill(NativePalette.canvas.style))
+                    }
+                }
+                .frame(width: mark, height: mark)
+                .overlay(Circle().stroke(NativePalette.canvas.style, lineWidth: Stroke.strokeFocus))
+                .offset(x: Stroke.strokeHairline, y: Stroke.strokeHairline)
             }
+    }
+}
+
+extension Words {
+    static func presence(_ state: PresenceState) -> String {
+        switch state {
+        case .active: String(localized: "Online")
+        case .away: String(localized: "Away")
+        case .offline: String(localized: "Offline")
+        }
     }
 }
 

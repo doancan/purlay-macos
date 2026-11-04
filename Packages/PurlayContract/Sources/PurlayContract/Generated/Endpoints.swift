@@ -69,6 +69,11 @@ public enum Endpoints {
         query: nil, body: nil,
         responses: [200: .schema("MeResponse")])
 
+    public static let setAway = EndpointSpec(
+        id: "setAway", method: "PUT", path: "/api/me/away", auth: .session,
+        query: nil, body: .schema("SetAwayRequest"),
+        responses: [200: .schema("SetAwayResponse")])
+
     public static let listWorkspaces = EndpointSpec(
         id: "listWorkspaces", method: "GET", path: "/api/workspaces", auth: .session,
         query: nil, body: nil,
@@ -420,6 +425,7 @@ public enum Endpoints {
         getAuthMethods,
         getLatestRelease,
         getMe,
+        setAway,
         listWorkspaces,
         getWorkspace,
         listWorkspaceMembers,

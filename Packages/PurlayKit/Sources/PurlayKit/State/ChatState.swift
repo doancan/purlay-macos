@@ -28,6 +28,8 @@ public enum Refresh: Sendable, Hashable {
     case reminders(workspace: Uuid)
     case saved(workspace: Uuid)
     case notifications(workspace: Uuid)
+    /// Who is here in a workspace, read whole: what a socket that was away did not hear.
+    case presence(workspace: Uuid)
     case incident(channel: Uuid)
     case versions(channel: Uuid, message: Uuid)
     case thread(root: Uuid)
@@ -49,7 +51,15 @@ public struct ChatState: Sendable, Equatable {
 
     public struct Presence: Sendable, Equatable {
         public let online: Bool
+        /// Online and idle, or away by their own choice (D-257); never while offline.
+        public let away: Bool
         public let version: Int
+
+        public init(online: Bool, away: Bool = false, version: Int) {
+            self.online = online
+            self.away = online && away
+            self.version = version
+        }
     }
 
     public var windows: [Uuid: ChannelWindow] = [:]
@@ -196,9 +206,7 @@ public struct ChatState: Sendable, Equatable {
             return [.endTyping(channel: data.channelId, user: data.userId, afterMs: data.ttlMs)]
 
         case .presence(let heard):
-            for change in heard.data.changes where change.version > (presence[change.userId]?.version ?? -1) {
-                presence[change.userId] = Presence(online: change.online, version: change.version)
-            }
+            hear(heard.data.changes)
             return []
 
         case .deepWorkUpdated(let changed):
@@ -243,5 +251,14 @@ public struct ChatState: Sendable, Equatable {
 
     public func typists(in channel: Uuid) -> [Uuid] {
         (typing[channel] ?? []).map(\.user)
+    }
+}
+
+extension ChatState {
+    /// Presence as told, by a frame or a snapshot: each person keeps the newest version heard of them (D-136 §3).
+    public mutating func hear(_ changes: [PresenceChange]) {
+        for change in changes where change.version > (presence[change.userId]?.version ?? -1) {
+            presence[change.userId] = Presence(online: change.online, away: change.away, version: change.version)
+        }
     }
 }

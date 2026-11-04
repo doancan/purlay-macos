@@ -265,10 +265,10 @@ struct ChannelDetails: View {
                     Task { if await model.openConversation(with: [person]) { close() } }
                 } label: {
                     HStack(spacing: Spacing.space3) {
-                        PresenceAvatar(user: person, online: model.isOnline(person.id), size: Size.sizeAvatarLg)
+                        PresenceAvatar(user: person, state: model.presence(of: person.id), size: Size.sizeAvatarLg)
                         VStack(alignment: .leading, spacing: Spacing.space1) {
                             Text(person.displayName).fontWeight(.medium)
-                            Text(model.isOnline(person.id) ? "Online" : "Offline").font(.caption).foregroundStyle(
+                            Text(Words.presence(model.presence(of: person.id))).font(.caption).foregroundStyle(
                                 NativePalette.secondary.style)
                         }
                         Spacer()

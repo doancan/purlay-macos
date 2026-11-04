@@ -63,6 +63,11 @@ public struct PurlayAPI: Sendable {
         try await client.send(Endpoints.getMe, as: MeResponse.self)
     }
 
+    /// `PUT /api/me/away`
+    public func setAway(body: SetAwayRequest) async throws -> SetAwayResponse {
+        try await client.send(Endpoints.setAway, body: body, as: SetAwayResponse.self)
+    }
+
     /// `GET /api/workspaces`
     public func listWorkspaces() async throws -> MembershipList {
         try await client.send(Endpoints.listWorkspaces, as: MembershipList.self)

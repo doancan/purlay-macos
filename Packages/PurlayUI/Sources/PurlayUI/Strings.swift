@@ -51,6 +51,8 @@ enum Words {
             return String(localized: "You are the last member of this private channel, so you can't leave it.")
         case .starFailed: return String(localized: "Could not change the star. Try again.")
         case .deepWorkFailed: return String(localized: "Could not change Deep Work. Try again.")
+        case .awayFailed: return String(localized: "Could not change whether you appear away. Try again.")
+        case .awayUnsupported: return String(localized: "This server does not support appearing away.")
         case .saveFailed: return String(localized: "Could not change the save. Try again.")
         case .filesNotRead(let names):
             let list = names.formatted(.list(type: .and))
@@ -167,6 +169,11 @@ enum Words {
             )
         case .unusableOrigin(let text):
             return (String(localized: "The server gave an address this app can't use"), text)
+        case .chatNotRunning:
+            return (
+                String(localized: "This server doesn't run chat"),
+                String(localized: "Purlay for Mac needs a server with chat turned on. Ask whoever runs it.")
+            )
         }
     }
 

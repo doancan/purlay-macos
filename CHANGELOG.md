@@ -14,6 +14,7 @@ Requires a Purlay server 0.2.0 or later.
 - **Questions and decisions.** Mark a thread as a question, accept a reply as its answer, assign it, and record a decision with a link. Open Topics can show unanswered questions or those assigned to you.
 - **Search filters and saved searches.** Filter by thread status, code or files, marked questions, repository and dates; save searches with a name, then run, rename or delete them.
 - **Reaction limit.** You can put at most three different reactions on one message; Purlay says so instead of sending a fourth, and removing one makes room.
+- **Away.** People who have not used Purlay for five minutes show a hollow ring instead of the green dot, and you can set yourself as away from the account menu; it holds on every device until you set yourself as active again. While you use the app, Purlay tells the server you are here, so your phone stays quiet.
 - **GitHub work and webhooks.** Issues and pull requests linked to a thread appear as chips, and messages posted by incoming webhooks show the hook's name.
 
 ### Improved
@@ -21,6 +22,8 @@ Requires a Purlay server 0.2.0 or later.
 - Clear guidance when your server requires two-step verification, and a warning when a workspace you belong to is scheduled for deletion.
 - Settings explains where your display name comes from and how to change it.
 - A server older than 0.2.0 is now named as too old at sign-in instead of failing later.
+- Works with servers that offer Google sign-in (in the browser sign-in page), and says so clearly when a server runs without chat.
+- Who is online is read when the workspace opens and after reconnecting, not only as people come and go.
 
 ## [0.1.1] — 2026-10-28
 

@@ -32,6 +32,8 @@ extension AppModel {
             reread(refresh) { await $0.loadReminders() }
         case .saved(let id) where id == workspace?.id:
             reread(refresh) { await $0.reloadSaved() }
+        case .presence(let id) where id == workspace?.id && sessionOwner == nil:
+            reread(refresh) { await $0.loadPresence() }
         case .pins(let channel) where channel == selectedChannel:
             reread(refresh) { await $0.reloadPins(channel) }
         case .bookmarks(let channel) where channel == selectedChannel:

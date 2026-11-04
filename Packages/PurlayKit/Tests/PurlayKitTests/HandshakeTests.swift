@@ -15,7 +15,7 @@ struct HandshakeTests {
             """
         let text = """
             {"server":{"version":"\(server)"},"contractVersion":\(contract),"appUrl":"\(appUrl)",
-             "minClient":{"macos":\(minimum)},"auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}}
+             "minClient":{"macos":\(minimum)},"auth":{"email":true,"github":true,"google":false,"oidc":null,"password":true,"signUp":"invite-only"}}
             """
         return try JSONDecoder().decode(ClientInfo.self, from: Data(text.utf8))
     }

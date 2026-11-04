@@ -72,6 +72,12 @@ public final class APIClient: Sendable {
         do {
             return try JSONDecoder().decode(Response.self, from: response.body)
         } catch {
+            // A released server's answer, without what was added since it: read with what that absence means.
+            if let filled = WireCompatibility.filled(endpoint: endpoint.id, body: response.body),
+                let answer = try? JSONDecoder().decode(Response.self, from: filled)
+            {
+                return answer
+            }
             throw TransportError.contractViolation(endpoint: endpoint.id, status: response.status)
         }
     }

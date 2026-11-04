@@ -21,6 +21,8 @@ public enum ContractConstants {
 
     public static let authBasePath = "/auth"
 
+    public static let awayAfterMs = 300000
+
     public static let backoff = Backoff(baseMs: 1000, capMs: 30000)
 
     public static let changesCursorPattern = "^[0-9]{13}\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[0-9]{13}$"
@@ -42,6 +44,10 @@ public enum ContractConstants {
     public static let externalImageUrlMax = 2048
 
     public static let githubLinksPerMessageMax = 5
+
+    public static let googleCallback = "/auth/callback/google"
+
+    public static let googleStartPath = "/auth/google"
 
     public static let invitationTtlDays = 7
 
@@ -183,6 +189,8 @@ public enum ErrorStatus {
         "INTERNAL": 500,
         "INVALID_MESSAGE_ID": 400,
         "INVITATION_NOT_FOUND": 404,
+        "ISSUES_LIMIT": 409,
+        "ISSUE_NOT_FOUND": 404,
         "KNOWLEDGE_CONFLICT": 409,
         "LAST_CHANNEL_MEMBER": 409,
         "LAST_OWNER": 409,
