@@ -104,12 +104,16 @@ public final class Engine {
     private var epoch = 0
     private var wakers: [UUID: () -> Void] = [:]
     private var typingEnds: [String: () -> Void] = [:]
+    private let ids: MessageIDGenerator
+    /// When each workspace was last told the person is here, so the word is said at most once per `ACTIVE_EVERY_MS`.
+    private var saidActive: [Uuid: Date] = [:]
 
     public init(_ options: Options) {
         self.options = options
         chat = ChatState(selfID: options.selfID)
         let serverClock = options.serverClock
         let ids = MessageIDGenerator(now: { serverClock.now() })
+        self.ids = ids
         // The send coordinator and the connection call back into the engine, and each needs the other; they are made
         // before the engine exists, so they reach it through this, which is pointed at the engine once it does.
         let engine = WeakEngine()
@@ -146,6 +150,7 @@ public final class Engine {
         sends.stop()
         for cancel in typingEnds.values { cancel() }
         typingEnds.removeAll()
+        saidActive.removeAll()
         // Who was typing is not known while nothing is heard; the next announcement says again.
         chat.typing.removeAll()
         // Continuations asleep between attempts wake and end; the epoch tells a running one it is stale.
@@ -177,6 +182,29 @@ public final class Engine {
     /// A page of history read another way moves the cursor a reconnect resumes from.
     public func observe(channel: Uuid, message: Uuid) {
         connection.observe(channel: channel.value, message: message.value)
+    }
+
+    // MARK: The person
+
+    /// The person is here, using this workspace (D-143, D-257): their pushes for it are held, and others see them active, not
+    /// away. Said over an open socket and nowhere else, at most once per `ACTIVE_EVERY_MS` per workspace; a word that did not
+    /// leave is not kept.
+    public func announceActive(workspace: Uuid) {
+        let now = options.clock()
+        if let last = saidActive[workspace],
+            now.timeIntervalSince(last) * 1_000 < Double(ContractConstants.activeEveryMs)
+        {
+            return
+        }
+        if connection.send(.active(ActiveFrame(id: ids.next(), payload: .init(workspaceId: workspace)))) {
+            saidActive[workspace] = now
+        }
+    }
+
+    /// Who is here, as a snapshot read over HTTP: kept where it is newer than what the socket already said.
+    public func hearPresence(_ changes: [PresenceChange]) {
+        chat.hear(changes)
+        options.onChange()
     }
 
     // MARK: A person's own sends
@@ -352,6 +380,8 @@ public final class Engine {
         defer { options.onChange() }
         status = next
         if next == .open {
+            // A server that restarted forgot who is here: the first word after a reconnect goes at once.
+            saidActive.removeAll()
             let returning = connectedOnce
             connectedOnce = true
             // What never got an answer is sent again; and back from a gap, what was missed is asked for. Not at the first open: nothing
@@ -367,6 +397,7 @@ public final class Engine {
             options.refresh(.channels(workspace: workspace))
             options.refresh(.memberships(workspace: workspace))
             options.refresh(.notifications(workspace: workspace))
+            options.refresh(.presence(workspace: workspace))
             options.refresh(.reminders(workspace: workspace))
             options.refresh(.saved(workspace: workspace))
         }

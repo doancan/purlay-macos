@@ -46,6 +46,14 @@ final class FakeServer: HTTPTransport {
         var knowledgeDelay = 0
         var knowledgeWrites: [SetKnowledgeRequest] = []
         var mustEnrolTwoFactor = false
+        /// Answers as the released 0.2.0 server did: without Google, the module list, appearing away or `away` on presence.
+        var released = false
+        var modules = ["chat"]
+        var awayChosen = false
+        var awayStatus = 200
+        var awayWrites: [Bool] = []
+        /// Who the presence snapshot says is here: each person's id, whether they are away, and the version.
+        var presence: [(user: String, away: Bool, version: Int)] = []
         var nameFromGitHub = false
         var scheduledDeletions: [WorkspaceDeletion] = []
         /// What the person was told, newest first, as the server keeps it; reading one sets its time.
@@ -141,7 +149,7 @@ final class FakeServer: HTTPTransport {
     static func clientInfo(
         minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390",
         notificationTypeFilters: Bool? = true, scheduledMessages: Bool? = nil, messageReminders: Bool? = nil,
-        personalMessageDeletion: Bool? = nil
+        personalMessageDeletion: Bool? = nil, released: Bool = false
     )
         -> String
     {
@@ -155,7 +163,7 @@ final class FakeServer: HTTPTransport {
         return """
             {"server":{"version":"0.2.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
             "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
-            "auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}\(capability)}
+            "auth":{"email":true,"github":true,\(released ? "" : #""google":true,"#)"oidc":null,"password":true,"signUp":"invite-only"}\(capability)}
             """
     }
 
@@ -198,15 +206,17 @@ final class FakeServer: HTTPTransport {
 
     static func meJSON(
         deepWorkUntil: String? = nil, role: String = "member", mustEnrolTwoFactor: Bool = false,
-        nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = []
+        nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = [], released: Bool = false,
+        modules: [String] = ["chat"], awayChosen: Bool = false
     ) -> String {
-        """
-        {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
-        "profile":{"title":null,"timeZone":null,"status":null},\
-        "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
-        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
-        "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions))}
-        """
+        let added = released ? "" : #","modules":\#(encoded(modules)),"awayChosen":\#(awayChosen)"#
+        return """
+            {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
+            "profile":{"title":null,"timeZone":null,"status":null},\
+            "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
+            "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
+            "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions))\(added)}
+            """
     }
 
     func send(_ request: HTTPRequest) async throws -> HTTPResponse {
@@ -342,7 +352,28 @@ final class FakeServer: HTTPTransport {
                 Self.meJSON(
                     deepWorkUntil: snapshot.deepWorkUntil, role: snapshot.role,
                     mustEnrolTwoFactor: snapshot.mustEnrolTwoFactor, nameFromGitHub: snapshot.nameFromGitHub,
-                    scheduledDeletions: snapshot.scheduledDeletions))
+                    scheduledDeletions: snapshot.scheduledDeletions, released: snapshot.released,
+                    modules: snapshot.modules, awayChosen: snapshot.awayChosen))
+        case ("PUT", "/api/me/away"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.released { return json(404, #"{"error":{"code":"NOT_FOUND","message":"x"}}"#) }
+            if snapshot.awayStatus != 200 {
+                return json(snapshot.awayStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let away = body?["away"] as? Bool ?? false
+            state.withLock {
+                $0.awayChosen = away
+                $0.awayWrites.append(away)
+            }
+            return json(200, "{\"away\":\(away)}")
+        case ("GET", "/api/workspaces/\(Self.workspaceID)/presence"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            let online = snapshot.presence.map {
+                let away = snapshot.released ? "" : ",\"away\":\($0.away)"
+                return "{\"userId\":\"\($0.user)\",\"online\":true\(away),\"version\":\($0.version)}"
+            }
+            return json(200, "{\"online\":[\(online.joined(separator: ","))],\"version\":1}")
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")

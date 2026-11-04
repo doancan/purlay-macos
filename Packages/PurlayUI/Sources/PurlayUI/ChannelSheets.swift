@@ -324,7 +324,7 @@ struct NewConversationSheet: View {
                     HStack {
                         Image(systemName: isChosen ? "checkmark.circle.fill" : "circle").foregroundStyle(
                             isChosen ? AnyShapeStyle(Colors.accent.style) : AnyShapeStyle(.secondary))
-                        PresenceAvatar(user: person, online: model.isOnline(person.id), size: Size.sizeAvatar)
+                        PresenceAvatar(user: person, state: model.presence(of: person.id), size: Size.sizeAvatar)
                         VStack(alignment: .leading, spacing: Spacing.space1) {
                             Text(person.displayName).fontWeight(.medium).lineLimit(1)
                             Text("@\(person.username)").font(.caption).foregroundStyle(.secondary).lineLimit(1)

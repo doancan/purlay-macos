@@ -415,7 +415,7 @@ struct SidebarChannelRow: View {
                 Image(systemName: "person.2.fill")
             } else {
                 let peer = channel.peer ?? channel.peers.first
-                PresenceAvatar(user: peer, online: peer.map { model.isOnline($0.id) } ?? false)
+                PresenceAvatar(user: peer, state: peer.map { model.presence(of: $0.id) } ?? .offline)
             }
         case .private:
             Image(systemName: "lock")
@@ -502,7 +502,10 @@ private struct AccountFooter: View {
                 Button("Profile…", systemImage: "person.crop.circle") { settings(.profile) }
                 Button("Account and Sessions…", systemImage: "key") { settings(.account) }
             }
-            Section { DeepWorkItems(model: model) }
+            Section {
+                AwayItem(model: model)
+                DeepWorkItems(model: model)
+            }
             Section {
                 Button("Settings…", systemImage: "gearshape") { settings(.general) }
                 Button("Keyboard Shortcuts", systemImage: "keyboard") { model.shortcutsOpen = true }
@@ -516,7 +519,9 @@ private struct AccountFooter: View {
             }
         } label: {
             HStack(spacing: Spacing.space2) {
-                PresenceAvatar(current: model.me?.user, online: model.connection == .open, size: Size.sizeAvatar)
+                PresenceAvatar(
+                    current: model.me?.user, state: model.me.map { model.presence(of: $0.user.id) } ?? .offline,
+                    size: Size.sizeAvatar)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(model.me?.user.displayName ?? "")
                         .font(.system(size: 13, weight: .medium))
@@ -550,6 +555,7 @@ private struct AccountFooter: View {
         if let ends = model.deepWorkEnds {
             return String(localized: "Deep Work until \(ends.formatted(date: .omitted, time: .shortened))")
         }
+        if model.awayChosen { return String(localized: "Away") }
         return model.me.map { "@\($0.user.username)" } ?? ""
     }
 

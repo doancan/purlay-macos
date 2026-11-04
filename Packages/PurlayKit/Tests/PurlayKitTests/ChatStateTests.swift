@@ -307,9 +307,10 @@ struct TypingAndPresenceTests {
         #expect(s.typing[one] == nil, "a channel nobody is typing in is absent")
     }
 
-    private func presence(_ changes: [(Uuid, Bool, Int)]) -> ServerFrame {
-        let list = changes.map { #"{"userId":"\#($0.0.value)","online":\#($0.1),"version":\#($0.2)}"# }.joined(
-            separator: ",")
+    private func presence(_ changes: [(Uuid, Bool, Int)], away: Bool = false) -> ServerFrame {
+        let list = changes.map {
+            #"{"userId":"\#($0.0.value)","online":\#($0.1),"away":\#(away),"version":\#($0.2)}"#
+        }.joined(separator: ",")
         return envelope("PRESENCE", #"{"changes":[\#(list)]}"#)
     }
 
@@ -323,6 +324,17 @@ struct TypingAndPresenceTests {
         #expect(s.presence[ada]?.online == true, "the same version is not news")
         s.apply(presence([(ada, false, 6)]), now: start)
         #expect(s.presence[ada] == .init(online: false, version: 6))
+    }
+
+    @Test("away is heard with the version it came at, and nobody offline is away (D-257)")
+    func presenceAway() {
+        var s = ChatState(selfID: me)
+        s.apply(presence([(ada, true, 1)], away: true), now: start)
+        #expect(s.presence[ada] == .init(online: true, away: true, version: 1))
+        s.apply(presence([(ada, true, 2)]), now: start)
+        #expect(s.presence[ada]?.away == false, "active again at a newer version")
+        s.apply(presence([(ada, false, 3)], away: true), now: start)
+        #expect(s.presence[ada] == .init(online: false, away: false, version: 3))
     }
 
     @Test("a person not heard of is unknown, never offline")

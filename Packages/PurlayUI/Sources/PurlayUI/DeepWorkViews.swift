@@ -47,3 +47,21 @@ public struct DeepWorkItems: View {
         }
     }
 }
+
+/// Appearing away by choice (D-257), or active again: it holds on every device until it is undone. Not offered by a server that
+/// has no way to do it.
+public struct AwayItem: View {
+    let model: AppModel
+
+    public init(model: AppModel) { self.model = model }
+
+    public var body: some View {
+        if !model.awayUnsupported {
+            if model.awayChosen {
+                Button("Set Yourself as Active", systemImage: "circle.fill") { Task { await model.setAway(false) } }
+            } else {
+                Button("Set Yourself as Away", systemImage: "circle") { Task { await model.setAway(true) } }
+            }
+        }
+    }
+}

@@ -1,3 +1,4 @@
+import AppKit
 import PurlayKit
 import PurlayTokens
 import SwiftUI
@@ -42,6 +43,32 @@ public struct RootView: View {
         // One accent: the system's prominent buttons, selections and toggles take the brand's blue, as the token views do.
         .tint(Colors.accent.color)
         .modifier(AppearancePreference())
+        .modifier(ActivityReporter(model: model))
         .focusedSceneValue(\.purlayModel, model)
+    }
+}
+
+/// Tells the model when the person uses the app (D-143, D-257): a key, a click, a moving pointer, the wheel. Only this app's events
+/// are seen, and the model listens only while its own window is in front; the engine rations what reaches the server to one word a
+/// minute. A window left open on a desk says nothing, so the person shows as away after `AWAY_AFTER_MS`.
+private struct ActivityReporter: ViewModifier {
+    let model: AppModel
+    @State private var monitor: Any?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                guard monitor == nil else { return }
+                monitor = NSEvent.addLocalMonitorForEvents(
+                    matching: [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .mouseMoved, .scrollWheel]
+                ) { [model] event in
+                    MainActor.assumeIsolated { model.noteActivity() }
+                    return event
+                }
+            }
+            .onDisappear {
+                if let monitor { NSEvent.removeMonitor(monitor) }
+                monitor = nil
+            }
     }
 }
