@@ -4,6 +4,10 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+### Fixed
+
+- Search, the jump palette and the list sheets (Pins, Reminders, Scheduled, Saved, Drafts, Shortcuts, Browse Channels) now close when you press anywhere outside them, including the sidebar and the toolbar, or when the window loses the keyboard, instead of only with Escape.
+
 ### Improved
 
 - An update nobody did, or whose person is gone, shows its module's symbol instead of a question mark, and a module this app has no screen for is named with a capital.

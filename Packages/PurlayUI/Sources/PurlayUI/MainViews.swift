@@ -289,9 +289,11 @@ private struct MainSheets: ViewModifier {
             }
             .sheet(isPresented: Binding(get: { model.pinsOpen }, set: { model.pinsOpen = $0 })) {
                 PinsSheet(model: model)
+                    .dismissOnOutsidePress { model.pinsOpen = false }
             }
             .sheet(isPresented: Binding(get: { model.remindersOpen }, set: { model.remindersOpen = $0 })) {
                 RemindersSheet(model: model)
+                    .dismissOnOutsidePress { model.remindersOpen = false }
             }
             .sheet(
                 isPresented: Binding(
@@ -301,9 +303,11 @@ private struct MainSheets: ViewModifier {
             }
             .sheet(isPresented: Binding(get: { model.scheduledOpen }, set: { model.scheduledOpen = $0 })) {
                 ScheduledSheet(model: model)
+                    .dismissOnOutsidePress { model.scheduledOpen = false }
             }
             .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
                 SavedSheet(model: model)
+                    .dismissOnOutsidePress { model.savedOpen = false }
             }
             .sheet(
                 isPresented: Binding(
@@ -313,14 +317,17 @@ private struct MainSheets: ViewModifier {
             }
             .sheet(isPresented: Binding(get: { model.draftsOpen }, set: { model.draftsOpen = $0 })) {
                 DraftsSheet(model: model)
+                    .dismissOnOutsidePress { model.draftsOpen = false }
             }
             .sheet(isPresented: Binding(get: { model.shortcutsOpen }, set: { model.shortcutsOpen = $0 })) {
                 ShortcutsSheet()
+                    .dismissOnOutsidePress { model.shortcutsOpen = false }
             }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
                 case .newChannel: NewChannelSheet(model: model)
-                case .browse: BrowseChannelsSheet(model: model)
+                case .browse:
+                    BrowseChannelsSheet(model: model).dismissOnOutsidePress { self.sheet = nil }
                 case .conversation: NewConversationSheet(model: model)
                 }
             }
