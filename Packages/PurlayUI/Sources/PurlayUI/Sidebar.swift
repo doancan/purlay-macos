@@ -29,11 +29,6 @@ struct SidebarView: View {
     @FocusState private var filterFocused: Bool
 
     private var quiet: Bool { model.deepWorkEnds != nil }
-    private var draftCount: Int {
-        model.channels.filter {
-            $0.state != nil && !model.draft(for: $0.id).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }.count
-    }
     private func visible(_ channels: [Channel]) -> [Channel] {
         channels.filter {
             (!unreadOnly || $0.isUnread) && (query.isEmpty || $0.title.localizedStandardContains(query))
@@ -79,7 +74,7 @@ struct SidebarView: View {
                 ) { model.savedOpen = true }
                 DestinationRow(
                     title: "Drafts", systemImage: "square.and.pencil",
-                    selected: model.draftsOpen, count: draftCount, shortcut: "⌥⇧⌘D"
+                    selected: model.draftsOpen, count: model.draftCount, shortcut: "⌥⇧⌘D"
                 ) {
                     model.draftsOpen = true
                 }
@@ -108,9 +103,10 @@ struct SidebarView: View {
                 .help("Discover public channels  ⇧⌘O")
             }
             ForEach(model.sidebar) { section in
-                if !visible(section.channels).isEmpty || (section.channels.isEmpty && query.isEmpty && !unreadOnly) {
+                let rows = visible(section.channels)
+                if !rows.isEmpty || (section.channels.isEmpty && query.isEmpty && !unreadOnly) {
                     Section(isExpanded: expanded(section)) {
-                        ForEach(visible(section.channels), id: \.id) { channel in
+                        ForEach(rows, id: \.id) { channel in
                             SidebarChannelRow(model: model, channel: channel, quiet: quiet)
                                 .tag(SidebarSelection.channel(channel.id))
                                 .contextMenu { ChannelMenu(model: model, channel: channel, leaving: $leaving) }
@@ -130,7 +126,21 @@ struct SidebarView: View {
                     }
                 }
             }
-            if model.sidebar.allSatisfy({ visible($0.channels).isEmpty }) {
+            if model.sidebar.allSatisfy({ visible($0.channels).isEmpty }) && query.isEmpty && !unreadOnly {
+                // Nothing is filtered away: the workspace simply has no channel the person is in yet.
+                VStack(alignment: .leading, spacing: Spacing.space2) {
+                    Label("No channels yet", systemImage: "number")
+                        .font(.callout.weight(.medium))
+                    Text("Browse the workspace's channels, or start a conversation.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: Spacing.space3) {
+                        Button("Browse Channels…") { sheet = .browse }.buttonStyle(.link)
+                        Button("New Conversation") { sheet = .conversation }.buttonStyle(.link)
+                    }
+                }
+                .padding(.vertical, Spacing.space3)
+                .listRowSeparator(.hidden)
+            } else if model.sidebar.allSatisfy({ visible($0.channels).isEmpty }) {
                 VStack(alignment: .leading, spacing: Spacing.space2) {
                     Label(
                         unreadOnly ? "You're all caught up" : "No matching channels",
@@ -282,37 +292,40 @@ private struct DestinationRow: View {
     let action: () -> Void
     @State private var hovering = false
 
+    /// A sidebar row is a line of the sidebar, not a button of its own: regular weight, the system's row height, the accent only on
+    /// the symbol of the row that is open, and a quiet fill for it, as the channel rows below it have.
+    private static let rowHeight: Double = 28
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Spacing.space3) {
+            HStack(spacing: Spacing.space2 + Stroke.strokeFocus) {
                 Image(systemName: systemImage)
-                    .font(.system(size: Size.sizeIconMd, weight: .medium))
+                    .font(.system(size: 14, weight: .regular))
+                    .symbolRenderingMode(.hierarchical)
                     .symbolVariant(selected ? .fill : .none)
-                    .foregroundStyle(selected ? Colors.onAccent.style : NativePalette.secondary.style)
+                    .foregroundStyle(selected ? Colors.accentText.style : NativePalette.secondary.style)
                     .frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 13, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(selected ? Colors.onAccent.style : NativePalette.ink.style)
+                    .font(.system(size: 13, weight: selected ? .medium : .regular))
+                    .foregroundStyle(NativePalette.ink.style)
                     .lineLimit(1)
                 Spacer(minLength: Spacing.space2)
                 if count > 0 {
                     Text(count > 99 ? "99+" : count.formatted())
                         .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(selected ? Colors.onAccent.style : NativePalette.secondary.style)
+                        .foregroundStyle(Colors.onAccent.style)
                         .padding(.horizontal, Spacing.space1 + Stroke.strokeFocus)
                         .frame(minWidth: Size.sizeBadge, minHeight: Size.sizeBadge)
-                        .background(selected ? Color.white.opacity(0.18) : Color.primary.opacity(0.06), in: .capsule)
+                        .background(Colors.accent.style, in: .capsule)
                 }
             }
-            .padding(.horizontal, Spacing.space3)
-            .frame(minHeight: Size.sizeControl + Spacing.space1)
+            .padding(.horizontal, Spacing.space2 + Stroke.strokeFocus)
+            .frame(minHeight: Self.rowHeight)
             .contentShape(.rect)
             .background {
-                RoundedRectangle(cornerRadius: nativeSelection ? Radius.radiusLg : Radius.radiusXl)
-                    .fill(selected ? Colors.accent.style : NativePalette.fill.style)
-                    .padding(.horizontal, selected && nativeSelection ? -(Spacing.space1 + Stroke.strokeFocus) : 0)
-                    .padding(.vertical, selected && nativeSelection ? -Stroke.strokeFocus : 0)
+                RoundedRectangle(cornerRadius: Radius.radiusLg)
+                    .fill(selected ? Color.primary.opacity(0.10) : Color.primary.opacity(0.06))
                     .opacity(selected || hovering ? 1 : 0)
             }
         }
@@ -411,8 +424,7 @@ struct SidebarChannelRow: View {
 
     /// Words left half written here, unless this is the channel being written in, where the box already shows them.
     private var hasDraft: Bool {
-        channel.id != model.selectedChannel
-            && !model.draft(for: channel.id, parent: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        channel.id != model.selectedChannel && model.draftedChannels.contains(channel.id)
     }
 
     private var name: String {

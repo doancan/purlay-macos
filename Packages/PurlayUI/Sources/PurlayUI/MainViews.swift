@@ -170,7 +170,12 @@ struct MainView: View {
                     degraded: model.degraded.count, deepWork: model.deepWorkEnds))
         }
         .background(NativePalette.canvas.style)
+        // The reading column never gets narrower than a message and the composer's row of buttons need: the window's own smallest
+        // size is the sidebar, this, and the inspector when it is open, so none of them can be squeezed away.
+        .frame(minWidth: Self.detailMinWidth)
     }
+
+    private static let detailMinWidth: Double = 360
 
     private var inspectorShown: Binding<Bool> {
         Binding(
@@ -217,6 +222,7 @@ private struct ChannelToolbar: ToolbarContent {
                 Label("\(channel.memberCount)", systemImage: "person.2")
             }
             .help("Channel members")
+            .accessibilityLabel("Channel members, \(channel.memberCount)")
             Button {
                 Task { await model.setStarred(!channel.starred, channel) }
             } label: {
@@ -422,6 +428,8 @@ struct ChannelView: View {
                                 .id(message.id)
                             }
                         }
+                    } else if model.channelLoadFailed.contains(channel.id) {
+                        FeedLoadFailed { Task { await model.open(channel.id) } }
                     } else {
                         FeedPlaceholder()
                     }
@@ -523,7 +531,10 @@ struct ChannelView: View {
     /// modifier is somebody else's (a menu's), and so is one that has nothing to do.
     private func feedKey(_ press: KeyPress) -> KeyPress.Result {
         // The arrow keys carry the numeric-pad and function flags; only the keys a menu would want count as a modifier.
-        guard press.modifiers.intersection([.command, .option, .control, .shift]).isEmpty else { return .ignored }
+        let modifiers = press.modifiers.intersection([.command, .option, .control, .shift])
+        // A shifted character (a capital, a symbol) is a message begun; shift with anything else is a menu's.
+        if modifiers == [.shift] { return beginMessage(with: press) }
+        guard modifiers.isEmpty else { return .ignored }
         switch press.key {
         case .upArrow: model.moveMessageFocus(.up)
         case .downArrow: model.moveMessageFocus(.down)
@@ -532,13 +543,27 @@ struct ChannelView: View {
         case .escape: return model.dismissTopmost() ? .handled : .ignored
         default:
             switch press.characters.lowercased() {
-            case "t", "r":
-                guard model.keyboardFocus != nil else { return .ignored }
+            case "t" where model.keyboardFocus != nil, "r" where model.keyboardFocus != nil:
                 Task { await model.openFocusedThread() }
-            case "e": return model.editFocused() ? .handled : .ignored
-            default: return .ignored
+            case "e" where model.keyboardFocus != nil: return model.editFocused() ? .handled : .ignored
+            default:
+                return beginMessage(with: press)
             }
         }
+        return .handled
+    }
+
+    /// A character written in the feed is a message begun: the box takes the keyboard, with what was typed. Keys that write nothing
+    /// (arrows, function keys, Return, Escape) are left to whoever wants them.
+    private func beginMessage(with press: KeyPress) -> KeyPress.Result {
+        let typed = press.characters
+        let writes =
+            !typed.isEmpty
+            && typed.unicodeScalars.allSatisfy { scalar in
+                !CharacterSet.controlCharacters.contains(scalar) && !(0xE000...0xF8FF).contains(scalar.value)
+            }
+        guard writes else { return .ignored }
+        model.requestComposerFocus(typing: typed)
         return .handled
     }
 
@@ -573,6 +598,22 @@ private struct ChannelIntro: View {
 }
 
 /// While a channel's first page is on its way: rows the shape of messages, so the window does not jump when they land.
+/// The newest messages of a channel could not be read: said where they would be, with the way to ask again.
+private struct FeedLoadFailed: View {
+    let retry: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Could Not Load Messages", systemImage: "wifi.exclamationmark")
+        } description: {
+            Text("Check your connection and try again.")
+        } actions: {
+            Button("Try Again", action: retry).buttonStyle(.glassProminent)
+        }
+        .frame(maxWidth: .infinity, minHeight: 280)
+    }
+}
+
 private struct FeedPlaceholder: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.space4) {
@@ -603,6 +644,7 @@ struct PendingRow: View {
     var me: CurrentUser?
     let retry: () -> Void
     let discard: () -> Void
+    @State private var confirmingDiscard = false
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.space3) {
@@ -633,7 +675,7 @@ struct PendingRow: View {
                         Label(failureText, systemImage: "exclamationmark.circle")
                             .typeStyle(Typography.caption).foregroundStyle(Colors.dangerText.style)
                         Button("Retry", action: retry).buttonStyle(.link)
-                        Button("Delete", role: .destructive, action: discard).buttonStyle(.link)
+                        Button("Delete", role: .destructive) { confirmingDiscard = true }.buttonStyle(.link)
                     }
                 }
             }
@@ -642,6 +684,18 @@ struct PendingRow: View {
         .padding(.vertical, Spacing.space2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+        .accessibilityActions {
+            if pending.delivery == .failed {
+                Button("Retry", action: retry)
+                Button("Delete") { confirmingDiscard = true }
+            }
+        }
+        .confirmationDialog("Delete this unsent message?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+            Button("Delete", role: .destructive, action: discard)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It was not sent, and its words cannot be brought back.")
+        }
     }
 
     /// Its words say it goes on its own when the connection is back, where that is true (UX §8).

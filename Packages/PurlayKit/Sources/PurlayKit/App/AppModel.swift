@@ -174,6 +174,14 @@ public final class AppModel {
 
     /// The open thread: one at a time, in the panel beside the channel it is in.
     public internal(set) var thread: ThreadWindow?
+    /// The thread could not be read: the panel says so and offers another try, instead of waiting for what is not coming.
+    public internal(set) var threadLoadFailed = false
+    /// The last call for the channel's message box to take the keyboard; the box answers each new one.
+    public internal(set) var composerFocus = ComposerFocusRequest()
+    /// The message whose reaction picker was asked for from the menu; its row opens the picker and clears this.
+    public var reactionPickerTarget: Uuid?
+    /// Channels whose newest messages could not be read, for the same reason.
+    public internal(set) var channelLoadFailed: Set<Uuid> = []
     public internal(set) var threadFollow: FollowState = .reading
     var threadRootCopy: Message?
     var threadGeneration = 0
@@ -337,13 +345,25 @@ public final class AppModel {
     public var draftsOpen = false
     public private(set) var draftRevision = 0
 
-    func draftDidChange() {
+    /// Which channels have a draft, and which have been looked at: not observed, since `draftRevision` says when it changed.
+    final class DraftIndex {
+        var scanned: Set<Uuid> = []
+        var drafted: Set<Uuid> = []
+    }
+    @ObservationIgnored let draftIndex = DraftIndex()
+
+    /// A draft changed: `channel` is the one whose own box it is, if it is a channel's and not a reply's.
+    func draftDidChange(channel: Uuid? = nil) {
         if let sessionOwner {
-            sessionOwner.draftDidChange()
+            sessionOwner.draftDidChange(channel: channel)
             return
         }
+        if let channel { noteDraft(of: channel) }
         draftRevision &+= 1
-        for window in liveConversationWindows { window.draftRevision &+= 1 }
+        for window in liveConversationWindows {
+            if let channel { window.noteDraft(of: channel) }
+            window.draftRevision &+= 1
+        }
     }
 
     // MARK: Search
@@ -408,7 +428,7 @@ public final class AppModel {
 
     /// The channels of the workspace, by name, direct conversations by their people.
     public var channels: [Channel] {
-        chat.channels.values.sorted { Self.title($0) < Self.title($1) }
+        chat.channels.values.sorted { Self.title($0).localizedStandardCompare(Self.title($1)) == .orderedAscending }
     }
 
     public static func title(_ channel: Channel) -> String { channel.title }
@@ -856,6 +876,17 @@ public final class AppModel {
         deletingMessages = []
         scheduledItems = []
         scheduledOpen = false
+        // A sheet left open by the session that ended must not open by itself for the next.
+        draftIndex.scanned = []
+        draftIndex.drafted = []
+        paletteOpen = false
+        searchOpen = false
+        pinsOpen = false
+        savedOpen = false
+        draftsOpen = false
+        shortcutsOpen = false
+        threadLoadFailed = false
+        channelLoadFailed = []
         scheduledGeneration += 1
         scheduledLoading = false
         scheduledFailed = false

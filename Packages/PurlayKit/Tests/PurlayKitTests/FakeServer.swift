@@ -95,6 +95,7 @@ final class FakeServer: HTTPTransport {
         var threads: [String: [Message]] = [:]
         var threadPageSize: Int?
         var threadStatus = 200
+        var messagesStatus = 200
         var threadDelays: [String: Int] = [:]
         var threadReads: [(root: String, read: String)] = []
         var follows: [String: Bool] = [:]
@@ -1116,6 +1117,9 @@ final class FakeServer: HTTPTransport {
             if request.method == "GET", path.hasPrefix("/api/channels/"), path.hasSuffix("/messages") {
                 guard hasSession, snapshot.sessionValid else { return unauthenticated() }
                 let id = String(path.dropFirst("/api/channels/".count).dropLast("/messages".count))
+                if snapshot.messagesStatus != 200 {
+                    return json(snapshot.messagesStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+                }
                 let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
                 if let before = items.first(where: { $0.name == "before" })?.value {
                     if let wait = snapshot.olderDelay { try? await Task.sleep(for: .milliseconds(wait)) }

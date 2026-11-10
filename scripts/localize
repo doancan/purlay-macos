@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# The app's strings and their translations: one catalog, App/Resources/Localizable.xcstrings, read by every package (SwiftUI and
+# String(localized:) look in the main bundle). English is the source language; Turkish is complete.
+#
+#   scripts/localize            build with string extraction and add the strings the code now uses to the catalog
+#   scripts/localize --check    fail unless every string has a Turkish translation with the same format specifiers
+#
+# A new string is added by `scripts/localize`, shows as "new" until it has a Turkish value, and --check refuses it until it does.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+CATALOG=App/Resources/Localizable.xcstrings
+
+check() {
+  python3 - "$CATALOG" <<'PY'
+import json, re, sys
+catalog = json.load(open(sys.argv[1]))
+spec = re.compile(r"%(?:\d+\$)?(?:lld|ld|@|d|f)")
+# Nothing to translate: only symbols, digits, format specifiers or a code-like address.
+inert = re.compile(r"^[^A-Za-z]*$|^[a-z0-9.\-/]+$")
+problems = []
+norm = lambda text: sorted(re.sub(r"\d+\$", "", m) for m in spec.findall(text))
+
+def values(localization):
+    """Every string a language gives for a key: the one, or one for each plural form."""
+    if "stringUnit" in localization:
+        return [localization["stringUnit"]]
+    plural = localization.get("variations", {}).get("plural", {})
+    return [form["stringUnit"] for form in plural.values() if "stringUnit" in form]
+
+for key, entry in catalog["strings"].items():
+    if entry.get("shouldTranslate") is False or entry.get("extractionState") == "stale":
+        continue
+    localization = entry.get("localizations", {}).get("tr")
+    units = values(localization) if localization else []
+    if not units or any(not unit.get("value", "").strip() for unit in units):
+        if not inert.match(re.sub(spec, "", key)):
+            problems.append(f"no Turkish: {key!r}")
+        continue
+    for unit in units:
+        if unit.get("state") != "translated":
+            problems.append(f"not final ({unit.get('state')}): {key!r}")
+        if norm(key) != norm(unit["value"]):
+            problems.append(f"format specifiers differ: {key!r} -> {unit['value']!r}")
+    # The English forms are held to the same rule, so that a plural cannot drop an argument.
+    for unit in values(entry.get("localizations", {}).get("en", {})):
+        if norm(key) != norm(unit.get("value", key)):
+            problems.append(f"English plural form changes the arguments of {key!r}")
+if problems:
+    sys.exit("FAIL: Localizable.xcstrings\n  " + "\n  ".join(problems[:40]) + (f"\n  … and {len(problems) - 40} more" if len(problems) > 40 else ""))
+print(f"every string has its Turkish translation ({len(catalog['strings'])} strings)")
+PY
+}
+
+if [ "${1:-}" = "--check" ]; then check; exit 0; fi
+
+derived="$(mktemp -d)"; trap 'rm -rf "$derived"' EXIT
+xcodegen generate >/dev/null
+xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Debug -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath "$derived" SWIFT_EMIT_LOC_STRINGS=YES LOCALIZATION_PREFERS_STRING_CATALOGS=YES build >/dev/null
+find "$derived" -name '*.stringsdata' -not -path '*SourcePackages*' -print0 | xargs -0 xcrun xcstringstool sync "$CATALOG" --stringsdata
+echo "synced; add the Turkish value of every new string, then run scripts/localize --check"

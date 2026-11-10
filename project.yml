@@ -1,6 +1,8 @@
 name: Purlay
 options:
   bundleIdPrefix: dev.purlay
+  developmentLanguage: en
+  knownRegions: [en, tr]
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true

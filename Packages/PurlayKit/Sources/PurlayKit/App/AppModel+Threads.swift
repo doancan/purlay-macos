@@ -29,6 +29,7 @@ extension AppModel {
             threadFollow = .reading
         }
         threadRootCopy = chat.personalProjection(root)
+        threadLoadFailed = false
         let size = ContractConstants.pageLimit.default
         do {
             var page = try await api.getThread(messageId: root.id.value, query: PageQuery(limit: size))
@@ -47,6 +48,7 @@ extension AppModel {
             markThreadReadIfSeen()
         } catch {
             guard generation == threadGeneration else { return }
+            if thread?.isLoaded != true { threadLoadFailed = true }
             say(.threadFailed)
         }
         if case .known = threadFollow { return }
@@ -55,6 +57,7 @@ extension AppModel {
 
     public func closeThread() {
         threadGeneration += 1
+        threadLoadFailed = false
         thread = nil
         threadRootCopy = nil
         threadFollow = .reading
@@ -72,7 +75,7 @@ extension AppModel {
         }
     }
 
-    func reloadThread() async {
+    public func reloadThread() async {
         if let root = threadRoot { await openThread(root) }
     }
 

@@ -20,7 +20,7 @@
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/workspace-dark.png">
   <img src="docs/images/workspace-light.png" alt="Purlay workspace with channels, team conversations, emoji reactions, and the message composer" width="100%">
 </picture>
-<p align="center"><sub>Purlay 0.2.0 · Native macOS interface · Example workspace</sub></p>
+<p align="center"><sub>Purlay 0.2.1 · Native macOS interface · Example workspace</sub></p>
 
 ## Conversations, without losing your place
 
@@ -28,12 +28,14 @@
 | :--- | :--- |
 | **Channels & direct messages** — keep team discussions and smaller conversations together. | **A focused Inbox** — filter mentions, direct messages, and threads; catch up on unread activity. |
 | **Threads & reactions** — reply in context and pick from 221 standard emoji, with search and recents. | **Deep Work** — quiet interruptions for a focus session, then return to what needs you. |
-| **Files & rich messages** — browse attachments, preview content, and read formatted messages and code. | **Saved messages & drafts** — keep useful context nearby and return to unfinished thoughts. |
+| **Files & rich messages** — browse attachments, preview content, link cards, and read formatted messages and code. | **Saved messages & drafts** — keep useful context nearby and return to unfinished thoughts. |
+| **Issues & updates** — a native issues page, and an Updates tab for what the workspace's other modules tell you. | **Groups that follow you** — sidebar groups kept by the server, the same on every Mac and in the browser. |
 
 ## Made for the Mac
 
 - **Native window controls.** A system toolbar and sidebar, Liquid Glass controls, and a thread inspector beside the conversation.
 - **Keyboard-first navigation.** Jump between channels, search messages, and act through the File, Message, Channel, and Go menus.
+- **English and Turkish.** The whole app follows your Mac's language.
 - **Your preferred appearance.** Light and dark themes, comfortable or compact messages, and support for Reduce Transparency, Increase Contrast, and Reduce Motion.
 - **Built-in updates.** Sparkle checks for new versions and verifies signed update feeds, release notes, and app downloads.
 - **Workspace-aware settings.** Profile and account details, a native member list, and administration links that follow your workspace role.
@@ -44,7 +46,7 @@
 2. Extract the ZIP and move **Purlay.app** to **Applications**.
 3. Open Purlay, enter your server address, and sign in.
 
-**Requirements:** an Apple Silicon Mac, macOS 26 or later, and access to a compatible [Purlay server](https://github.com/doancan/purlay). The desktop app connects to your server; it does not host one.
+**Requirements:** an Apple Silicon Mac, macOS 26 or later, and access to a [Purlay server](https://github.com/doancan/purlay) 0.5.0 or later. The desktop app connects to your server; it does not host one.
 
 **Coming from 0.1.0?** Install 0.1.1 manually once. Version 0.1.0 has no built-in updater. From 0.1.1 onward, use **Purlay → Check for Updates…** or enable automatic checks in **Settings → Updates**. Intel builds are no longer provided.
 

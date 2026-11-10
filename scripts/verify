@@ -27,6 +27,9 @@ step "the generator: build and test"
 (cd Tools/PurlayGen && swift test 2>&1 | tail -3)
 (cd Tools/PurlayGen && swift test 2>&1 | grep -q "Test run with .* passed") || { echo "FAIL: Tools/PurlayGen" >&2; exit 1; }
 
+step "every string has its Turkish translation"
+scripts/localize --check
+
 step "format"
 # Swift sources only; the generated packages are held to the same rule once they exist.
 find App Packages Tools Tests -name '*.swift' -not -path '*/.build/*' -print0 | xargs -0 xcrun swift-format lint --strict --parallel

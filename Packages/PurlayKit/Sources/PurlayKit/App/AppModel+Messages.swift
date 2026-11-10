@@ -124,6 +124,7 @@ extension AppModel {
         if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
         if chat.channels[channelID]?.type == .private, channelPeople[channelID] == nil { await refreshPeople() }
         guard let api, let engine else { return }
+        channelLoadFailed.remove(channelID)
         do {
             let page = try await api.listMessages(
                 channelId: channelID.value, query: PageQuery(limit: ContractConstants.pageLimit.default))
@@ -135,6 +136,8 @@ extension AppModel {
             await reloadPins(channelID)
             await reloadBookmarks(channelID)
         } catch {
+            // A channel with nothing to show says so on its own screen; one that already has messages keeps them.
+            if chat.windows[channelID] == nil { channelLoadFailed.insert(channelID) }
             say(.loadFailed)
         }
     }

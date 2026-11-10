@@ -4,6 +4,31 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-11-10
+
+The whole app in Turkish, a calmer sidebar, and a round of fixes for the things a team meets every day.
+
+### New
+
+- **Turkish.** Every screen, menu and message of the app is now in Turkish when your Mac is set to it, worded as the web client words it. English stays the default.
+- **Keyboard.** Start typing anywhere in the conversation and the message box takes the keyboard, with what you typed. Escape from a thread or an edit puts you back in the box. **Focus Message Box** (⌘L), **Add Reaction…** (⇧⌘E) and **Resolve Thread** (⇧⌘R) are in the Message menu.
+
+### Improved
+
+- A calmer sidebar: its pages are lines of the sidebar, in regular weight and the system's row height, with a quiet fill for the one that is open and the accent only on its symbol.
+- A workspace with no channels says so and offers Browse Channels and New Conversation, instead of "No matching channels".
+- Names and channels sort in your language's order everywhere (Çağlar before Zeynep), and singular counts read right ("1 reply").
+- Drafts are tracked as they change, so typing a long message no longer makes the sidebar read every channel's draft again.
+- Deleting an issue, a message that could not be sent, or a saved search now asks first.
+- The window can no longer be made narrower than a message and its box need.
+- VoiceOver reaches the reactions, files, thread button and edit box of a message, and the buttons of a message that could not be sent.
+
+### Fixed
+
+- A channel or thread that could not be loaded no longer shows a loading placeholder for ever: it says so and offers Try Again.
+- A sheet left open when a session ended (Saved Messages, Pins, Search, Drafts) no longer opens by itself the next time you sign in.
+- New Issue no longer shares its shortcut with Open Conversation in New Window.
+
 ## [0.2.0] — 2026-11-10
 
 Requires a Purlay server 0.5.0 or later (0.6.1 is current).

@@ -145,3 +145,17 @@ a channel's `sidebarGroupId` is required from 0.5.0. `GET /api/me` types the ser
 Not done, each blocked or deliberate: followed threads (the contract bundle has the schemas but no endpoint for
 `/followed-threads`, and the generator never takes a wire fact by hand); PDF attachments use Quick Look's own viewer.
 
+## Languages
+
+The app is in English and Turkish. Every string lives in one catalog, `App/Resources/Localizable.xcstrings`, which the packages
+read through the main bundle (`Text("…")` and `String(localized:)` look there), so a string is written in the code in English and
+needs no key of its own. `knownRegions` in `project.yml` lists the languages.
+
+- `scripts/localize` builds with string extraction and adds the strings the code now uses to the catalog.
+- Give each new string its Turkish value in the catalog, with state `translated`, then run `scripts/localize --check`. It refuses a
+  string with no Turkish value, one that is not final, and one whose format specifiers (`%@`, `%lld`) differ from the English;
+  `scripts/verify` runs it. A string with no letters in it (a symbol, a number) needs no translation.
+- Turkish addresses the person as "sen", as the web client does; its wording for the same concepts is in
+  `apps/web/src/i18n/catalogue/tr.ts` of the server repository, and the two clients should read alike.
+- To see the app in Turkish while developing: `Purlay -AppleLanguages "(tr)"`.
+

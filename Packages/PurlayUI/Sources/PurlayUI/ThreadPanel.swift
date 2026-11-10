@@ -35,7 +35,17 @@ struct ThreadPanel: View {
                                 }
                                 Status(model: model, root: root, replies: thread.replies.count)
                             }
-                            if !thread.isLoaded {
+                            if !thread.isLoaded && model.threadLoadFailed {
+                                VStack(spacing: Spacing.space3) {
+                                    Label("Could Not Load the Thread", systemImage: "wifi.exclamationmark")
+                                        .font(.headline)
+                                    Text("Check your connection and try again.")
+                                        .font(.callout).foregroundStyle(.secondary)
+                                    Button("Try Again") { Task { await model.reloadThread() } }
+                                        .buttonStyle(.glassProminent)
+                                }
+                                .frame(maxWidth: .infinity).padding(Spacing.space6)
+                            } else if !thread.isLoaded {
                                 ProgressView().frame(maxWidth: .infinity).padding(24)
                             } else {
                                 ForEach(thread.replies.filter { $0.hiddenForMe != true }, id: \.id) { reply in
@@ -160,7 +170,9 @@ private struct Header: View {
             Button {
             } label: {
                 Image(systemName: "bell")
-            }.buttonStyle(.borderless).disabled(true).help("Reading…")
+            }
+            .buttonStyle(.borderless).disabled(true).help("Reading…")
+            .accessibilityLabel("Reading whether you follow this thread")
         case .failed:
             Button {
                 Task { await model.setFollowing(true) }
@@ -169,6 +181,8 @@ private struct Header: View {
             }
             .buttonStyle(.borderless)
             .help("Could not read whether you follow this thread. Press to follow it.")
+            .accessibilityLabel("Could not read whether you follow this thread")
+            .accessibilityHint("Follows the thread")
         }
     }
 }
@@ -201,13 +215,13 @@ private struct Status: View {
                 .buttonStyle(.glass)
                 .controlSize(.small)
                 .disabled(changing)
-                .keyboardShortcut("r", modifiers: [.command, .shift])
+                // ⇧⌘R is the Message menu's: a shortcut kept here would stop working when this row scrolled out of the panel.
                 .help(resolved ? "Reopen this thread  ⇧⌘R" : "Mark this thread resolved  ⇧⌘R")
             }
             .font(.callout)
             HStack {
                 VStack { Divider() }
-                Text(replies == 1 ? String(localized: "1 reply") : String(localized: "\(replies) replies"))
+                Text("\(replies) replies")
                     .font(.caption).foregroundStyle(NativePalette.secondary.style).fixedSize()
                 VStack { Divider() }
             }
