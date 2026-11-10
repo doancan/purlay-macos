@@ -52,7 +52,7 @@ struct Emitter {
         block("public enum \(value.name): Sendable, Hashable, Codable") { out in
             for name in names { out.line("case \(name)") }
             out.line("/// A value this client was not built for.")
-            out.line("case unknown(\(raw))")
+            out.line("case \(value.fallbackName)(\(raw))")
             out.line()
             let known = names.map { ".\($0)" }.joined(separator: ", ")
             out.line("public static let known: [\(value.name)] = [\(known)]")
@@ -62,7 +62,7 @@ struct Emitter {
                     for (literal, name) in zip(value.literals, names) {
                         out.line("case \(literal.source): self = .\(name)")
                     }
-                    out.line("default: self = .unknown(rawValue)")
+                    out.line("default: self = .\(value.fallbackName)(rawValue)")
                 }
             }
             out.line()
@@ -71,7 +71,7 @@ struct Emitter {
                     for (literal, name) in zip(value.literals, names) {
                         out.line("case .\(name): return \(literal.source)")
                     }
-                    out.line("case .unknown(let value): return value")
+                    out.line("case .\(value.fallbackName)(let value): return value")
                 }
             }
             out.line()
@@ -99,9 +99,15 @@ struct Emitter {
     private mutating func structure(_ value: Structure) {
         let stored = value.fields.filter { $0.constant == nil }
         let fixed = value.fields.filter { $0.constant != nil }
+        // A request may leave a property out, and may also say it is nothing: those are two different things to send, so such a
+        // property holds an optional of an optional — absent, or present and null. Nothing else needs the difference.
+        let isRequest = value.name.hasSuffix("Request")
+        func spelled(_ field: Field) -> String {
+            "\(field.type)\(field.isOptional ? "?" : "")\(isRequest && !field.required && field.nullable ? "?" : "")"
+        }
         block("public struct \(value.name): Sendable, Hashable, Codable") { out in
             for field in stored {
-                out.line("public var \(field.name): \(field.type)\(field.isOptional ? "?" : "")")
+                out.line("public var \(field.name): \(spelled(field))")
             }
             if !stored.isEmpty { out.line() }
 
@@ -109,7 +115,7 @@ struct Emitter {
             // Only a property the schema does not require may be left out; one that is required and may be null
             // must be said, as `nil`, so a forgotten argument is a compile error and not a missing key on the wire.
             let parameters = stored.map { field in
-                "\(field.name): \(field.type)\(field.isOptional ? "?" : "")\(field.required ? "" : " = nil")"
+                "\(field.name): \(spelled(field))\(field.required ? "" : " = nil")"
             }.joined(separator: ", ")
             out.block("public init(\(parameters))") { out in
                 if stored.isEmpty { out.line("// Nothing to hold: every property of this shape is fixed.") }
@@ -126,6 +132,13 @@ struct Emitter {
                                 ? "case \(name)" : "case \(name) = \"\(Literal.escaped(field.key))\"")
                     }
                 }
+            }
+
+            if value.fields.isEmpty {
+                // A shape with nothing in it is still an object on the wire: `{}`, which an encoder only writes
+                // once a container has been asked for.
+                out.line()
+                out.line("private enum CodingKeys: CodingKey {}")
             }
 
             out.line()
@@ -146,7 +159,14 @@ struct Emitter {
                     }
                 }
                 for field in stored {
-                    if field.required && field.nullable {
+                    if isRequest && !field.required && field.nullable {
+                        out.block("if container.contains(.\(field.name))") { out in
+                            out.line(
+                                "self.\(field.name) = .some(try container.decodeNil(forKey: .\(field.name)) ? nil : try container.decode(\(field.type).self, forKey: .\(field.name)))"
+                            )
+                        }
+                        out.line("else { self.\(field.name) = nil }")
+                    } else if field.required && field.nullable {
                         // Required and null: the key must be there, as `null`. A missing one is the contract drifting.
                         out.line(
                             "self.\(field.name) = try container.decode(\(field.type)?.self, forKey: .\(field.name))")
@@ -159,10 +179,18 @@ struct Emitter {
             }
             out.line()
             out.block("public func encode(to encoder: any Encoder) throws") { out in
-                if usesContainer { out.line("var container = encoder.container(keyedBy: CodingKeys.self)") }
+                if usesContainer {
+                    out.line("var container = encoder.container(keyedBy: CodingKeys.self)")
+                } else {
+                    out.line("_ = encoder.container(keyedBy: CodingKeys.self)")
+                }
                 for field in value.fields {
                     if let literal = field.constant {
                         out.line("try container.encode(\(literal.source), forKey: .\(field.name))")
+                    } else if isRequest && !field.required && field.nullable {
+                        out.block("if let inner = self.\(field.name)") { out in
+                            out.line("try container.encode(inner, forKey: .\(field.name))")
+                        }
                     } else if field.required && field.nullable {
                         // Required and null: the key is written, with `null`, as the server wrote it.
                         out.line("try container.encode(self.\(field.name), forKey: .\(field.name))")

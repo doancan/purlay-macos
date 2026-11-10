@@ -38,7 +38,7 @@ public struct PurlayCommands: Commands {
 
     private var ready: Bool { model.phase == .ready }
     private var channel: Channel? {
-        guard ready, !model.inboxOpen, !model.unresolvedOpen else { return nil }
+        guard ready, !model.inboxOpen, !model.unresolvedOpen, !model.issuesOpen else { return nil }
         return model.selectedChannel.flatMap { model.chat.channels[$0] }
     }
     /// The message the keyboard is on in the feed (↑ ↓): what the Message menu acts on.

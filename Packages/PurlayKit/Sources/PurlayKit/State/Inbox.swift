@@ -27,12 +27,14 @@ public struct InboxRow: Identifiable, Equatable, Sendable {
 public enum Inbox {
     public enum Category: String, CaseIterable, Identifiable, Sendable {
         case all, mentions, directMessages, threads
+        /// What the workspace's other modules told the person: a list of its own, read from another endpoint.
+        case updates
         public var id: String { rawValue }
 
         /// All omits the parameter so it includes current and future notification types.
         public var notificationTypes: String? {
             switch self {
-            case .all: nil
+            case .all, .updates: nil
             case .mentions: NotificationType.mention.rawValue
             case .directMessages: NotificationType.directMessage.rawValue
             case .threads: [NotificationType.threadReply, .threadResolved].map(\.rawValue).joined(separator: ",")
@@ -45,6 +47,7 @@ public enum Inbox {
             case .mentions: reason == .mention
             case .directMessages: reason == .directMessage
             case .threads: reason == .reply || reason == .threadResolved
+            case .updates: false
             }
         }
     }

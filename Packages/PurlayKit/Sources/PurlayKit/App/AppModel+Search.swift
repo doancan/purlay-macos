@@ -167,6 +167,7 @@ extension AppModel {
         searchInput = String(raw.prefix(ContractConstants.searchQueryMax))
         searchQuery = typed
         searchResults = []
+        searchIssues = []
         searchCursor = nil
         loadingMoreResults = false
         guard searchable(typed), let api, let workspace else {
@@ -183,6 +184,8 @@ extension AppModel {
             try Task.checkCancellation()
             searchResults = page.data.filter { !isPersonallyDeleted($0.id) }
             searchCursor = page.nextCursor
+            await findIssues(typed, generation: generation)
+            guard generation == searchGeneration else { return }
             searchStatus = .done
         } catch {
             guard generation == searchGeneration else { return }
@@ -194,6 +197,18 @@ extension AppModel {
                 searchStatus = (error as? APIError)?.code == .validationFailed ? .refused : .failed
             }
         }
+    }
+
+    /// The issues that match the same words. Only without filters, which are the messages' own; a source that cannot answer leaves
+    /// the messages as they are, since the find says which source it skipped and the messages are what was asked for.
+    private func findIssues(_ typed: String, generation: Int) async {
+        guard hasModule(.issues), searchHasFilters == false, let api, let workspace else { return }
+        guard
+            let found = try? await api.findAcrossSources(
+                workspaceId: workspace.id.value, query: FindQuery(limit: 5, q: typed)),
+            generation == searchGeneration
+        else { return }
+        searchIssues = found.groups.filter { $0.source == "issues" }.flatMap(\.hits)
     }
 
     private func searchRequest(before: Uuid?, q: String) -> SearchQuery {
@@ -235,6 +250,7 @@ extension AppModel {
         loadingMoreResults = false
         searchInput = ""
         searchResults = []
+        searchIssues = []
         searchCursor = nil
         searchStatus = .idle
     }
@@ -266,6 +282,7 @@ extension AppModel {
             if thread?.channel != channelID { closeThread() }
             inboxOpen = false
             unresolvedOpen = false
+            issuesOpen = false
             selectedChannel = channelID
             if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
             var window = ChannelWindow()

@@ -50,6 +50,25 @@ final class FakeServer: HTTPTransport {
         var scheduledDeletions: [WorkspaceDeletion] = []
         /// What the person was told, newest first, as the server keeps it; reading one sets its time.
         var notifications: [PurlayContract.Notification] = []
+        /// What the workspace's modules told the person (D-286), newest first.
+        var inboxEntries: [InboxEntry] = []
+        var inboxStatus = 200
+        var awayChosen = false
+        var issues: [PurlayContract.Issue] = []
+        var issuesStatus = 200
+        var issuesPageSize: Int?
+        var findStatus = 200
+        /// A link's preview as the server answers it, by URL; a link that is not here is answered `null`.
+        var linkPreviews: [String: String] = [:]
+        var linkPreviewStatus = 200
+        /// The modules the server runs, and the ones this workspace's grant leaves the person (`nil`: the grant says nothing).
+        var modules = ["chat", "issues"]
+        var workspaceModules: [String]?
+        /// The person's own groups of channels (D-284), in the order the server lists them.
+        var channelGroups: [ChannelGroup] = []
+        var groupStatus = 200
+        var awayStatus = 200
+        var inboxReads: [MarkInboxReadRequest] = []
         var notificationsStatus = 200
         var notificationTypeFiltering = true
         var notificationQueryValidationField: String?
@@ -137,6 +156,7 @@ final class FakeServer: HTTPTransport {
     }
 
     func edit(_ change: (inout State) -> Void) { state.withLock { change(&$0) } }
+    var snapshot: State { state.withLock { $0 } }
 
     static func clientInfo(
         minApp: String = "0.1.0", contract: Int = 1, appUrl: String = "http://localhost:4390",
@@ -153,9 +173,9 @@ final class FakeServer: HTTPTransport {
         ].compactMap { $0 }.joined(separator: ",")
         let capability = flags.isEmpty ? "" : ",\"capabilities\":{\(flags)}"
         return """
-            {"server":{"version":"0.2.0"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
+            {"server":{"version":"0.6.1"},"contractVersion":\(contract),"appUrl":"\(appUrl)",\
             "minClient":{"macos":{"appVersion":"\(minApp)","contractVersion":1,"downloadUrl":null}},\
-            "auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}\(capability)}
+            "auth":{"email":true,"github":true,"google":false,"oidc":null,"password":true,"signUp":"invite-only"}\(capability)}
             """
     }
 
@@ -171,6 +191,7 @@ final class FakeServer: HTTPTransport {
         var mentions = 0
         var level = "mentions"
         var onlyAdminsPost = false
+        var group: String?
     }
 
     static func json(_ chan: Chan) -> String {
@@ -183,7 +204,7 @@ final class FakeServer: HTTPTransport {
         return """
             {"id":"\(channel(chan.n))","workspaceId":"\(workspaceID)","name":\(name),"topic":\(topic),"type":"\(chan.type)","lastMessageAt":null,\
             "state":\(chan.joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":\#(chan.mentions)}"# : "null"),"notificationLevel":"\(chan.level)",\
-            "starred":\(chan.starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,\
+            "starred":\(chan.starred),"sidebarGroupId":\(chan.group.map { "\"\($0)\"" } ?? "null"),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,\
             "onlyAdminsPost":\(chan.onlyAdminsPost)}
             """
     }
@@ -191,21 +212,23 @@ final class FakeServer: HTTPTransport {
     static func channelJSON(_ n: Int, name: String) -> String {
         """
         {"id":"\(channel(n))","workspaceId":"\(workspaceID)","name":"\(name)","topic":null,"type":"public","lastMessageAt":null,\
-        "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,\
+        "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,"sidebarGroupId":null,\
         "incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
         """
     }
 
     static func meJSON(
         deepWorkUntil: String? = nil, role: String = "member", mustEnrolTwoFactor: Bool = false,
-        nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = []
+        nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = [], awayChosen: Bool = false,
+        modules: [String] = ["chat", "issues"], workspaceModules: [String]? = nil
     ) -> String {
         """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
         "profile":{"title":null,"timeZone":null,"status":null},\
         "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
-        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
-        "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions))}
+        "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")\(workspaceModules.map { ",\"modules\":\(encoded($0))" } ?? "")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
+        "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions)),\
+        "modules":\(encoded(modules)),"awayChosen":\(awayChosen)}
         """
     }
 
@@ -342,7 +365,8 @@ final class FakeServer: HTTPTransport {
                 Self.meJSON(
                     deepWorkUntil: snapshot.deepWorkUntil, role: snapshot.role,
                     mustEnrolTwoFactor: snapshot.mustEnrolTwoFactor, nameFromGitHub: snapshot.nameFromGitHub,
-                    scheduledDeletions: snapshot.scheduledDeletions))
+                    scheduledDeletions: snapshot.scheduledDeletions, awayChosen: snapshot.awayChosen,
+                    modules: snapshot.modules, workspaceModules: snapshot.workspaceModules))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
@@ -508,6 +532,43 @@ final class FakeServer: HTTPTransport {
                 Self.encoded(
                     UnresolvedPage(
                         data: items, nextCursor: found.count > items.count ? items.last?.id : nil)))
+        case ("GET", _) where path.hasPrefix("/api/workspaces/") && path.hasSuffix("/inbox"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.inboxStatus != 200 {
+                return json(snapshot.inboxStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            var list = snapshot.inboxEntries
+            if let before = items.first(where: { $0.name == "before" })?.value,
+                let at = list.firstIndex(where: { $0.id.value == before })
+            {
+                list = Array(list[(at + 1)...])
+            }
+            if items.first(where: { $0.name == "unreadOnly" })?.value == "true" {
+                list = list.filter { $0.readAt == nil }
+            }
+            let size = items.first { $0.name == "limit" }?.value.flatMap(Int.init) ?? 50
+            let page = Array(list.prefix(size))
+            let next = list.count > size ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+            let unread = snapshot.inboxEntries.filter { $0.readAt == nil }.count
+            return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next),\"unreadCount\":\(unread)}")
+        case ("POST", _) where path.hasPrefix("/api/workspaces/") && path.hasSuffix("/inbox/read"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.inboxStatus != 200 {
+                return json(snapshot.inboxStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            guard let body = request.body, let read = try? JSONDecoder().decode(MarkInboxReadRequest.self, from: body)
+            else { return json(400, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#) }
+            state.withLock { state in
+                state.inboxReads.append(read)
+                let stamp = Timestamp(Date())
+                for at in state.inboxEntries.indices where state.inboxEntries[at].readAt == nil {
+                    if read.all == true || read.ids?.contains(state.inboxEntries[at].id) == true {
+                        state.inboxEntries[at].readAt = stamp
+                    }
+                }
+            }
+            return HTTPResponse(status: 204)
         case ("GET", "/api/notifications"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             let items = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
@@ -635,6 +696,147 @@ final class FakeServer: HTTPTransport {
                 200,
                 "{\"data\":\(Self.encoded(roots)),\"newerCursor\":\(newer),\"olderCursor\":null,\"target\":\(Self.encoded(target))}"
             )
+        case _ where path.hasPrefix("/api/workspaces/\(Self.workspaceID)/channel-groups"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.groupStatus != 200 {
+                return json(snapshot.groupStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let id = path.split(separator: "/").count == 5 ? String(path.split(separator: "/")[4]) : nil
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            switch (request.method, id) {
+            case ("GET", nil):
+                return json(200, "{\"data\":\(Self.encoded(snapshot.channelGroups)),\"nextCursor\":null}")
+            case ("PUT", let id?):
+                let name = body?["name"] as? String ?? ""
+                let kept = snapshot.channelGroups.first { $0.id.value == id }?.collapsed ?? false
+                let group = Self.decoded(
+                    ChannelGroup.self, "{\"id\":\"\(id)\",\"name\":\"\(name)\",\"collapsed\":\(kept)}")
+                state.withLock { state in
+                    state.channelGroups.removeAll { $0.id.value == id }
+                    state.channelGroups.append(group)
+                }
+                return json(200, Self.encoded(group))
+            case ("PATCH", let id?):
+                let collapsed = body?["collapsed"] as? Bool == true
+                guard var group = snapshot.channelGroups.first(where: { $0.id.value == id }) else {
+                    return json(404, #"{"error":{"code":"CHANNEL_GROUP_NOT_FOUND","message":"x"}}"#)
+                }
+                group.collapsed = collapsed
+                state.withLock { state in
+                    state.channelGroups.removeAll { $0.id.value == id }
+                    state.channelGroups.append(group)
+                }
+                return json(200, Self.encoded(group))
+            case ("DELETE", let id?):
+                state.withLock { state in
+                    state.channelGroups.removeAll { $0.id.value == id }
+                    for at in state.chans.indices where state.chans[at].group == id { state.chans[at].group = nil }
+                }
+                return HTTPResponse(status: 204)
+            default:
+                return HTTPResponse(status: 404)
+            }
+        case ("PUT", _) where path.hasPrefix("/api/channels/") && path.hasSuffix("/sidebar-group"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.groupStatus != 200 {
+                return json(snapshot.groupStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let parts = path.split(separator: "/")
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let group = body?["groupId"] as? String
+            guard let at = snapshot.chans.firstIndex(where: { channel($0.n) == String(parts[2]) }) else {
+                return HTTPResponse(status: 404)
+            }
+            state.withLock { state in
+                state.chans[at].group = group
+                if group != nil { state.chans[at].starred = false }
+            }
+            return json(200, Self.json(state.withLock { $0.chans[at] }))
+        case _ where path.hasPrefix("/api/workspaces/\(Self.workspaceID)/issues"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.issuesStatus != 200 {
+                return json(snapshot.issuesStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let parts = path.split(separator: "/")
+            let id = parts.count == 5 ? String(parts[4]) : nil
+            let query = URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let now = "2026-11-10T12:00:00.000Z"
+            switch (request.method, id) {
+            case ("GET", nil):
+                var list = snapshot.issues
+                if let status = query.first(where: { $0.name == "status" })?.value {
+                    list = list.filter { $0.status.rawValue == status }
+                }
+                if let before = query.first(where: { $0.name == "before" })?.value,
+                    let at = list.firstIndex(where: { $0.id.value == before })
+                {
+                    list = Array(list[(at + 1)...])
+                }
+                let size = snapshot.issuesPageSize ?? query.first { $0.name == "limit" }?.value.flatMap(Int.init) ?? 50
+                let page = Array(list.prefix(size))
+                let next = list.count > size ? page.last.map { "\"\($0.id.value)\"" } ?? "null" : "null"
+                return json(200, "{\"data\":\(Self.encoded(page)),\"nextCursor\":\(next)}")
+            case ("POST", nil):
+                let made = Self.decoded(
+                    Issue.self,
+                    """
+                    {"id":"\(idAt(40_000 + snapshot.issues.count).value)","title":"\(body?["title"] as? String ?? "")",\
+                    "body":"\(body?["body"] as? String ?? "")","status":"open",\
+                    "assigneeId":\((body?["assigneeId"] as? String).map { "\"\($0)\"" } ?? "null"),\
+                    "createdBy":"\(Self.userID)","createdAt":"\(now)","updatedAt":"\(now)"}
+                    """)
+                state.withLock { $0.issues.insert(made, at: 0) }
+                return json(201, Self.encoded(made))
+            case ("PATCH", let id?):
+                guard let at = snapshot.issues.firstIndex(where: { $0.id.value == id }) else {
+                    return HTTPResponse(status: 404)
+                }
+                var issue = snapshot.issues[at]
+                if let status = body?["status"] as? String { issue.status = IssueStatus(rawValue: status) }
+                if let title = body?["title"] as? String { issue.title = title }
+                if body?.keys.contains("assigneeId") == true {
+                    issue.assigneeId = (body?["assigneeId"] as? String).flatMap(Uuid.init)
+                }
+                state.withLock { $0.issues[at] = issue }
+                return json(200, Self.encoded(issue))
+            case ("DELETE", let id?):
+                state.withLock { $0.issues.removeAll { $0.id.value == id } }
+                return HTTPResponse(status: 204)
+            default:
+                return HTTPResponse(status: 404)
+            }
+        case ("GET", "/api/workspaces/\(Self.workspaceID)/find"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.findStatus != 200 {
+                return json(snapshot.findStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let q =
+                (URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems ?? []).first {
+                    $0.name == "q"
+                }?.value ?? ""
+            let hits = snapshot.issues.filter { $0.title.localizedCaseInsensitiveContains(q) }.map {
+                #"{"id":"\#($0.id.value)","title":"\#($0.title)","excerpt":null,"at":"2026-11-10T12:00:00.000Z","target":{"type":"issue","issueId":"\#($0.id.value)"}}"#
+            }
+            return json(
+                200, "{\"groups\":[{\"source\":\"issues\",\"hits\":[\(hits.joined(separator: ","))]}],\"skipped\":[]}")
+        case ("POST", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/link-preview"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.linkPreviewStatus != 200 {
+                return json(snapshot.linkPreviewStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let url = body?["url"] as? String ?? ""
+            return json(200, snapshot.linkPreviews[url] ?? "null")
+        case ("PUT", "/api/me/away"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.awayStatus != 200 {
+                return json(snapshot.awayStatus, #"{"error":{"code":"VALIDATION_FAILED","message":"x"}}"#)
+            }
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let away = body?["away"] as? Bool == true
+            state.withLock { $0.awayChosen = away }
+            return json(200, "{\"away\":\(away)}")
         case ("PUT", "/api/workspaces/\(Self.workspaceID)/deep-work"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.deepWorkStatus != 200 {

@@ -138,6 +138,7 @@ struct MessageRow: View {
         } else {
             if !message.content.isEmpty { MessageBody(text: message.content) }
             AttachmentList(model: model, attachments: message.attachments)
+            LinkPreviewView(model: model, message: message)
         }
         if !deleted && !message.reactions.isEmpty { ReactionRow(message: message, model: model) }
         // A question is shown as one before anybody has answered it (D-204).
@@ -484,5 +485,62 @@ private struct ThreadAffordance: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 2)
+    }
+}
+
+private struct LinkKey: Hashable {
+    let id: Uuid
+    let content: String
+}
+
+/// The card under a message for the first link that has one (D-293): drawn once the message is on screen, and not at all when the
+/// server has none. The link itself stays where it was written; the card shows its real host and opens it.
+private struct LinkPreviewView: View {
+    let model: AppModel
+    let message: Message
+    @State private var card: LinkPreviewCard?
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        Group {
+            if let card {
+                Button {
+                    openURL(card.url)
+                } label: {
+                    HStack(alignment: .top, spacing: Spacing.space3) {
+                        VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
+                            Text(card.host).typeStyle(Typography.caption).foregroundStyle(NativePalette.secondary.style)
+                            Text(card.title).typeStyle(Typography.body).fontWeight(.semibold)
+                                .foregroundStyle(Colors.accentText.style).lineLimit(2)
+                            if let summary = card.summary {
+                                Text(summary).typeStyle(Typography.caption)
+                                    .foregroundStyle(NativePalette.secondary.style).lineLimit(3)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if let image = card.imageURL {
+                            AsyncImage(url: image) { phase in
+                                if let picture = phase.image {
+                                    picture.resizable().scaledToFill()
+                                } else {
+                                    Color.clear
+                                }
+                            }
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .accessibilityHidden(true)
+                        }
+                    }
+                    .padding(Spacing.space3)
+                    .frame(maxWidth: 460, alignment: .leading)
+                    .background(NativePalette.fill.style, in: RoundedRectangle(cornerRadius: 8))
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help(card.url.absoluteString)
+                .accessibilityLabel("Link preview: \(card.title), \(card.host)")
+            }
+        }
+        .task(id: LinkKey(id: message.id, content: message.content)) { card = await model.linkPreview(for: message) }
     }
 }

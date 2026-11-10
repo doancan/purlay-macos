@@ -27,7 +27,7 @@ private func envelope(_ event: String, _ data: String, version: Int? = nil) -> S
 private func makeChannel(_ n: Int, name: String = "api", workspaceID: Uuid = workspace) -> Channel {
     let text = """
         {"id":"\(channel(n))","workspaceId":"\(workspaceID.value)","name":"\(name)","topic":null,"type":"public","lastMessageAt":null,\
-        "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,\
+        "state":{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0},"notificationLevel":"mentions","starred":false,"sidebarGroupId":null,\
         "incident":null,"peer":null,"peers":[],"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
         """
     guard let channel = try? JSONDecoder().decode(Channel.self, from: Data(text.utf8)) else {
@@ -307,8 +307,10 @@ struct TypingAndPresenceTests {
         #expect(s.typing[one] == nil, "a channel nobody is typing in is absent")
     }
 
-    private func presence(_ changes: [(Uuid, Bool, Int)]) -> ServerFrame {
-        let list = changes.map { #"{"userId":"\#($0.0.value)","online":\#($0.1),"version":\#($0.2)}"# }.joined(
+    private func presence(_ changes: [(Uuid, Bool, Int)], away: Bool = false) -> ServerFrame {
+        let list = changes.map {
+            #"{"userId":"\#($0.0.value)","online":\#($0.1),"away":\#(away),"version":\#($0.2)}"#
+        }.joined(
             separator: ",")
         return envelope("PRESENCE", #"{"changes":[\#(list)]}"#)
     }
@@ -318,11 +320,18 @@ struct TypingAndPresenceTests {
         var s = ChatState(selfID: me)
         s.apply(presence([(ada, true, 5)]), now: start)
         s.apply(presence([(ada, false, 3)]), now: start)
-        #expect(s.presence[ada] == .init(online: true, version: 5))
+        #expect(s.presence[ada] == .init(online: true, away: false, version: 5))
         s.apply(presence([(ada, false, 5)]), now: start)
         #expect(s.presence[ada]?.online == true, "the same version is not news")
         s.apply(presence([(ada, false, 6)]), now: start)
-        #expect(s.presence[ada] == .init(online: false, version: 6))
+        #expect(s.presence[ada] == .init(online: false, away: false, version: 6))
+    }
+
+    @Test("somebody who is away is here, and the server's word on it is kept")
+    func awayPerson() {
+        var s = ChatState(selfID: me)
+        s.apply(presence([(ada, true, 1)], away: true), now: start)
+        #expect(s.presence[ada] == .init(online: true, away: true, version: 1))
     }
 
     @Test("a person not heard of is unknown, never offline")

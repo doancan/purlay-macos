@@ -23,6 +23,12 @@ struct Structure {
 struct LiteralEnumeration {
     let name: String
     let literals: [Literal]
+
+    /// The case a value this client was not built for is held in: `unknown`, unless the server itself has a value
+    /// spelled "unknown", which is a status it knows and not one this client does not.
+    var fallbackName: String {
+        literals.contains { Emitter.caseName(for: $0) == "unknown" } ? "unlisted" : "unknown"
+    }
 }
 
 struct TaggedCase {

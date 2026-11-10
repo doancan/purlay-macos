@@ -64,6 +64,32 @@ extension AppModel {
         }
     }
 
+    // MARK: Away
+
+    /// Whether the person has said they are away (D-257). The server also shows somebody away after a while of not using Purlay,
+    /// which is its word and not the person's.
+    public var isAway: Bool { me?.awayChosen ?? false }
+
+    /// Says the person is away, or back: painted at once, and put back with a word if the server refuses. Only the last change
+    /// puts anything back, as with Deep Work.
+    public func setAway(_ away: Bool) async {
+        if let sessionOwner {
+            await sessionOwner.setAway(away)
+            return
+        }
+        guard let api, isAway != away else { return }
+        awayChange += 1
+        let mine = awayChange
+        me?.awayChosen = away
+        do {
+            let answer = try await api.setAway(body: SetAwayRequest(away: away))
+            if mine == awayChange { me?.awayChosen = answer.away }
+        } catch {
+            if mine == awayChange { me?.awayChosen = !away }
+            say(.awayFailed)
+        }
+    }
+
     private func storedDeepWork() -> Timestamp? {
         me?.memberships.first(where: { $0.workspace.id == workspace?.id })?.deepWorkUntil
     }

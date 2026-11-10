@@ -35,11 +35,12 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// Whether a person is here, as the server last said; nobody is, until it says so. The person themselves is here while
+    /// Whether a person is here and available, as the server last said; nobody is, until it says so. Somebody away is here
+    /// but not shown as available. The person themselves is here while
     /// this app is connected: the server tells others about them, not them about themselves.
     public func isOnline(_ user: Uuid) -> Bool {
-        if user == me?.user.id { return connection == .open }
-        return chat.presence[user]?.online ?? false
+        if user == me?.user.id { return connection == .open && !isAway }
+        return chat.presence[user].map { $0.online && !$0.away } ?? false
     }
 }
 
@@ -54,4 +55,18 @@ extension AppModel {
             (workspacePeople.first { $0.id == typist.user } ?? peers.first { $0.id == typist.user })?.displayName
         }
     }
+}
+
+extension AppModel {
+    /// Whether this workspace has a module: the server runs it, and the workspace's own grant, when it says anything, leaves it to
+    /// the person. A server older than modules says nothing, and has chat only.
+    public func hasModule(_ module: ModuleId) -> Bool {
+        guard let me else { return module == .chat }
+        guard me.modules.contains(module) else { return false }
+        let granted = me.memberships.first { $0.workspace.id == workspace?.id }?.modules
+        return granted?.contains(module) ?? true
+    }
+
+    /// Whether this workspace has chat, the module this app is made for.
+    public var chatAvailable: Bool { me == nil || hasModule(.chat) }
 }

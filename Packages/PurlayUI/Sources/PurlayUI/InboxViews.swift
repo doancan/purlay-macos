@@ -14,7 +14,7 @@ struct InboxPage: View {
             HStack {
                 Picker("Notification type", selection: category) {
                     ForEach(Inbox.Category.allCases) { category in
-                        Text(category.title).tag(category)
+                        Text(title(of: category)).tag(category)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -43,11 +43,13 @@ struct InboxPage: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await model.markAllInboxRead() }
+                    Task {
+                        if showsUpdates { await model.markAllUpdatesRead() } else { await model.markAllInboxRead() }
+                    }
                 } label: {
                     Label("Mark All Read", systemImage: "checkmark.circle")
                 }
-                .disabled(!model.inboxRows.contains(where: \.isUnread))
+                .disabled(showsUpdates ? model.updatesUnread == 0 : !model.inboxRows.contains(where: \.isUnread))
                 .help("Mark everything shown as read")
             }
         }
@@ -61,12 +63,27 @@ struct InboxPage: View {
         Binding(get: { model.inboxCategory }, set: { category in Task { await model.setInboxCategory(category) } })
     }
 
+    private var showsUpdates: Bool { model.inboxCategory == .updates }
+
+    private func title(of category: Inbox.Category) -> String {
+        guard category == .updates, model.updatesUnread > 0 else { return category.title }
+        return String(localized: "Updates (\(model.updatesUnread))")
+    }
+
     private var subtitle: String {
-        let unread = model.inboxRows.filter(\.isUnread).count
+        let unread = showsUpdates ? model.updatesUnread : model.inboxRows.filter(\.isUnread).count
         return unread > 0 ? String(localized: "\(unread) unread") : ""
     }
 
     @ViewBuilder private var content: some View {
+        if showsUpdates {
+            UpdatesList(model: model)
+        } else {
+            notifications
+        }
+    }
+
+    @ViewBuilder private var notifications: some View {
         switch model.inboxStatus {
         case .idle, .loading:
             ProgressView().controlSize(.large)
@@ -107,6 +124,7 @@ struct InboxPage: View {
         case .mentions: return String(localized: "No Mentions")
         case .directMessages: return String(localized: "No Direct Messages")
         case .threads: return String(localized: "No Thread Updates")
+        case .updates: return String(localized: "No Updates")
         }
     }
 
@@ -297,6 +315,138 @@ extension Inbox.Category {
         case .mentions: String(localized: "Mentions")
         case .directMessages: String(localized: "DMs")
         case .threads: String(localized: "Threads")
+        case .updates: String(localized: "Updates")
+        }
+    }
+}
+
+/// What the workspace's other modules told the person (D-286), in a list of its own: a sentence about the module's subject, who did
+/// it, and when. This app has no screen for those subjects, so opening one reads it and takes the person to its page in the browser.
+private struct UpdatesList: View {
+    let model: AppModel
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        switch model.updatesStatus {
+        case .idle, .loading:
+            ProgressView().controlSize(.large)
+        case .failed:
+            ContentUnavailableView {
+                Label("Could Not Load Updates", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text("Check your connection and try again.")
+            } actions: {
+                Button("Try Again") { Task { await model.reloadUpdates() } }
+                    .buttonStyle(.glassProminent)
+            }
+        case .loaded:
+            if model.updateRows.isEmpty {
+                ContentUnavailableView {
+                    Label("No Updates", systemImage: "tray")
+                } description: {
+                    Text("What the workspace’s other parts tell you is listed here.")
+                }
+            } else {
+                list
+            }
+        }
+    }
+
+    private var list: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(model.updateRows) { row in
+                    UpdateRowView(model: model, row: row) {
+                        Task {
+                            if let url = await model.openUpdate(row) { openURL(url) }
+                        }
+                    }
+                }
+                if model.updatesHaveMore {
+                    Button {
+                        Task { await model.loadMoreUpdates() }
+                    } label: {
+                        HStack {
+                            if model.updatesLoadingMore { ProgressView().controlSize(.small) }
+                            Text(model.updatesLoadingMore ? "Loading…" : "Load More")
+                        }
+                    }
+                    .buttonStyle(.glass)
+                    .disabled(model.updatesLoadingMore)
+                    .padding(Spacing.space4)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(maxWidth: Size.sizeFeedMax)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollIndicators(.automatic)
+    }
+}
+
+private struct UpdateRowView: View {
+    let model: AppModel
+    let row: InboxUpdateRow
+    let open: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: open) {
+            HStack(alignment: .top, spacing: Spacing.space3) {
+                Circle()
+                    .fill(row.isUnread ? Colors.accent.style : NativePalette.canvas.style)
+                    .frame(width: Size.sizeDot, height: Size.sizeDot)
+                    .padding(.top, Spacing.space3)
+                    .accessibilityHidden(true)
+                Avatar(user: actor, size: Size.sizeAvatarLg)
+                VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
+                    HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
+                        Text(Words.updateHeadline(row, who: actor?.displayName))
+                            .typeStyle(Typography.body)
+                            .fontWeight(row.isUnread ? .semibold : .regular)
+                            .foregroundStyle(row.isUnread ? NativePalette.ink.style : NativePalette.secondary.style)
+                            .lineLimit(1)
+                        Spacer(minLength: Spacing.space2)
+                        Text(row.at.date, style: Calendar.current.isDateInToday(row.at.date) ? .time : .date)
+                            .typeStyle(Typography.caption)
+                            .foregroundStyle(NativePalette.secondary.style)
+                    }
+                    if let title = row.title {
+                        Text(title).typeStyle(Typography.body)
+                            .foregroundStyle(row.isUnread ? NativePalette.ink.style : NativePalette.secondary.style)
+                            .lineLimit(2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, Spacing.space4)
+            .padding(.vertical, Spacing.space3)
+            .background(hovering ? NativePalette.hover.style : NativePalette.canvas.style)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(NativePalette.divider.style).frame(height: Stroke.strokeHairline)
+                .padding(.leading, Spacing.space4 * 2 + Size.sizeAvatarLg + Size.sizeDot)
+        }
+        .onContinuousHover { phase in
+            if case .active = phase { hovering = true } else { hovering = false }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: Text("Mark Read")) { Task { await model.markUpdateRead(row.id) } }
+    }
+
+    private var actor: User? { row.actor.flatMap { model.person($0) } }
+}
+
+extension Words {
+    /// Who and what: "Ada assigned an issue to you"; a kind this app does not know is said by its module's name.
+    static func updateHeadline(_ row: InboxUpdateRow, who: String?) -> String {
+        let name = who ?? String(localized: "Somebody")
+        switch row.kind {
+        case .issueAssigned: return String(localized: "\(name) assigned an issue to you")
+        case .other(let module): return String(localized: "\(module) has an update for you")
         }
     }
 }

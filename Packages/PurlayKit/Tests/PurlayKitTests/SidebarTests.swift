@@ -22,7 +22,7 @@ struct SidebarTests {
             {"id":"\(channel(n))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":\(nameText),"topic":null,"type":"\(type)",\
             "lastMessageAt":\(last.map { "\"\($0)\"" } ?? "null"),\
             "state":\(joined ? #"{"lastReadMessageId":null,"unreadCount":0,"unreadMentionCount":0}"# : "null"),"notificationLevel":"mentions",\
-            "starred":\(starred),"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
+            "starred":\(starred),"sidebarGroupId":null,"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
             """
         guard let channel = try? JSONDecoder().decode(Channel.self, from: Data(text.utf8)) else {
             preconditionFailure("channel")

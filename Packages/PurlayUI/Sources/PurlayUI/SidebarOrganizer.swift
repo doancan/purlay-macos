@@ -12,7 +12,7 @@ struct SidebarOrganizer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.space4) {
             SheetHeading(
-                title: "Organize Sidebar", subtitle: "Keep related conversations together on this Mac.",
+                title: "Organize Sidebar", subtitle: "Keep related conversations together, on every device you use.",
                 image: "sidebar.left")
             HStack {
                 TextField(editing == nil ? "New group name" : "Group name", text: $name)
@@ -30,7 +30,7 @@ struct SidebarOrganizer: View {
                 }
             }
             if invalid {
-                Text("Use a unique group name of 1–60 characters.")
+                Text("Use a unique group name of 1–64 characters.")
                     .font(.callout).foregroundStyle(Colors.dangerText.style)
             }
             List {
@@ -38,7 +38,10 @@ struct SidebarOrganizer: View {
                     HStack(spacing: Spacing.space2) {
                         VStack(alignment: .leading) {
                             Text(Words.header(section.kind)).fontWeight(.medium)
-                            Text("\(section.channels.count) conversations").font(.caption).foregroundStyle(.secondary)
+                            Text(
+                                section.channels.count == 1
+                                    ? "1 conversation" : "\(section.channels.count) conversations"
+                            ).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         if case .custom(let id, let name) = section.kind {
@@ -49,7 +52,7 @@ struct SidebarOrganizer: View {
                             }
                             .labelStyle(.iconOnly)
                             Button("Remove Group \(name)", systemImage: "trash", role: .destructive) {
-                                model.removeSidebarGroup(id)
+                                Task { await model.removeSidebarGroup(id) }
                                 if editing == id {
                                     editing = nil
                                     self.name = ""
@@ -85,12 +88,14 @@ struct SidebarOrganizer: View {
     }
 
     private func save() {
-        if model.saveSidebarGroup(editing, name: name) {
-            name = ""
-            editing = nil
-            invalid = false
-        } else {
-            invalid = true
+        Task {
+            if await model.saveSidebarGroup(editing, name: name) {
+                name = ""
+                editing = nil
+                invalid = false
+            } else {
+                invalid = true
+            }
         }
     }
 }

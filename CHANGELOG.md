@@ -4,7 +4,9 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
-Requires a Purlay server 0.2.0 or later.
+## [0.2.0] — 2026-11-10
+
+Requires a Purlay server 0.5.0 or later (0.6.1 is current).
 
 ### New
 
@@ -15,12 +17,19 @@ Requires a Purlay server 0.2.0 or later.
 - **Search filters and saved searches.** Filter by thread status, code or files, marked questions, repository and dates; save searches with a name, then run, rename or delete them.
 - **Reaction limit.** You can put at most three different reactions on one message; Purlay says so instead of sending a fourth, and removing one makes room.
 - **GitHub work and webhooks.** Issues and pull requests linked to a thread appear as chips, and messages posted by incoming webhooks show the hook's name.
+- **Issues.** A native page for the workspace's issues: open and done lists, make an issue with details, give it to somebody, finish or reopen it, and delete it. Search also finds issues. It appears where the server runs the issues module.
+- **Inbox updates.** A new Updates tab lists what the workspace's other modules tell you, such as an issue assigned to you, with a count of what waits. Opening one reads it and takes you to the issue.
+- **Groups that follow you.** The groups in your sidebar are now kept by the server, so every Mac and the web show the same ones, and a folded group stays folded. Groups you made on this Mac are sent to the server once.
+- **Set Yourself Away.** Say you are away from the account menu; people who are away no longer show as available.
+- **Link previews.** A link in a message shows a card with the page's title, description and real host. Cards are fetched by your server, and a picture is shown only when your server serves it.
+- **Workspaces without chat.** A workspace whose server does not run chat now says so, and offers the browser, instead of showing an empty window.
 
 ### Improved
 
 - Clear guidance when your server requires two-step verification, and a warning when a workspace you belong to is scheduled for deletion.
 - Settings explains where your display name comes from and how to change it.
-- A server older than 0.2.0 is now named as too old at sign-in instead of failing later.
+- A server older than 0.5.0 is now named as too old at sign-in instead of failing later.
+- Sign-in methods added by newer servers, such as Google, no longer stop the handshake.
 
 ## [0.1.1] — 2026-10-28
 

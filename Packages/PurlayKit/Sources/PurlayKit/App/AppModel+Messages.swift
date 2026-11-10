@@ -108,6 +108,7 @@ extension AppModel {
     public func showChannel(_ channelID: Uuid) async {
         inboxOpen = false
         unresolvedOpen = false
+        issuesOpen = false
         await open(channelID)
     }
 

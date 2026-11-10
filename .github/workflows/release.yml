@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone https://github.com/doancan/purlay.git "$RUNNER_TEMP/server"
-          git -C "$RUNNER_TEMP/server" checkout 75de80783b4a7ab8db35d94d6d3e44f5f7d9c31b
+          git -C "$RUNNER_TEMP/server" checkout a11edc1f106dbb79e1fc509ef2027991c9f08ce6
           (cd "$RUNNER_TEMP/server" && bun install --frozen-lockfile && bun run contract:bundle --out "$GITHUB_WORKSPACE/Contract/bundle")
           scripts/contract verify
       - name: Check architecture and test packages

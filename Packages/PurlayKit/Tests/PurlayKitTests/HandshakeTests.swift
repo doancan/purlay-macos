@@ -8,14 +8,14 @@ import Testing
 struct HandshakeTests {
     private func info(
         contract: Int = 1, minContract: Int? = 1, minApp: String? = "0.1.0",
-        appUrl: String = "https://chat.example.com", server: String = "0.2.0"
+        appUrl: String = "https://chat.example.com", server: String = "0.6.1"
     ) throws -> ClientInfo {
         let minimum = """
             {"appVersion":\(minApp.map { "\"\($0)\"" } ?? "null"),"contractVersion":\(minContract.map(String.init) ?? "null"),"downloadUrl":null}
             """
         let text = """
             {"server":{"version":"\(server)"},"contractVersion":\(contract),"appUrl":"\(appUrl)",
-             "minClient":{"macos":\(minimum)},"auth":{"email":true,"github":true,"oidc":null,"password":true,"signUp":"invite-only"}}
+             "minClient":{"macos":\(minimum)},"auth":{"email":true,"github":true,"google":false,"oidc":null,"password":true,"signUp":"invite-only"}}
             """
         return try JSONDecoder().decode(ClientInfo.self, from: Data(text.utf8))
     }
@@ -94,11 +94,11 @@ struct HandshakeTests {
 
     @Test("a server older than the oldest this build reads is refused, and one it cannot read the version of is not")
     func serverBelowMinimum() throws {
-        guard case .serverTooOld = outcome(try info(server: "0.1.9")) else {
-            Issue.record("a 0.1 server was served though its channels lack required fields")
+        guard case .serverTooOld = outcome(try info(server: "0.4.9")) else {
+            Issue.record("a 0.4 server was served though its channels lack required fields")
             return
         }
-        guard case .ready = outcome(try info(server: "0.2.0")) else {
+        guard case .ready = outcome(try info(server: "0.5.0")) else {
             Issue.record("the minimum itself was refused")
             return
         }

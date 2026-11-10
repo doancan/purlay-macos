@@ -18,7 +18,7 @@ struct AttentionTests {
         let state = joined ? #"{"lastReadMessageId":null,"unreadCount":7,"unreadMentionCount":\#(mentions)}"# : "null"
         let text = """
             {"id":"\(channel(n))","workspaceId":"0199155c-6200-7b7f-8c11-0000000000aa","name":\(nameText),"topic":null,"type":"\(type)",\
-            "lastMessageAt":null,"state":\(state),"notificationLevel":"\(level)","starred":false,"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
+            "lastMessageAt":null,"state":\(state),"notificationLevel":"\(level)","starred":false,"sidebarGroupId":null,"incident":null,"peer":null,"peers":\(peers),"memberCount":1,"codeRepository":null,"onlyAdminsPost":false}
             """
         return FakeServer.decoded(Channel.self, text)
     }

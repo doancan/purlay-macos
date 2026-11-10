@@ -17,7 +17,7 @@ struct MentionCandidatesTests {
             codeRepository: nil, id: Uuid("00000000-0000-4000-8000-0000000000c1")!, incident: nil,
             lastMessageAt: nil, memberCount: 0,
             name: "c", notificationLevel: nil, onlyAdminsPost: false,
-            peer: nil, peers: peers, starred: false, state: nil, topic: nil, type: type,
+            peer: nil, peers: peers, sidebarGroupId: nil, starred: false, state: nil, topic: nil, type: type,
             workspaceId: Uuid("00000000-0000-4000-8000-0000000000d1")!)
     }
 

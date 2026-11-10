@@ -10,20 +10,26 @@ extension AppModel {
     public func openInbox() async {
         navigationGeneration += 1
         unresolvedOpen = false
+        issuesOpen = false
         inboxOpen = true
         await reloadInbox()
+        await reloadUpdates()
     }
 
     /// All, or Unread: asked of the server each time, so what waits is found however old, and a row that was read while looking is gone.
     public func setInboxFilter(_ filter: InboxFilter) async {
         inboxFilter = filter
-        await reloadInbox()
+        if inboxCategory == .updates { await reloadUpdates() } else { await reloadInbox() }
     }
 
     /// A category starts a new server-filtered page sequence, preserving the independent unread selection.
     public func setInboxCategory(_ category: Inbox.Category) async {
         inboxCategory = category
-        await reloadInbox()
+        if category == .updates {
+            await reloadUpdates()
+        } else {
+            await reloadInbox()
+        }
     }
 
     private func reloadInbox() async {
@@ -145,5 +151,6 @@ extension AppModel {
         inboxNotes = []
         inboxCursor = nil
         inboxRows = []
+        clearUpdates()
     }
 }

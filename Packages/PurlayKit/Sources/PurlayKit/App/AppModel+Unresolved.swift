@@ -7,6 +7,7 @@ extension AppModel {
     public func openUnresolved() async {
         navigationGeneration += 1
         inboxOpen = false
+        issuesOpen = false
         unresolvedOpen = true
         closeThread()
         await loadUnresolved()
