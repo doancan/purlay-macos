@@ -33,6 +33,9 @@ struct ComposerView: View {
         _state = State(initialValue: state)
     }
 
+    /// Only the channel's own box answers a call for the keyboard: a reply box and an edit box are taken by being pressed.
+    private var answersFocusRequests: Bool { parent == nil && !compact }
+
     private var canSend: Bool { model.canSend(text: state.text, channel: channel, parent: parent) }
     @State private var dropping = false
     private var over: Bool { ComposerText.unitsOver(state.text) > 0 }
@@ -50,6 +53,9 @@ struct ComposerView: View {
             }
             card
             if !compact && showHints { hints }
+        }
+        .onChange(of: model.composerFocus) { _, request in
+            if answersFocusRequests { state.focusAndType?(request.typeAhead) }
         }
         .padding(.horizontal, Spacing.space4)
         .padding(.top, Spacing.space2)

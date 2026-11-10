@@ -66,9 +66,16 @@ struct MessageRow: View {
             if case .active = phase { hovering = true } else { hovering = false }
         }
         .onChange(of: picking) { _, open in if !open { hovering = false } }
+        .onChange(of: model.reactionPickerTarget) { _, target in
+            guard target == message.id, !deleted, !editing else { return }
+            picking = true
+            model.reactionPickerTarget = nil
+        }
         .onChange(of: activeState) { _, state in if state != .key { hovering = false } }
         .contextMenu { menu }
-        .accessibilityElement(children: .combine)
+        // The row holds things that are pressed (a reaction, a thread, a file, the box an edit is written in): each stays an element
+        // of its own. Only who and when are read as one.
+        .accessibilityElement(children: .contain)
         .accessibilityAddTraits(keyboard ? .isSelected : [])
         .accessibilityActions { accessibilityActions }
     }
@@ -92,6 +99,10 @@ struct MessageRow: View {
     }
 
     private var header: some View {
+        headerContent.accessibilityElement(children: .combine)
+    }
+
+    private var headerContent: some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
             Text(message.webhookName ?? message.sender?.displayName ?? String(localized: "Purlay"))
                 .typeStyle(Typography.heading)

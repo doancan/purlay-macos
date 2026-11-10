@@ -150,6 +150,10 @@ struct SearchSheet: View {
     @State private var saving = false
     @State private var renaming: SavedSearch?
     @State private var renamingName = ""
+    @State private var deleting: SavedSearch?
+    /// What the "In" and "From" pickers offer, put in order once and again only when the workspace's people or channels change: not
+    /// at every key typed, and in the person's own language's order (Çağlar before Zeynep, not after).
+    @State private var scope = SearchScope()
     @State private var savedFailure: SavedSearchFailure?
 
     var body: some View {
@@ -184,9 +188,7 @@ struct SearchSheet: View {
                         })
                 ) {
                     Text("All conversations").tag(nil as Uuid?)
-                    ForEach(
-                        model.chat.channels.values.sorted { Words.channelLabel($0) < Words.channelLabel($1) }, id: \.id
-                    ) { channel in
+                    ForEach(scope.channels, id: \.id) { channel in
                         Text(Words.channelLabel(channel)).tag(Optional(channel.id))
                     }
                 }
@@ -202,7 +204,7 @@ struct SearchSheet: View {
                         })
                 ) {
                     Text("Anyone").tag(nil as Uuid?)
-                    ForEach(model.workspacePeople.sorted { $0.displayName < $1.displayName }, id: \.id) { person in
+                    ForEach(scope.people, id: \.id) { person in
                         Text(person.displayName).tag(Optional(person.id))
                     }
                 }
@@ -238,6 +240,19 @@ struct SearchSheet: View {
             Button("Rename") { rename(saved) }
                 .disabled(renamingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) {}
+        }
+        .task(id: SearchScope.Signature(channels: model.chat.channels.count, people: model.workspacePeople.count)) {
+            scope = SearchScope(channels: Array(model.chat.channels.values), people: model.workspacePeople)
+        }
+        .alert(
+            "Delete This Saved Search?",
+            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            presenting: deleting
+        ) { saved in
+            Button("Delete", role: .destructive) { delete(saved) }
+            Button("Cancel", role: .cancel) {}
+        } message: { saved in
+            Text("“\(saved.name)” will be removed from every device. Its words and filters cannot be brought back.")
         }
         .padding(Spacing.space4)
         .frame(
@@ -393,7 +408,7 @@ struct SearchSheet: View {
                                     renamingName = saved.name
                                     renaming = saved
                                 }
-                                Button("Delete", role: .destructive) { delete(saved) }
+                                Button("Delete", role: .destructive) { deleting = saved }
                             }
                         }
                     }
@@ -519,5 +534,25 @@ private struct ResultRow: View {
             Text(message.content).lineLimit(3)
         }
         .padding(.vertical, 3)
+    }
+}
+
+/// The channels and people the search filters offer, in the order of the person's language.
+struct SearchScope {
+    struct Signature: Hashable {
+        let channels: Int
+        let people: Int
+    }
+
+    var channels: [Channel] = []
+    var people: [User] = []
+
+    init() {}
+
+    init(channels: [Channel], people: [User]) {
+        self.channels = channels.sorted {
+            Words.channelLabel($0).localizedStandardCompare(Words.channelLabel($1)) == .orderedAscending
+        }
+        self.people = people.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 }

@@ -63,12 +63,33 @@ extension AppModel {
     public func dismissTopmost() -> Bool {
         if editing != nil {
             endEdit()
+            requestComposerFocus()
             return true
         }
         if thread != nil {
             closeThread()
+            requestComposerFocus()
             return true
         }
         return false
     }
+
+    /// Asks for the reaction picker of the message the keyboard is on, or of `message`: the row that is that message opens it and
+    /// clears the request. A message that is not shown asks nothing.
+    public func requestReactionPicker(for message: Uuid? = nil) {
+        guard let target = message ?? keyboardFocus else { return }
+        reactionPickerTarget = target
+    }
+
+    /// Gives the keyboard to the channel's message box, with what was typed on the way (a key pressed in the feed is a message begun).
+    /// Each request is a new `serial`, so asking twice is two requests, and the box sees each one.
+    public func requestComposerFocus(typing: String = "") {
+        composerFocus = ComposerFocusRequest(serial: composerFocus.serial + 1, typeAhead: typing)
+    }
+}
+
+/// A call for the message box to take the keyboard, and the characters that were typed before it did.
+public struct ComposerFocusRequest: Equatable, Sendable {
+    public var serial = 0
+    public var typeAhead = ""
 }

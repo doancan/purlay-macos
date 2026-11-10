@@ -23,6 +23,8 @@ final class ComposerState {
     var replaceAll: ((String) -> Void)?
     /// Set by the composer view: shows or hides the preview, as its button does.
     var togglePreview: (() -> Void)?
+    /// Set by the text view: takes the keyboard, and writes what was typed on the way to it at the caret.
+    var focusAndType: ((String) -> Void)?
     /// The box has the keyboard: the composer draws its edge in the accent while it does.
     var isFocused = false
     /// Writing Tools is rewriting or composing in the box: what is there is not final, so it is not sent.
@@ -181,6 +183,11 @@ struct ComposerTextView: NSViewRepresentable {
                 NSApp.orderFrontCharacterPalette(nil)
             }
             state.choose = { [weak self] user in self?.choose(user) }
+            state.focusAndType = { [weak self] typed in
+                guard let view = self?.view else { return }
+                view.window?.makeFirstResponder(view)
+                if !typed.isEmpty { view.insertText(typed, replacementRange: NSRange(location: NSNotFound, length: 0)) }
+            }
             state.replaceAll = { [weak self] text in self?.set(text) }
         }
 

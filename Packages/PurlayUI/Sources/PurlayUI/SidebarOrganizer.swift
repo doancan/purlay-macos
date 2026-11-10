@@ -38,10 +38,7 @@ struct SidebarOrganizer: View {
                     HStack(spacing: Spacing.space2) {
                         VStack(alignment: .leading) {
                             Text(Words.header(section.kind)).fontWeight(.medium)
-                            Text(
-                                section.channels.count == 1
-                                    ? "1 conversation" : "\(section.channels.count) conversations"
-                            ).font(.caption).foregroundStyle(.secondary)
+                            Text("\(section.channels.count) conversations").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         if case .custom(let id, let name) = section.kind {

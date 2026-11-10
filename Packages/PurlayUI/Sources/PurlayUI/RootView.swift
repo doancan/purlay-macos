@@ -39,7 +39,7 @@ public struct RootView: View {
         .transition(.opacity)
         // Each phase fades into the next instead of cutting: connecting, signing in, loading, the workspace.
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep), value: phaseKey)
-        .frame(minWidth: 520, minHeight: 360)
+        .frame(minWidth: 640, minHeight: 420)
         // One accent: the system's prominent buttons, selections and toggles take the brand's blue, as the token views do.
         .tint(Colors.accent.color)
         .modifier(AppearancePreference())

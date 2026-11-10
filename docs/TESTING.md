@@ -10,6 +10,7 @@ How this repository is tested, and what has been ported from the web client's te
 | Contract types | `Packages/PurlayContract/Tests` | `swift test` — every schema is read from an example built out of itself and written back unchanged |
 | Kit (transport, auth, realtime) | `Packages/PurlayKit/Tests`, `Packages/PurlayTestSupport/Tests` | `swift test` — against a scripted transport and a scripted socket |
 | Contract tests | `Tests/ContractTests` | `scripts/contract-test` — the real client against a real server of the pinned version: the handshake, every read the contract lists, the socket (open, subscribe, live frames, send, replay after a drop, refused upgrades), and the sign-in as the application, end to end |
+| Languages | `scripts/localize --check` | every string of `Localizable.xcstrings` has a final Turkish value with the same format specifiers |
 | Whole | `scripts/verify` | everything above, the architecture rules, the build of the app in both configurations |
 
 Tests are written to the behaviour a document states and the contract's own fixtures, not to the implementation. Faults are

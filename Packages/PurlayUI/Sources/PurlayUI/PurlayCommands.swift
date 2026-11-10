@@ -129,6 +129,18 @@ public struct PurlayCommands: Commands {
     @ViewBuilder private var messageItems: some View {
         if model.supportsReminders { Button("Remind Me…") { model.reminderTarget = message }.disabled(message == nil) }
 
+        let resolved = model.threadRoot?.thread?.resolvedAt != nil
+        Button(resolved ? "Reopen Thread" : "Resolve Thread") {
+            Task { _ = resolved ? await model.reopenThread() : await model.resolveThread() }
+        }
+        .keyboardShortcut("r", modifiers: [.command, .shift])
+        .disabled(model.thread == nil)
+        Button("Add Reaction…") { model.requestReactionPicker() }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(message == nil)
+        Button("Focus Message Box") { model.requestComposerFocus() }
+            .keyboardShortcut("l", modifiers: .command)
+            .disabled(channel == nil)
         let message = message
         let mine = message.map { $0.sender?.id == model.me?.user.id } ?? false
         Button("Reply in Thread") { if let message { Task { await model.openThread(message) } } }

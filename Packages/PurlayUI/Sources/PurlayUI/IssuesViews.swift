@@ -25,7 +25,7 @@ struct IssuesPage: View {
                 .fixedSize()
                 Spacer()
                 Button("New Issue", systemImage: "plus") { creating = true }
-                    .keyboardShortcut("n", modifiers: [.command, .option])
+                    .keyboardShortcut("n", modifiers: [.command, .control])
             }
             .padding(Spacing.space4)
             Divider()
@@ -95,6 +95,7 @@ private struct IssueRow: View {
     let model: AppModel
     let issue: Issue
     @State private var hovering = false
+    @State private var confirmingDelete = false
 
     private var done: Bool { issue.status == .done }
     private var assignee: User? { issue.assigneeId.flatMap { model.person($0) } }
@@ -154,9 +155,7 @@ private struct IssueRow: View {
                 }
             }
             if mayDelete {
-                Button("Delete Issue", systemImage: "trash", role: .destructive) {
-                    Task { await model.deleteIssue(issue) }
-                }
+                Button("Delete Issue", systemImage: "trash", role: .destructive) { confirmingDelete = true }
             }
         }
         .accessibilityElement(children: .combine)
@@ -165,7 +164,13 @@ private struct IssueRow: View {
         }
         .accessibilityAction(named: Text("Assign To Nobody")) { Task { await model.assignIssue(issue, to: nil) } }
         .accessibilityAction(named: Text("Delete Issue")) {
-            if mayDelete { Task { await model.deleteIssue(issue) } }
+            if mayDelete { confirmingDelete = true }
+        }
+        .confirmationDialog("Delete this issue?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete Issue", role: .destructive) { Task { await model.deleteIssue(issue) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("“\(issue.title)” is removed for everybody in the workspace. This can’t be undone.")
         }
     }
 }
