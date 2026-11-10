@@ -12,6 +12,7 @@ public enum WebPage: Hashable, Sendable {
     case workspace
     case integrations
     case server
+    case issues
     case audit
     case data
     case channel(Uuid)
@@ -28,6 +29,7 @@ public enum WebPage: Hashable, Sendable {
         case .workspace: "settings/general"
         case .integrations: "settings/integrations"
         case .server: "settings/server"
+        case .issues: "issues"
         case .audit: "settings/audit"
         case .data: "settings/data"
         case .channel(let id): "c/\(id.value)"

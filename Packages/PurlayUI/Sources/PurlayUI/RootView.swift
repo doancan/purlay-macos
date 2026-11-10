@@ -32,7 +32,8 @@ public struct RootView: View {
             case .signedOut: SignInView(model: model, busy: false)
             case .signingIn: SignInView(model: model, busy: true)
             case .loading: CheckingView(label: String(localized: "Loading your workspace…"))
-            case .ready: MainView(model: model)
+            case .ready:
+                if model.chatAvailable { MainView(model: model) } else { ChatOffView(model: model) }
             }
         }
         .transition(.opacity)
@@ -43,5 +44,27 @@ public struct RootView: View {
         .tint(Colors.accent.color)
         .modifier(AppearancePreference())
         .focusedSceneValue(\.purlayModel, model)
+    }
+}
+
+/// A workspace that has no chat: the app is made for chat and has nothing else to show, so it says so and offers the browser.
+struct ChatOffView: View {
+    let model: AppModel
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Chat Isn’t Turned On", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+        } description: {
+            Text(
+                "This workspace doesn’t have chat. Ask whoever runs the server to turn it on, or open the workspace in your browser."
+            )
+        } actions: {
+            if let url = model.webURL(.workspace) {
+                Button("Open in Browser") { openURL(url) }.buttonStyle(.glassProminent)
+            }
+            Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

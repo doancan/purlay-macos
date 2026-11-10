@@ -20,7 +20,7 @@
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/workspace-dark.png">
   <img src="docs/images/workspace-light.png" alt="Purlay workspace with channels, team conversations, emoji reactions, and the message composer" width="100%">
 </picture>
-<p align="center"><sub>Purlay 0.1.1 · Native macOS interface · Example workspace</sub></p>
+<p align="center"><sub>Purlay 0.2.0 · Native macOS interface · Example workspace</sub></p>
 
 ## Conversations, without losing your place
 

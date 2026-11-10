@@ -123,3 +123,25 @@ Both actions require an explicit choice in the same confirmation dialog, and fai
 ## Release notes
 
 `CHANGELOG.md` is the source for both GitHub and Sparkle release notes. Before tagging a version, add its entry and update `MARKETING_VERSION`. The release workflow runs `scripts/release-notes VERSION dist`, generates self-contained HTML for Sparkle, signs that HTML together with the appcast and archive, verifies all three signatures, and uploads the notes as a release asset. Do not edit signed release assets after publication.
+
+## Server 0.5 and 0.6 features
+
+The contract is pinned to server 0.6.1 and the oldest server this build reads is 0.5.0 (`CompatibleContracts.minimumServer`):
+a channel's `sidebarGroupId` is required from 0.5.0. `GET /api/me` types the server's `modules` and each membership's grant;
+`AppModel.hasModule(_:)` decides what a workspace has, and a module this app does not know is ignored.
+
+- **Updates** (`InboxEntry`, core inbox, `INBOX_UPDATED`): `AppModel+InboxUpdates`. A kind is said by its module and kind; one
+  this app does not know is said by the module's name and only read.
+- **Channel groups** (D-284): the server keeps groups, their folding and each channel's `sidebarGroupId`; this Mac keeps only the
+  order of sections and conversations. Groups an older version kept locally are sent once (`sendLegacyGroups`) and stay on disk
+  until the server has them.
+- **Issues** (D-254): `AppModel+Issues`, `IssuesViews`; search adds the find's issue hits (`findAcrossSources`).
+- **Away** (D-257): `setAway`, and `away` on presence; away people are not shown as available.
+- **Link previews** (D-293): `LinkCandidates` picks the first two public https links outside code; the server fetches them. A
+  picture is used only from the server's own host.
+- **Requests that may send null**: a request property that may be left out and may be null (`UpdateIssueRequest.assigneeId`) is
+  generated as a double optional, so "leave it" and "clear it" are different things to send.
+
+Not done, each blocked or deliberate: followed threads (the contract bundle has the schemas but no endpoint for
+`/followed-threads`, and the generator never takes a wire fact by hand); PDF attachments use Quick Look's own viewer.
+

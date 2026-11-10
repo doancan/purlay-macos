@@ -6,9 +6,9 @@ import PurlayContract
 public enum CompatibleContracts {
     public static let supported: Set<Int> = [ContractConstants.contractVersion]
     /// The oldest server this build reads. Within one contract version a server may make a field required that an older
-    /// one did not send (a channel's `onlyAdminsPost` arrived in 0.2.0); talking to an older one would fail on its first
+    /// one did not send (a channel's `onlyAdminsPost` arrived in 0.2.0, its `sidebarGroupId` in 0.5.0); talking to an older one would fail on its first
     /// list, so it is refused at the handshake with the words for it instead.
-    public static let minimumServer = SemanticVersion(0, 2, 0)
+    public static let minimumServer = SemanticVersion(0, 5, 0)
 }
 
 /// The one header every request and the socket upgrade carries: what the server gates on (D-187).

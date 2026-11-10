@@ -51,6 +51,9 @@ enum Words {
             return String(localized: "You are the last member of this private channel, so you can't leave it.")
         case .starFailed: return String(localized: "Could not change the star. Try again.")
         case .deepWorkFailed: return String(localized: "Could not change Deep Work. Try again.")
+        case .issueFailed: return String(localized: "Could not change that issue. Try again.")
+        case .groupFailed: return String(localized: "Could not change your groups. Try again.")
+        case .awayFailed: return String(localized: "Could not change your away status. Try again.")
         case .saveFailed: return String(localized: "Could not change the save. Try again.")
         case .filesNotRead(let names):
             let list = names.formatted(.list(type: .and))

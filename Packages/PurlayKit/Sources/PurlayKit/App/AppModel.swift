@@ -38,6 +38,9 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case bookmarkFailed
         case unreadFailed
         case deepWorkFailed
+        case awayFailed
+        case groupFailed
+        case issueFailed
         case joinFailed
         case leaveFailed
         case lastMember
@@ -190,6 +193,16 @@ public final class AppModel {
 
     public var inboxOpen = false
     public internal(set) var unresolvedOpen = false
+    public internal(set) var issuesOpen = false
+    public internal(set) var issueFilter: IssueFilter = .open
+    public internal(set) var issuesStatus: InboxStatus = .idle
+    public internal(set) var issueItems: [Issue] = []
+    public internal(set) var issuesLoadingMore = false
+    var issuesCursor: Uuid?
+    /// What the server said of each link of each message, `nil` for a link it had no card for: kept for this session.
+    var linkPreviews: [String: LinkPreviewCard?] = [:]
+    var linkPreviewFailures: [String: Date] = [:]
+    var issuesGeneration = 0
     public internal(set) var unresolvedChannelID: Uuid?
     public internal(set) var unresolvedItems: [Message] = []
     public internal(set) var unresolvedLoading = false
@@ -211,6 +224,16 @@ public final class AppModel {
     public var inboxFiltersLocally: Bool { serverInfo?.capabilities?.notificationTypeFilters != true }
     var inboxGeneration = 0
     public internal(set) var inboxLoadingMore = false
+
+    // MARK: The inbox's updates (D-286)
+
+    public internal(set) var updatesStatus: InboxStatus = .idle
+    public internal(set) var updateRows: [InboxUpdateRow] = []
+    /// Every unread notice of the person's in the workspace, as the server counts them: not the page's.
+    public internal(set) var updatesUnread = 0
+    var updatesCursor: Uuid?
+    var updatesGeneration = 0
+    public internal(set) var updatesLoadingMore = false
 
     // MARK: The keyboard's moves
 
@@ -349,6 +372,8 @@ public final class AppModel {
     /// What the search field opens with, including the space after a channel scope such as `in:design `.
     public internal(set) var searchInput = ""
     public internal(set) var searchResults: [Message] = []
+    /// What the workspace's find says of the words in the issues module, beside the messages (D-285).
+    public internal(set) var searchIssues: [FindHit] = []
     public internal(set) var searchStatus: SearchStatus = .idle
     public internal(set) var focus: Focus?
     var searchCursor: Uuid?
@@ -370,6 +395,7 @@ public final class AppModel {
     var refreshRetry: [Refresh: () -> Void] = [:]
 
     var deepWorkChange = 0
+    var awayChange = 0
 
     public init(_ environment: AppEnvironment, workspaceID: Uuid? = nil) {
         self.environment = environment
@@ -691,6 +717,7 @@ public final class AppModel {
             engine.setChannels(channels)
             attention.prime(channels)
             watchJoined()
+            await loadChannelGroups()
             engine.start()
             sync()
             await refreshPeople()
@@ -783,6 +810,7 @@ public final class AppModel {
     }
 
     private func tearDown() {
+        awayChange += 1
         for window in liveConversationWindows {
             // Only the session owner stops the connection and clears shared state.
             window.sessionOwner = nil
@@ -816,6 +844,9 @@ public final class AppModel {
         problems = ProblemLog()
         clearInbox()
         clearUnresolved()
+        clearIssues()
+        linkPreviews = [:]
+        linkPreviewFailures = [:]
         uploadBytes = [:]
         attachmentCache = [:]
         attachmentCacheOrder = []

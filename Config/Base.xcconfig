@@ -1,7 +1,7 @@
 // Keep the released bundle identifier stable for Keychain and Sparkle update continuity.
 PRODUCT_BUNDLE_IDENTIFIER = dev.purlay.mac
 PRODUCT_NAME = Purlay
-MARKETING_VERSION = 0.1.1
+MARKETING_VERSION = 0.2.0
 CURRENT_PROJECT_VERSION = 1
 MACOSX_DEPLOYMENT_TARGET = 26.0
 ARCHS = arm64

@@ -176,6 +176,47 @@ struct GeneratorTests {
         #expect(text.contains("case unlisted(statusTag: String, payload: JSONValue)"))
     }
 
+    @Test("a map of plain values of several kinds, written inline, holds the JSON they are")
+    func inlineScalarUnion() throws {
+        let text = try models(
+            #"""
+            "Thing":{"type":"object","required":["params"],"properties":{
+              "params":{"type":"object","patternProperties":{"^(.*)$":{"anyOf":[
+                {"type":"string"},{"type":"number"},{"type":"boolean"},{"type":"null"}]}}}}}
+            """#)
+        #expect(text.contains("public var params: [String: JSONValue]"))
+    }
+
+    @Test("a value the server spells unknown keeps its name, and a value this client was not built for is unlisted")
+    func unknownLiteral() throws {
+        let text = try models(
+            #"""
+            "Status":{"anyOf":[{"const":"queued","type":"string"},{"const":"unknown","type":"string"}]}
+            """#)
+        #expect(text.contains("case unlisted(String)"))
+        #expect(text.contains("default: self = .unlisted(rawValue)"))
+        #expect(text.contains("case .unlisted(let value): return value"))
+    }
+
+    @Test("a shape with nothing in it is still written as an object")
+    func emptyShape() throws {
+        let text = try models(#""Nothing":{"type":"object","properties":{}}"#)
+        #expect(text.contains("private enum CodingKeys: CodingKey {}"))
+        #expect(text.contains("_ = encoder.container(keyedBy: CodingKeys.self)"))
+    }
+
+    @Test("a request's property that may be left out and may be null can be sent as null")
+    func nullableRequestProperty() throws {
+        let text = try models(
+            #"""
+            "ChangeRequest":{"type":"object","properties":{"topic":{"anyOf":[{"type":"string"},{"type":"null"}]}}},
+            "Answer":{"type":"object","properties":{"topic":{"anyOf":[{"type":"string"},{"type":"null"}]}}}
+            """#)
+        #expect(text.contains("public var topic: String??"))
+        #expect(text.contains("if let inner = self.topic"))
+        #expect(text.contains("public var topic: String?\n"), "only a request needs the difference")
+    }
+
     @Test("an optional text constant is an enumeration of its one value")
     func optionalConstant() throws {
         let text = try models(

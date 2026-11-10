@@ -21,6 +21,8 @@ final class Resolver {
         "ChannelRetentionFloor"
     ]
 
+    private static let plainKinds: Set<String> = ["string", "integer", "number", "boolean"]
+
     /// What a schema that is only `null` resolves to, before it is merged with its other variants.
     private static let onlyNull = "∅"
 
@@ -106,6 +108,15 @@ final class Resolver {
             if let wider = widest(of: present) {
                 let inner = try resolve(wider, hint: hint, nested: &nested)
                 return Resolved(type: inner.type, nullable: nullable || inner.nullable)
+            }
+            // Plain values of several JSON kinds, written inline and not named, are read as the JSON they are: there is
+            // no name to give a union nobody refers to, and a reader of the value asks for the kind it wants.
+            if Set(present.compactMap(\.kind)).count == present.count,
+                present.allSatisfy({
+                    $0.reference == nil && $0.constant == nil && Self.plainKinds.contains($0.kind ?? "")
+                })
+            {
+                return Resolved(type: "JSONValue", nullable: false)
             }
             let declaration = try union(name: try nestedName(hint, in: nested), members: present)
             nested.append(declaration)

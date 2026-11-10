@@ -9,7 +9,7 @@ import Testing
 @Suite("HandshakeClient")
 struct HandshakeClientTests {
     private let body = """
-        {"server":{"version":"0.2.0"},"contractVersion":1,"appUrl":"https://chat.example.com",
+        {"server":{"version":"0.6.1"},"contractVersion":1,"appUrl":"https://chat.example.com",
          "minClient":{"macos":{"appVersion":"0.1.0","contractVersion":1,"downloadUrl":null}},
          "auth":{"email":true,"github":true,"signUp":"invite-only"}}
         """
@@ -31,7 +31,7 @@ struct HandshakeClientTests {
             Issue.record("not ready: \(outcome)")
             return
         }
-        #expect(info.server.version == "0.2.0")
+        #expect(info.server.version == "0.6.1")
         #expect(info.capabilities == nil)
         #expect(origin.description == "https://chat.example.com")
         let request = try #require(await transport.requests.first)
@@ -79,6 +79,17 @@ struct HandshakeClientTests {
         let malformed = body.replacingOccurrences(of: #""github":true"#, with: #""github":true,"oidc":false"#)
         let (client, _) = client([ScriptedTransport.json(200, malformed)])
         await #expect(throws: HandshakeError.notAPurlayServer) { _ = try await client.perform(address) }
+    }
+
+    @Test("a server that predates Google sign-in omits it, and is read as offering none")
+    func googleCompatibility() async throws {
+        #expect(!body.contains(#""google""#), "the fixture is the older shape")
+        let (client, _) = client([ScriptedTransport.json(200, body)])
+        guard case .ready(let info, _) = try await client.perform(address) else {
+            Issue.record("a handshake without auth.google was refused")
+            return
+        }
+        #expect(info.auth.google == false)
     }
 
     @Test(

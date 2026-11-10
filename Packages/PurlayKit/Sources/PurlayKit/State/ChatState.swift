@@ -28,6 +28,8 @@ public enum Refresh: Sendable, Hashable {
     case reminders(workspace: Uuid)
     case saved(workspace: Uuid)
     case notifications(workspace: Uuid)
+    /// The notices the workspace's other modules wrote to this person (D-286).
+    case inbox(workspace: Uuid)
     case incident(channel: Uuid)
     case versions(channel: Uuid, message: Uuid)
     case thread(root: Uuid)
@@ -49,6 +51,8 @@ public struct ChatState: Sendable, Equatable {
 
     public struct Presence: Sendable, Equatable {
         public let online: Bool
+        /// Connected but idle for a while, or set so by the person (D-257): here, though not to be waited on.
+        public let away: Bool
         public let version: Int
     }
 
@@ -197,7 +201,7 @@ public struct ChatState: Sendable, Equatable {
 
         case .presence(let heard):
             for change in heard.data.changes where change.version > (presence[change.userId]?.version ?? -1) {
-                presence[change.userId] = Presence(online: change.online, version: change.version)
+                presence[change.userId] = Presence(online: change.online, away: change.away, version: change.version)
             }
             return []
 
@@ -214,6 +218,7 @@ public struct ChatState: Sendable, Equatable {
         case .remindersUpdated(let changed): return [.refresh(.reminders(workspace: changed.data.workspaceId))]
         case .savedUpdated(let changed): return [.refresh(.saved(workspace: changed.data.workspaceId))]
         case .notificationsUpdated(let changed): return [.refresh(.notifications(workspace: changed.data.workspaceId))]
+        case .inboxUpdated(let changed): return [.refresh(.inbox(workspace: changed.data.workspaceId))]
         case .pinsUpdated(let changed): return [.refresh(.pins(channel: changed.data.channelId))]
         case .bookmarksUpdated(let changed): return [.refresh(.bookmarks(channel: changed.data.channelId))]
         case .incidentUpdated(let changed): return [.refresh(.incident(channel: changed.data.channelId))]

@@ -10,6 +10,7 @@ import SwiftUI
 enum SidebarSelection: Hashable {
     case inbox
     case unresolved
+    case issues
     case channel(Uuid)
 }
 
@@ -55,6 +56,12 @@ struct SidebarView: View {
                     nativeSelection: true, selected: model.unresolvedOpen, shortcut: "⌥⌘U"
                 ) { selection = .unresolved }
                 .tag(SidebarSelection.unresolved)
+                if model.hasModule(.issues) {
+                    DestinationRow(
+                        title: "Issues", systemImage: "checklist", nativeSelection: true, selected: model.issuesOpen
+                    ) { selection = .issues }
+                    .tag(SidebarSelection.issues)
+                }
                 if model.supportsReminders {
                     DestinationRow(
                         title: "Reminders", systemImage: "bell.badge", selected: model.remindersOpen,
@@ -102,7 +109,7 @@ struct SidebarView: View {
             }
             ForEach(model.sidebar) { section in
                 if !visible(section.channels).isEmpty || (section.channels.isEmpty && query.isEmpty && !unreadOnly) {
-                    Section(isExpanded: expanded(section.id)) {
+                    Section(isExpanded: expanded(section)) {
                         ForEach(visible(section.channels), id: \.id) { channel in
                             SidebarChannelRow(model: model, channel: channel, quiet: quiet)
                                 .tag(SidebarSelection.channel(channel.id))
@@ -243,8 +250,15 @@ struct SidebarView: View {
         .sheet(isPresented: $organizing) { SidebarOrganizer(model: model) }
     }
 
-    private func expanded(_ id: String) -> Binding<Bool> {
-        Binding(
+    /// A group's folding is the server's, so every device shows the same; the other sections fold on this Mac.
+    private func expanded(_ section: SidebarSection) -> Binding<Bool> {
+        if case .custom(let id, _) = section.kind {
+            return Binding(
+                get: { !(model.sidebarLayout.groups.first { $0.id == id }?.collapsed ?? false) },
+                set: { open in Task { await model.setSidebarGroupCollapsed(id, !open) } })
+        }
+        let id = section.id
+        return Binding(
             get: { !folded.contains(id) },
             set: { open in
                 var set = folded
@@ -502,6 +516,14 @@ private struct AccountFooter: View {
                 Button("Profile…", systemImage: "person.crop.circle") { settings(.profile) }
                 Button("Account and Sessions…", systemImage: "key") { settings(.account) }
             }
+            Section {
+                Button(
+                    model.isAway ? "I'm Back" : "Set Yourself Away",
+                    systemImage: model.isAway ? "person.crop.circle.badge.checkmark" : "moon"
+                ) {
+                    Task { await model.setAway(!model.isAway) }
+                }
+            }
             Section { DeepWorkItems(model: model) }
             Section {
                 Button("Settings…", systemImage: "gearshape") { settings(.general) }
@@ -516,7 +538,8 @@ private struct AccountFooter: View {
             }
         } label: {
             HStack(spacing: Spacing.space2) {
-                PresenceAvatar(current: model.me?.user, online: model.connection == .open, size: Size.sizeAvatar)
+                PresenceAvatar(
+                    current: model.me?.user, online: model.connection == .open && !model.isAway, size: Size.sizeAvatar)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(model.me?.user.displayName ?? "")
                         .font(.system(size: 13, weight: .medium))

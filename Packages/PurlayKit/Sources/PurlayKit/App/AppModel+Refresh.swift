@@ -23,11 +23,17 @@ extension AppModel {
         case .hidden(let channel, let message, let at):
             didDeleteForMe(message, in: channel, at: at)
         case .channels(let id) where id == workspace?.id:
-            reread(refresh) { await $0.reloadChannels() }
+            reread(refresh) {
+                let channels = await $0.reloadChannels()
+                let groups = await $0.loadChannelGroups()
+                return channels && groups
+            }
         case .messages(let channel) where channel == selectedChannel:
             Task { await self.open(channel) }
         case .memberships:
             reread(refresh) { await $0.reloadMe() }
+        case .inbox(let id) where id == workspace?.id:
+            reread(refresh) { await $0.rereadUpdates() }
         case .reminders(let id) where id == workspace?.id && sessionOwner == nil:
             reread(refresh) { await $0.loadReminders() }
         case .saved(let id) where id == workspace?.id:
@@ -56,6 +62,14 @@ extension AppModel {
         watchJoined()
         sync()
         return true
+    }
+
+    /// The count of what waits is kept fresh while the inbox is shown, since the dot on its tab says it.
+    @discardableResult
+    private func rereadUpdates() async -> Bool {
+        guard inboxOpen else { return true }
+        await refreshUpdates()
+        return updatesStatus != .failed
     }
 
     @discardableResult

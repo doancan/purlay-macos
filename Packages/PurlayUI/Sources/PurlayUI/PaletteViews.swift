@@ -461,10 +461,26 @@ struct SearchSheet: View {
                 Button("Show Filters") { filtersShown = true }
             }
             .frame(maxHeight: .infinity)
-        case .done where model.searchResults.isEmpty:
+        case .done where model.searchResults.isEmpty && model.searchIssues.isEmpty:
             EmptyState.search(text: model.searchQuery).frame(maxHeight: .infinity)
         default:
             List {
+                if !model.searchIssues.isEmpty {
+                    Section("Issues") {
+                        ForEach(model.searchIssues, id: \.id) { hit in
+                            Button {
+                                dismiss()
+                                Task { await model.openIssues() }
+                            } label: {
+                                Label(hit.title, systemImage: "checklist")
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
                 ForEach(model.searchResults, id: \.id) { message in
                     Button {
                         dismiss()

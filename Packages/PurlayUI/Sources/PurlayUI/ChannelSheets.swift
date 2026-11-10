@@ -34,19 +34,19 @@ struct ChannelMenu: View {
         if channel.state != nil {
             Menu("Move to Group", systemImage: "folder") {
                 Button {
-                    model.moveToSidebarGroup(nil, channel: channel.id)
+                    Task { await model.moveToSidebarGroup(nil, channel: channel.id) }
                 } label: {
                     Label(
                         "Default Section",
-                        systemImage: model.sidebarLayout.group(for: channel.id) == nil ? "checkmark" : "sidebar.left")
+                        systemImage: model.sidebarLayout.group(for: channel) == nil ? "checkmark" : "sidebar.left")
                 }
                 ForEach(model.sidebarLayout.groups) { group in
                     Button {
-                        model.moveToSidebarGroup(group.id, channel: channel.id)
+                        Task { await model.moveToSidebarGroup(group.id, channel: channel.id) }
                     } label: {
                         Label(
                             group.name,
-                            systemImage: model.sidebarLayout.group(for: channel.id) == group.id ? "checkmark" : "folder"
+                            systemImage: model.sidebarLayout.group(for: channel) == group.id ? "checkmark" : "folder"
                         )
                     }
                 }

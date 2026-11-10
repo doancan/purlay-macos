@@ -53,7 +53,8 @@ public struct HandshakeClient: Sendable {
 }
 
 /// Early servers predating OIDC omitted `auth.oidc`; newer contract-1 servers send null or provider metadata. Servers
-/// before 0.2.0 omitted `auth.password`, and always offered passwords. Keep those known additive differences readable,
+/// before 0.2.0 omitted `auth.password`, and always offered passwords. Servers before 0.3.0 omitted `auth.google`, and
+/// offered no Google sign-in. Keep those known additive differences readable,
 /// without loosening decoding of other required fields, so an older server reaches the version check and is told why.
 private struct HandshakeResponse: Decodable, Sendable {
     let info: ClientInfo
@@ -61,10 +62,12 @@ private struct HandshakeResponse: Decodable, Sendable {
     init(from decoder: any Decoder) throws {
         var value = try JSONValue(from: decoder)
         if case .object(var root) = value, case .integer(let contract) = root["contractVersion"], contract <= 1,
-            case .object(var auth) = root["auth"], auth["oidc"] == nil || auth["password"] == nil
+            case .object(var auth) = root["auth"],
+            auth["oidc"] == nil || auth["password"] == nil || auth["google"] == nil
         {
             if auth["oidc"] == nil { auth["oidc"] = .null }
             if auth["password"] == nil { auth["password"] = .bool(true) }
+            if auth["google"] == nil { auth["google"] = .bool(false) }
             root["auth"] = .object(auth)
             value = .object(root)
         }
