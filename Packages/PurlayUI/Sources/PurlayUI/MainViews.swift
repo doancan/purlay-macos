@@ -611,6 +611,7 @@ private struct FeedLoadFailed: View {
             Button("Try Again", action: retry).buttonStyle(.glassProminent)
         }
         .frame(maxWidth: .infinity, minHeight: 280)
+        .padding(.top, Spacing.space12)
     }
 }
 

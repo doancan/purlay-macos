@@ -66,5 +66,6 @@ struct ChatOffView: View {
             Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(NativePalette.canvas.style)
     }
 }

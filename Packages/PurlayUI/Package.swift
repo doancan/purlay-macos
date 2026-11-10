@@ -12,11 +12,15 @@ let package = Package(
         .package(path: "../PurlayKit"),
         .package(path: "../PurlayContract"),
         .package(path: "../PurlayTokens"),
+        .package(path: "../PurlayTestSupport"),
     ],
     targets: [
         .target(
             name: "PurlayUI", dependencies: ["PurlayKit", "PurlayContract", "PurlayTokens"], swiftSettings: strict),
-        .testTarget(name: "PurlayUITests", dependencies: ["PurlayUI"], swiftSettings: strict),
+        .testTarget(
+            name: "PurlayUITests",
+            dependencies: ["PurlayUI", "PurlayKit", "PurlayContract", "PurlayTokens", "PurlayTestSupport"],
+            swiftSettings: strict),
     ],
     swiftLanguageModes: [.v6]
 )

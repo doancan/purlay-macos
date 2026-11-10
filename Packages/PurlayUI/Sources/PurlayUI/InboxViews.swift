@@ -398,7 +398,11 @@ private struct UpdateRowView: View {
                     .frame(width: Size.sizeDot, height: Size.sizeDot)
                     .padding(.top, Spacing.space3)
                     .accessibilityHidden(true)
-                Avatar(user: actor, size: Size.sizeAvatarLg)
+                if let actor {
+                    Avatar(user: actor, size: Size.sizeAvatarLg)
+                } else {
+                    ModuleGlyph(kind: row.kind, size: Size.sizeAvatarLg)
+                }
                 VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
                     HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
                         Text(Words.updateHeadline(row, who: actor?.displayName))
@@ -446,7 +450,37 @@ extension Words {
         let name = who ?? String(localized: "Somebody")
         switch row.kind {
         case .issueAssigned: return String(localized: "\(name) assigned an issue to you")
-        case .other(let module): return String(localized: "\(module) has an update for you")
+        case .other(let module): return String(localized: "\(Words.moduleName(module)) has an update for you")
         }
+    }
+}
+
+extension Words {
+    /// A module's id as a name: the ids are lowercase words ("billing"), and a name starts with a capital.
+    static func moduleName(_ id: String) -> String {
+        guard let first = id.first else { return id }
+        return first.uppercased() + id.dropFirst()
+    }
+}
+
+/// Stands where a person's face would, for an update nobody did (or whose person is gone): the module's own symbol on a quiet disc.
+private struct ModuleGlyph: View {
+    let kind: InboxUpdateRow.Kind
+    let size: Double
+
+    private var symbol: String {
+        switch kind {
+        case .issueAssigned: "checklist"
+        case .other: "bell"
+        }
+    }
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.46, weight: .medium))
+            .foregroundStyle(NativePalette.secondary.style)
+            .frame(width: size, height: size)
+            .background(NativePalette.fill.style, in: Circle())
+            .accessibilityHidden(true)
     }
 }
