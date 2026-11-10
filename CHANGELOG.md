@@ -4,6 +4,11 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+### Improved
+
+- An update nobody did, or whose person is gone, shows its module's symbol instead of a question mark, and a module this app has no screen for is named with a capital.
+- The "could not load" notice of a channel sits lower in the window instead of against its top edge.
+
 ## [0.2.1] — 2026-11-10
 
 The whole app in Turkish, a calmer sidebar, and a round of fixes for the things a team meets every day.

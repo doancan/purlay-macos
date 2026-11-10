@@ -41,6 +41,13 @@ for package in Packages/*/; do
   (cd "$package" && swift test 2>&1 | grep -q "Test run with .* passed") || { echo "FAIL: $package" >&2; exit 1; }
 done
 
+step "screens draw from state, light and dark (pictures in a temporary folder)"
+snapshots="$(mktemp -d)"
+(cd Packages/PurlayUI && PURLAY_SNAPSHOT_DIR="$snapshots" swift test --filter SnapshotTests 2>&1 | tail -3)
+(cd Packages/PurlayUI && PURLAY_SNAPSHOT_DIR="$snapshots" swift test --filter SnapshotTests 2>&1 | grep -q "Test run with .* passed") || { echo "FAIL: a screen no longer draws" >&2; exit 1; }
+[ -n "$(ls "$snapshots" 2>/dev/null)" ] || { echo "FAIL: no screen was drawn" >&2; exit 1; }
+rm -rf "$snapshots"
+
 step "the real client against a real server of the pinned version"
 if [ -n "${PURLAY_SERVER_CHECKOUT:-}" ]; then
   scripts/contract-test

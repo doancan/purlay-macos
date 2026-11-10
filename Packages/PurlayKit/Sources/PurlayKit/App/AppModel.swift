@@ -1141,3 +1141,14 @@ extension Channel {
         return peers.map(\.displayName).sorted().joined(separator: ", ")
     }
 }
+
+#if DEBUG
+    extension AppModel {
+        /// For drawing a screen from state in a test: puts in place what a signed-in window would hold, without a server. A debug seam
+        /// only, and in this file so that what is private to the model stays private to it: a release build has no way to set it.
+        func adoptForDrawing(chat: ChatState, workspace: Workspace?) {
+            self.chat = chat
+            self.workspace = workspace
+        }
+    }
+#endif
