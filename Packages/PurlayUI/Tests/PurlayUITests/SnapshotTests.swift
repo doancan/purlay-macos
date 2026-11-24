@@ -134,7 +134,9 @@ extension SnapshotTests {
 
     @Test("the sign-in page, waiting and not")
     func signIn() throws {
-        for dark in [true, false] { _ = try draw(SignInView(model: model(), busy: false), dark: dark, named: "sign-in") }
+        for dark in [true, false] {
+            _ = try draw(SignInView(model: model(), busy: false), dark: dark, named: "sign-in")
+        }
         _ = try draw(SignInView(model: model(), busy: true), named: "sign-in-busy")
     }
 

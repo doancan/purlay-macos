@@ -334,7 +334,8 @@ final class FakeServer: HTTPTransport {
                     return json(404, #"{"error":{"code":"SCHEDULED_MESSAGE_NOT_FOUND","message":"x"}}"#)
                 }
                 state.withLock { $0.scheduled.removeAll { $0.id == id } }
-                return json(200, Self.encoded(makeMessage(idAt(900), channel: parts[2].description, content: sent.content)))
+                return json(
+                    200, Self.encoded(makeMessage(idAt(900), channel: parts[2].description, content: sent.content)))
             }
             guard parts.count == 5, let channel = Uuid(String(parts[2])), let id = Uuid(String(parts[4])) else {
                 return HTTPResponse(status: 400)
@@ -844,7 +845,9 @@ final class FakeServer: HTTPTransport {
                 #"{"id":"\#($0.id.value)","title":"\#($0.title)","excerpt":null,"at":"2026-11-10T12:00:00.000Z","target":{"type":"issue","issueId":"\#($0.id.value)"}}"#
             }
             return json(
-                200, "{\"groups\":[{\"source\":\"issues\",\"more\":false,\"hits\":[\(hits.joined(separator: ","))]}],\"partial\":false,\"skipped\":[]}")
+                200,
+                "{\"groups\":[{\"source\":\"issues\",\"more\":false,\"hits\":[\(hits.joined(separator: ","))]}],\"partial\":false,\"skipped\":[]}"
+            )
         case ("POST", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/link-preview"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.linkPreviewStatus != 200 {

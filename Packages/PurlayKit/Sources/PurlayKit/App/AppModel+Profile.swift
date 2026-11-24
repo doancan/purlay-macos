@@ -58,7 +58,8 @@ extension AppModel {
             displayName: nameFollowsGitHub || name == me.user.displayName ? nil : name,
             status: .some(Self.blankIsNone(edit.status)),
             statusEmoji: .some(Self.blankIsNone(edit.statusEmoji)),
-            statusUntil: .some(edit.status.isEmpty && edit.statusEmoji.isEmpty ? nil : edit.statusUntil.map(Timestamp.init)),
+            statusUntil: .some(
+                edit.status.isEmpty && edit.statusEmoji.isEmpty ? nil : edit.statusUntil.map(Timestamp.init)),
             timeZone: .some(Self.blankIsNone(edit.timeZone)),
             title: .some(Self.blankIsNone(edit.title)))
         do {

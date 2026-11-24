@@ -57,7 +57,9 @@ struct ProfileTests {
         var other = try edit(github)
         other.displayName = "Someone Else"
         #expect(await github.model.saveProfile(other))
-        #expect(!(try #require(patches(github).last?.body.flatMap { String(data: $0, encoding: .utf8) })).contains("Someone"))
+        #expect(
+            !(try #require(patches(github).last?.body.flatMap { String(data: $0, encoding: .utf8) })).contains(
+                "Someone"))
     }
 
     @Test("limits are checked before the server is asked")

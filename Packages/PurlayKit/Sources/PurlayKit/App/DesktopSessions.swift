@@ -53,7 +53,8 @@ public final class DesktopSessions {
         self.environment = environment
         active = AppModel(environment)
         attention = DesktopAttention(environment.attention)
-        let server = (try? ServerAddress.parse(environment.serverAddress, allowsLocalHTTP: environment.allowsLocalHTTP))?
+        let server =
+            (try? ServerAddress.parse(environment.serverAddress, allowsLocalHTTP: environment.allowsLocalHTTP))?
             .description ?? environment.serverAddress
         // A workspace of another server, kept by a version that allowed one, is not opened: this app has the one.
         let descriptors =

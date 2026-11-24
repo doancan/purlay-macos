@@ -15,7 +15,8 @@ struct PurlayUITests {
             .signInFailed(.rateLimited(retryAfter: nil)),
             .sessionExpired, .sessionEndedByServer, .signedOutElsewhere, .serverNotTold, .signOutEverywhereFailed,
             .unsentLost(2),
-            .profileFailed, .unrestorable(1), .outboxCorrupt, .storageProblem, .originMismatch, .sendTooLong, .loadFailed,
+            .profileFailed, .unrestorable(1), .outboxCorrupt, .storageProblem, .originMismatch, .sendTooLong,
+            .loadFailed,
         ]
         for kind in kinds { #expect(!Words.notice(kind).isEmpty, "\(kind)") }
     }
