@@ -9245,6 +9245,16 @@
         }
       }
     },
+    "Your session ends on %@. Sign out and in again before then to stay connected.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturumun %@ tarihinde sona eriyor. Bağlı kalmak için o zamandan önce çıkış yapıp yeniden giriş yap."
+          }
+        }
+      }
+    },
     "Your session has ended. Sign in again.": {
       "localizations": {
         "tr": {

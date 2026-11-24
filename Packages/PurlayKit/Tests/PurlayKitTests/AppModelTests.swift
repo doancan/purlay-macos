@@ -685,3 +685,37 @@ struct ReadingTests {
             "\(reads(h)) \(h.model.phase) \(h.model.notices.map(\.kind))")
     }
 }
+
+@MainActor
+@Suite("the end of the session")
+struct SessionEndTests {
+    private func remembered(endingIn seconds: TimeInterval) throws -> ModelHarness {
+        let h = ModelHarness()
+        try h.sessions.save(
+            StoredSession(
+                cookie: FakeServer.sessionValue,
+                expiresAt: Date(timeIntervalSince1970: Double(epochMs) / 1_000 + seconds),
+                origin: "http://localhost:4390"),
+            for: try ServerAddress.parse("localhost:4390", allowsLocalHTTP: true))
+        return h
+    }
+
+    @Test("a session that ends within days is said once, when the app comes to the front")
+    func warns() async throws {
+        let h = try remembered(endingIn: 2 * 86_400)
+        await h.model.launch()
+        #expect(h.model.phase == .ready)
+        await h.model.checkSession()
+        await h.model.checkSession()
+        let warnings = h.model.notices.filter { if case .sessionEndsSoon = $0.kind { true } else { false } }
+        #expect(warnings.count == 1)
+    }
+
+    @Test("a session with weeks left says nothing")
+    func quiet() async throws {
+        let h = try remembered(endingIn: 20 * 86_400)
+        await h.model.launch()
+        await h.model.checkSession()
+        #expect(h.model.notices.isEmpty)
+    }
+}

@@ -17,6 +17,11 @@ enum Words {
             case .insecure: return String(localized: "This server must be reached over https.")
             }
         case .signInFailed(let error): return signIn(error)
+        case .sessionEndsSoon(let end):
+            return String(
+                localized:
+                    "Your session ends on \(end.formatted(date: .abbreviated, time: .shortened)). Sign out and in again before then to stay connected."
+            )
         case .sessionExpired: return String(localized: "Your session has expired. Sign in again.")
         case .sessionEndedByServer: return String(localized: "You were signed out by the server. Sign in again.")
         case .signedOutElsewhere: return String(localized: "You were signed out.")

@@ -16,9 +16,12 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 - **Send Now** for a scheduled message, from its menu in Scheduled.
 - **Open incidents** show as a warning mark in the sidebar and as a bar above the conversation, with the level (SEV1–SEV4), its state and a way to the browser.
 - The member list shows each person's title and status emoji, and marks guests.
+- **Person card.** Click a name or avatar in a conversation to see their title, status, the time where they are, and a Message button.
 
 ### Fixed
 
+- A session that ended while the app was away is found when you return to it, not at the next refused request; one that ends within three days is announced once, so the end is not a surprise.
+- Picture and avatar fade-ins respect Reduce Motion.
 - Search, the jump palette and the list sheets (Pins, Reminders, Scheduled, Saved, Drafts, Shortcuts, Browse Channels) now close when you press anywhere outside them, including the sidebar and the toolbar, or when the window loses the keyboard, instead of only with Escape.
 
 ### Improved

@@ -9,6 +9,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case invalidAddress(ServerAddress.Problem)
         case signInFailed(SignInError)
         case sessionExpired
+        /// The session lasts a fixed time from sign-in: said a few days before, so the end is not a surprise.
+        case sessionEndsSoon(Date)
         case sessionEndedByServer
         case signedOutElsewhere
         /// This device is signed out and the server could not be told: its session lives until it expires or is ended from elsewhere.
@@ -132,6 +134,8 @@ public final class AppModel {
     private var observation: Task<Void, Never>?
     private var noticeCounter = 0
     private var launched = false
+    private var warnedOfExpiry = false
+    private static let sessionWarning: TimeInterval = 3 * 86_400
     /// The newest message of each channel that was marked read from here, so the same one is not asked for twice.
     private var markedRead: [Uuid: Uuid] = [:]
     private var marking = Set<Uuid>()
@@ -594,6 +598,7 @@ public final class AppModel {
             let session = try await flow.signIn(to: server, origin: origin)
             await manager.adopt(session, for: server)
             cookieCache = session.cookie
+            warnedOfExpiry = false
             observe(manager)
             await bootstrap()
         } catch {
@@ -914,6 +919,22 @@ public final class AppModel {
         markReadIfSeen()
         markThreadReadIfSeen()
         (sessionOwner ?? self).tellAttention()
+        if active { Task { await checkSession() } }
+    }
+
+    /// A session that ended while the app was away is found now, not at the next refused request, and one about to end is said.
+    func checkSession() async {
+        if let sessionOwner {
+            await sessionOwner.checkSession()
+            return
+        }
+        guard phase == .ready, let manager else { return }
+        await manager.checkExpiry()
+        guard phase == .ready, !warnedOfExpiry, let end = await manager.expiresAt,
+            end.timeIntervalSince(environment.clock()) < Self.sessionWarning
+        else { return }
+        warnedOfExpiry = true
+        say(.sessionEndsSoon(end))
     }
 
     /// The person is at the end of the messages, or has scrolled up.

@@ -86,6 +86,7 @@ struct Avatar: View {
     let id: String?
     let picture: String?
     var size: Double = Size.sizeAvatarLg
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(user: User?, size: Double = Size.sizeAvatarLg) {
         name = user?.displayName ?? ""
@@ -111,7 +112,8 @@ struct Avatar: View {
             if let url = pictureURL {
                 AsyncImage(
                     url: url,
-                    transaction: Transaction(animation: Motion.easingStandard.animation(Motion.durationOverlay))
+                    transaction: Transaction(
+                        animation: reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay))
                 ) { phase in
                     if let image = phase.image { image.resizable().scaledToFill() }
                 }

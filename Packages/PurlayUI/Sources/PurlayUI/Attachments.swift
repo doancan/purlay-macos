@@ -214,6 +214,7 @@ private struct PictureView: View {
     let model: AppModel
     let attachment: PurlayContract.Attachment
     let preview: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var image: NSImage?
     @State private var failed = false
 
@@ -251,7 +252,7 @@ private struct PictureView: View {
                     .accessibilityLabel(Text("Loading \(attachment.fileName)"))
             }
         }
-        .animation(Motion.easingStandard.animation(Motion.durationOverlay), value: image != nil)
+        .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationOverlay), value: image != nil)
         .task(id: attachment.id) {
             // The small picture if there is one, the picture itself if there is not; decoded away from the main actor.
             var data = await model.attachmentData(attachment, thumbnail: true)
