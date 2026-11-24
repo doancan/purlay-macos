@@ -19,8 +19,21 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 - **Workspace switcher.** The workspace at the top of the sidebar has its own mark (its picture, or its initials on a colour of its own), your role under its name, a hover state, and a checked list of your workspaces with what is waiting in each. ⌘1 to ⌘9 in the Go menu switch between them.
 - **Person card.** Click a name or avatar in a conversation to see their title, status, the time where they are, and a Message button.
 
+- **Slash commands** in the message box: `/me`, `/shrug`, `/mute`, `/unmute`, `/star`, `/unstar`, `/invite @handle`, `/leave`, `/deepwork` and `/search`, with a list that follows what you type. `//text` sends a message that starts with a slash.
+- **Colour in code blocks** and in `diff` blocks, for the languages people paste most.
+- **Liquid Glass can be turned off** in Settings → Appearance: controls, lists and buttons the app draws become solid. Reduce Transparency always wins.
+- A calm launch screen, with the app icon breathing and no sign-in page, while a kept session is restored.
+
+### Changed (interface)
+
+- Reminders, Scheduled, Saved and Drafts are pages of the window, like Inbox, not sheets over it.
+- Every filter and tab row (Inbox, Open Topics, Issues, Saved, channel details) is one control: a track with a raised, sliding pill.
+- The sidebar's destinations line up with the channels below them, the workspace and account switchers have a border at rest, the search box answers the pointer, and action buttons such as Resolve look like buttons.
+- A message under the pointer has the same room above and below it; the emoji picker's cells are squares.
+
 ### Fixed
 
+- The Dock badge was never shown if the notification permission had been given before the app asked for badges; the app now asks again, and Settings → Notifications has a button to ask for notifications before the first one arrives.
 - Opening the app behind another one no longer announces the mentions that were already waiting.
 - A workspace remembered from an earlier run that you are no longer in no longer leaves an empty window: the app opens the last one you used, or the first.
 - Settings → Notifications says when macOS has notifications or the Dock badge turned off for Purlay (which silences both) and opens System Settings for it; the app now asks for the badge permission too.
