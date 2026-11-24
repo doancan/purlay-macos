@@ -157,6 +157,11 @@ struct MainView: View {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
                 DeepWorkBar(model: model)
+                if let id = model.selectedChannel, !model.inboxOpen, !model.unresolvedOpen, !model.issuesOpen,
+                    let channel = model.chat.channels[id]
+                {
+                    IncidentBar(model: model, channel: channel)
+                }
                 AccountNoticeBars(model: model)
                 ForEach(model.notices) { notice in
                     NoticeBanner(notice: notice) { model.dismiss(notice) }

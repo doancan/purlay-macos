@@ -1261,6 +1261,16 @@
         }
       }
     },
+    "An incident is open here": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burada açık bir olay var"
+          }
+        }
+      }
+    },
     "An owner can cancel the deletion from the browser until then.": {
       "localizations": {
         "tr": {
@@ -3831,6 +3841,42 @@
         }
       }
     },
+    "Incident": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olay"
+          }
+        }
+      }
+    },
+    "Incident %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olay %@"
+          }
+        }
+      }
+    },
+    "Incident %@, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Incident %1$@, %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olay %@, %@"
+          }
+        }
+      }
+    },
     "Includes versions and connection status. Messages and server addresses are excluded.": {
       "localizations": {
         "tr": {
@@ -3847,6 +3893,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entegrasyonlar"
+          }
+        }
+      }
+    },
+    "Investigating": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İnceleniyor"
           }
         }
       }
@@ -4733,6 +4789,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesajlar"
+          }
+        }
+      }
+    },
+    "Mitigating": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hafifletiliyor"
           }
         }
       }

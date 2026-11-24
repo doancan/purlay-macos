@@ -408,6 +408,13 @@ struct SidebarChannelRow: View {
                         .accessibilityLabel("Draft")
                         .help("You have an unsent draft here")
                 }
+                if let incident = channel.incident {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .imageScale(.small)
+                        .foregroundStyle(incident.tint)
+                        .accessibilityLabel("Incident \(incident.severityName)")
+                        .help("An incident is open here")
+                }
                 if channel.isMuted {
                     Image(systemName: "bell.slash")
                         .imageScale(.small)
