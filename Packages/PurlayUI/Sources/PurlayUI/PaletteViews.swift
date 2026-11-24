@@ -115,7 +115,7 @@ private struct PaletteRow: View {
             if case .search = entry.target {
                 Text("Search messages for “\(entry.title)”")
             } else {
-                Text(entry.title)
+                Text(name)
                 if let subtitle = entry.subtitle, !subtitle.isEmpty {
                     Text(subtitle).foregroundStyle(NativePalette.secondary.style).lineLimit(1)
                 }
@@ -124,6 +124,12 @@ private struct PaletteRow: View {
             if !entry.joined { Text("Not joined").font(.caption).foregroundStyle(NativePalette.secondary.style) }
         }
         .padding(.vertical, 2)
+    }
+
+    /// A channel's symbol is the hash, so its name does not carry one a second time.
+    private var name: String {
+        if case .channel = entry.target, entry.title.hasPrefix("# ") { return String(entry.title.dropFirst(2)) }
+        return entry.title
     }
 
     private var symbol: String {

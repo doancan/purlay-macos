@@ -25,8 +25,20 @@ struct NotificationPermissionSection: View {
             case .unknown, .allowed:
                 EmptyView()
             case .notAsked:
-                Label("Purlay asks the first time something needs you.", systemImage: "bell")
-                    .foregroundStyle(.secondary)
+                Label(
+                    "Purlay has not asked to tell you things yet, so it is not in System Settings.",
+                    systemImage: "bell"
+                )
+                .foregroundStyle(.secondary)
+                // macOS lists an app under Notifications only once it has asked, so this is the way to get on that list.
+                Button("Allow Notifications") {
+                    Task {
+                        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [
+                            .alert, .badge,
+                        ])
+                        await refresh()
+                    }
+                }
             case .denied:
                 warning(
                     "Notifications are off for Purlay in System Settings, so there are no notices and no Dock badge.")

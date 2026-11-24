@@ -37,7 +37,7 @@ public struct SettingsView: View {
                     if !pages.isEmpty {
                         Section(group.title) {
                             ForEach(pages) { item in
-                                Label(item.title, systemImage: item.image).tag(item)
+                                Label(item.title, systemImage: item.image).labelStyle(SettingsRowLabel()).tag(item)
                             }
                         }
                     }
@@ -297,7 +297,7 @@ extension SettingsPage {
         case .notifications: "bell.badge"
         case .profile: "person.crop.circle"
         case .account: "key"
-        case .members: "person.3"
+        case .members: "person.2"
         case .invitations: "person.badge.plus"
         case .integrations: "puzzlepiece.extension"
         case .audit: "list.clipboard"
@@ -406,5 +406,16 @@ private struct SettingsMembersSection: View {
         case .member: "Member"
         case .unknown: "Other Role"
         }
+    }
+}
+
+/// A page's symbol in a column of one width, so the titles start on one line whatever the symbol's own width, and the rows are one height.
+private struct SettingsRowLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Spacing.space2) {
+            configuration.icon.frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
+            configuration.title
+        }
+        .frame(minHeight: Size.sizeIconLg + Spacing.space1)
     }
 }

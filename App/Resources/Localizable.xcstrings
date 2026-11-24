@@ -6355,16 +6355,6 @@
         }
       }
     },
-    "Purlay asks the first time something needs you.": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Purlay, ilk kez sana ihtiyaç duyulduğunda izin ister."
-          }
-        }
-      }
-    },
     "Question": {
       "localizations": {
         "tr": {
@@ -9481,6 +9471,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "⌘K"
+          }
+        }
+      }
+    },
+    "Purlay has not asked to tell you things yet, so it is not in System Settings.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purlay henüz bildirim izni istemedi; bu yüzden Sistem Ayarları'nda görünmüyor."
+          }
+        }
+      }
+    },
+    "Allow Notifications": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimlere İzin Ver"
           }
         }
       }

@@ -25,6 +25,7 @@ struct SidebarView: View {
     @State private var query = ""
     @State private var unreadOnly = false
     @State private var filtering = false
+    @State private var searchHovering = false
     @State private var organizing = false
     @FocusState private var filterFocused: Bool
 
@@ -79,15 +80,18 @@ struct SidebarView: View {
                     model.draftsOpen = true
                 }
             }
-            .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+            // The destination rows sit on the same column as the channel rows' symbols and have the same pill edges.
+            .listRowInsets(EdgeInsets(top: 2, leading: -Spacing.space1, bottom: 2, trailing: -Spacing.space1))
             .listRowBackground(Color.clear)
             Section {
                 Button {
                     sheet = .browse
                 } label: {
-                    HStack(spacing: Spacing.space2) {
+                    HStack(spacing: Spacing.space2 + Stroke.strokeFocus) {
                         Image(systemName: "rectangle.stack")
-                            .frame(width: Size.sizeIconLg)
+                            .font(.system(size: 14, weight: .regular))
+                            .symbolRenderingMode(.hierarchical)
+                            .frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
                             .foregroundStyle(NativePalette.secondary.style)
                         Text("Browse Channels")
                         Spacer(minLength: Spacing.space1)
@@ -96,12 +100,14 @@ struct SidebarView: View {
                     }
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(NativePalette.ink.style)
+                    .padding(.horizontal, Spacing.space2)
                     .frame(minHeight: Size.sizeControl)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .help("Discover public channels  ⇧⌘O")
             }
+            .listRowInsets(EdgeInsets(top: 2, leading: -Spacing.space1, bottom: 2, trailing: -Spacing.space1))
             ForEach(model.sidebar) { section in
                 let rows = visible(section.channels)
                 if !rows.isEmpty || (section.channels.isEmpty && query.isEmpty && !unreadOnly) {
@@ -160,6 +166,7 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .scrollIndicators(.automatic)
+        .contentMargins(.bottom, Spacing.space4, for: .scrollContent)
         .accessibilityLabel("Workspace navigation")
         .environment(\.defaultMinListRowHeight, Size.sizeRow + Spacing.space1)
         .safeAreaBar(edge: .top, spacing: 0) {
@@ -220,9 +227,18 @@ struct SidebarView: View {
                 .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusLg))
                 .overlay {
                     RoundedRectangle(cornerRadius: Radius.radiusLg)
-                        .strokeBorder(NativePalette.divider.style, lineWidth: Stroke.strokeHairline)
+                        .fill(searchHovering ? Color.primary.opacity(0.07) : .clear)
                         .allowsHitTesting(false)
                 }
+                .overlay {
+                    RoundedRectangle(cornerRadius: Radius.radiusLg)
+                        .strokeBorder(
+                            searchHovering ? NativePalette.border.style : NativePalette.divider.style,
+                            lineWidth: Stroke.strokeHairline
+                        )
+                        .allowsHitTesting(false)
+                }
+                .onHover { searchHovering = $0 }
                 if filtering {
                     HStack(spacing: Spacing.space2) {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -320,7 +336,7 @@ private struct DestinationRow: View {
                         .background(Colors.accent.style, in: .capsule)
                 }
             }
-            .padding(.horizontal, Spacing.space2 + Stroke.strokeFocus)
+            .padding(.horizontal, Spacing.space2)
             .frame(minHeight: Self.rowHeight)
             .contentShape(.rect)
             .background {
@@ -510,6 +526,11 @@ private struct WorkspaceHeader: View {
             .padding(.horizontal, Spacing.space2)
             .padding(.vertical, Spacing.space1)
             .background(hovering ? Color.primary.opacity(0.07) : .clear, in: .rect(cornerRadius: Radius.radiusLg))
+            // A border at rest says it is a control; the hover fill is the same shape.
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.radiusLg)
+                    .strokeBorder(NativePalette.border.style, lineWidth: Stroke.strokeHairline)
+            }
             .contentShape(.rect)
             .onHover { hovering = $0 }
         }

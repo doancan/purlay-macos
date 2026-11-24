@@ -27,6 +27,8 @@ struct MessageRow: View {
 
     /// A root open in the thread panel is also in the feed: it is edited in the feed only, so there is one box and one Return.
     private var editing: Bool { model.editing == message.id && !(inThread && message.parentId == nil) }
+    /// The space before a message that starts a run; none inside one.
+    private var runGap: Double { continuation ? 0 : compact ? Spacing.space1 : Spacing.space3 }
     private var deleted: Bool { message.deletedAt != nil }
     private var mine: Bool { message.sender?.id == model.me?.user.id }
 
@@ -40,9 +42,10 @@ struct MessageRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, Spacing.space4)
-        .padding(.top, continuation ? Stroke.strokeFocus : compact ? Spacing.space2 : Spacing.space4)
-        .padding(.bottom, Stroke.strokeFocus)
+        // The mark hugs the message with the same room above and below; the gap that sets a new run apart is outside it.
+        .padding(.vertical, Spacing.space1)
         .background(background)
+        .padding(.top, runGap)
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: hovering)
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationMark), value: highlighted)
         .overlay(alignment: .leading) {
@@ -57,7 +60,7 @@ struct MessageRow: View {
                     delete: { model.deletionTarget = message }
                 )
                 .padding(.trailing, Spacing.space3)
-                .padding(.top, Spacing.space2)
+                .padding(.top, Spacing.space2 + runGap)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
             }
         }
