@@ -93,6 +93,7 @@ public final class AppModel {
         case ready
     }
 
+    var chatRouteUnavailable = false
     public internal(set) var settingsPage: SettingsPage = .general
     public private(set) var phase: Phase = .launching {
         didSet { onPhaseChange?() }
@@ -689,6 +690,7 @@ public final class AppModel {
     func bootstrap() async {
         guard let server, let origin, let manager else { return }
         phase = .loading
+        chatRouteUnavailable = false
         let context = contextGeneration
         let client = APIClient(
             configuration: APIConfiguration(
@@ -727,13 +729,26 @@ public final class AppModel {
             workspace = membership.workspace
             loadSidebarLayout()
             environment.preferences.set(membership.workspace.slug, for: "workspace")
+            guard chatAvailable else {
+                phase = .ready
+                return
+            }
+            let channels: ChannelList
+            do {
+                channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
+            } catch let error as APIError where error.status == 404 && error.code.rawValue == "ROUTE_NOT_FOUND" {
+                guard context == contextGeneration else { return }
+                // During a rollout, the node serving channels can have a different module set from /api/me.
+                chatRouteUnavailable = true
+                phase = .ready
+                return
+            }
+            guard context == contextGeneration else { return }
             let engine = makeEngine(me: me, client: client, api: api, origin: origin, manager: manager)
             self.engine = engine
             let load = engine.restore()
             if load.unrestorable > 0 { say(.unrestorable(load.unrestorable)) }
             if load.corruptFile != nil { say(.outboxCorrupt) }
-            let channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
-            guard context == contextGeneration else { return }
             engine.setChannels(channels)
             attention.prime(channels)
             watchJoined()

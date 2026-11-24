@@ -68,5 +68,5 @@ extension AppModel {
     }
 
     /// Whether this workspace has chat, the module this app is made for.
-    public var chatAvailable: Bool { me == nil || hasModule(.chat) }
+    public var chatAvailable: Bool { !chatRouteUnavailable && hasModule(.chat) }
 }

@@ -47,7 +47,7 @@ public struct RootView: View {
     }
 }
 
-/// A workspace that has no chat: the app is made for chat and has nothing else to show, so it says so and offers the browser.
+/// A workspace without chat still offers its core settings and administration pages.
 struct ChatOffView: View {
     let model: AppModel
     @Environment(\.openURL) private var openURL
@@ -60,8 +60,20 @@ struct ChatOffView: View {
                 "This workspace doesn’t have chat. Ask whoever runs the server to turn it on, or open the workspace in your browser."
             )
         } actions: {
-            if let url = model.webURL(.workspace) {
-                Button("Open in Browser") { openURL(url) }.buttonStyle(.glassProminent)
+            VStack(spacing: Spacing.space2) {
+                ForEach(
+                    model.availableSettingsPages.filter {
+                        [.profile, .workspace, .members, .invitations, .data].contains($0)
+                    }
+                ) { page in
+                    if let destination = page.webPage, let url = model.webURL(destination) {
+                        Button {
+                            openURL(url)
+                        } label: {
+                            Label(page.title, systemImage: page.image)
+                        }
+                    }
+                }
             }
             Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
         }

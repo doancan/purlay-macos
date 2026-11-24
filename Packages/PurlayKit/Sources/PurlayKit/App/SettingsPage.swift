@@ -55,6 +55,7 @@ extension AppModel {
 
     public var availableSettingsPages: [SettingsPage] {
         SettingsPage.available(role: workspaceRole, signedIn: me != nil, isServerAdmin: me?.isServerAdmin == true)
+            .filter { chatAvailable || ($0 != .notifications && $0 != .integrations) }
     }
 
     public func selectSettingsPage(_ page: SettingsPage) {

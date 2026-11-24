@@ -71,6 +71,19 @@ public final class APIClient: Sendable {
         let response = try await exchange(endpoint, path: path, query: query, body: body, idempotent: idempotent)
         do {
             return try JSONDecoder().decode(Response.self, from: response.body)
+        } catch DecodingError.keyNotFound(let key, let context)
+            where endpoint == Endpoints.getMe && key.stringValue == "modules" && context.codingPath.isEmpty
+        {
+            // Older servers omit the field. An explicit empty list still means no modules.
+            if var legacy = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any] {
+                legacy["modules"] = ["chat"]
+                if let data = try? JSONSerialization.data(withJSONObject: legacy),
+                    let decoded = try? JSONDecoder().decode(Response.self, from: data)
+                {
+                    return decoded
+                }
+            }
+            throw TransportError.contractViolation(endpoint: endpoint.id, status: response.status)
         } catch {
             throw TransportError.contractViolation(endpoint: endpoint.id, status: response.status)
         }

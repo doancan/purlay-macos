@@ -9,6 +9,8 @@ public enum Log {
     public static let attention = Logger(subsystem: subsystem, category: "attention")
     /// The session: sign-in, restore, sign-out, the keychain.
     public static let session = Logger(subsystem: subsystem, category: "session")
+    /// Socket events and connection state.
+    static let realtime = Logger(subsystem: subsystem, category: "realtime")
     /// Files on disk: the outbox, drafts, attachments saved and read.
     public static let storage = Logger(subsystem: subsystem, category: "storage")
 }

@@ -62,7 +62,7 @@ final class FakeServer: HTTPTransport {
         var linkPreviews: [String: String] = [:]
         var linkPreviewStatus = 200
         /// The modules the server runs, and the ones this workspace's grant leaves the person (`nil`: the grant says nothing).
-        var modules = ["chat", "issues"]
+        var modules: [String]? = ["chat", "issues"]
         var workspaceModules: [String]?
         /// The person's own groups of channels (D-284), in the order the server lists them.
         var channelGroups: [ChannelGroup] = []
@@ -221,7 +221,7 @@ final class FakeServer: HTTPTransport {
     static func meJSON(
         deepWorkUntil: String? = nil, role: String = "member", mustEnrolTwoFactor: Bool = false,
         nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = [], awayChosen: Bool = false,
-        modules: [String] = ["chat", "issues"], workspaceModules: [String]? = nil
+        modules: [String]? = ["chat", "issues"], workspaceModules: [String]? = nil
     ) -> String {
         """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
@@ -229,7 +229,7 @@ final class FakeServer: HTTPTransport {
         "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
         "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")\(workspaceModules.map { ",\"modules\":\(encoded($0))" } ?? "")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
         "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions)),\
-        "modules":\(encoded(modules)),"awayChosen":\(awayChosen)}
+        "awayChosen":\(awayChosen)\(modules.map { ",\"modules\":\(encoded($0))" } ?? "")}
         """
     }
 
@@ -370,6 +370,9 @@ final class FakeServer: HTTPTransport {
                     modules: snapshot.modules, workspaceModules: snapshot.workspaceModules))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.channelsStatus == 404 {
+                return json(404, #"{"error":{"code":"ROUTE_NOT_FOUND","message":"No such route.","details":{}}}"#)
+            }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
         case ("GET", "/api/workspaces/\(Self.workspaceID)/members"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }

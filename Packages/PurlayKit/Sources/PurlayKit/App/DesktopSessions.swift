@@ -44,7 +44,7 @@ public final class DesktopSessions {
     private var linkGeneration = 0
 
     public enum LinkProblem: Equatable, Sendable {
-        case invalid, workspaceUnavailable, conversationUnavailable
+        case invalid, workspaceUnavailable, chatUnavailable, conversationUnavailable
     }
 
     public private(set) var active: AppModel
@@ -200,6 +200,10 @@ public final class DesktopSessions {
         let target = active
         guard target.phase == .ready else { return }
         pendingLink = nil
+        guard target.chatAvailable else {
+            linkProblem = .chatUnavailable
+            return
+        }
         let opened = await target.openConversationLink(link)
         guard generation == linkGeneration else { return }
         if !opened { linkProblem = .conversationUnavailable }

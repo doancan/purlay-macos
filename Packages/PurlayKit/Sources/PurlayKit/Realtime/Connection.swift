@@ -363,7 +363,8 @@ public final class Connection {
                 case .malformed:
                     // Not a frame this contract could have sent. Ending the connection replays from the cursor and loses nothing.
                     socket?.close()
-                case .unknown:
+                case .unknown(let tag):
+                    Log.realtime.debug("Ignored unknown socket event: \(tag, privacy: .private)")
                     // Anything well formed proves the peer is there, an event we do not know included.
                     armIdle()
                 case .frame(let frame):
