@@ -6,8 +6,16 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ### Changed
 
+- The app speaks the server 0.8.0 contract.
 - **Sign-in is only at purlay.app.** The app no longer asks for a server address: it opens straight to the sign-in page, and "Use Another Server", "Choose Another Server" and "Add Server…" are gone. A workspace of another server kept by an earlier version is not opened, and a `purlay://` link to another server is refused. Workspaces of your account still switch from the toolbar.
 - The sign-in page now shows the notice of why you are signed out (an ended or expired session) above the button, and says that this Mac stays signed in until you sign out.
+
+### New
+
+- **Edit your profile in the app.** Settings → Profile now changes your name, title, status (with an emoji and an end time) and time zone, and saves them to the server. A name that comes from GitHub stays read-only.
+- **Send Now** for a scheduled message, from its menu in Scheduled.
+- **Open incidents** show as a warning mark in the sidebar and as a bar above the conversation, with the level (SEV1–SEV4), its state and a way to the browser.
+- The member list shows each person's title and status emoji, and marks guests.
 
 ### Fixed
 

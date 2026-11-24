@@ -3701,6 +3701,16 @@
         }
       }
     },
+    "Guest": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konuk"
+          }
+        }
+      }
+    },
     "Handle": {
       "localizations": {
         "tr": {

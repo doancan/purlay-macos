@@ -344,6 +344,13 @@ extension SettingsPage {
 }
 
 private struct SettingsMembersSection: View {
+    /// "@ada", and the title after it when the person has one.
+    private func subtitle(of member: WorkspaceMember) -> String {
+        let handle = "@" + member.user.username
+        guard let title = member.profile.title, !title.isEmpty else { return handle }
+        return handle + " · " + title
+    }
+
     let model: AppModel
     @State private var members: WorkspaceMemberList = []
     @State private var loading = true
@@ -364,10 +371,17 @@ private struct SettingsMembersSection: View {
                     HStack {
                         Avatar(user: member.user, size: 32)
                         VStack(alignment: .leading) {
-                            Text(member.user.displayName).fontWeight(.medium)
-                            Text("@" + member.user.username).font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: Spacing.space1) {
+                                Text(member.user.displayName).fontWeight(.medium)
+                                if let emoji = member.profile.statusEmoji { Text(emoji) }
+                            }
+                            Text(subtitle(of: member)).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
+                        if member.accessKind == .guest {
+                            Text("Guest").font(.caption).padding(.horizontal, Spacing.space2)
+                                .background(.quaternary, in: .capsule)
+                        }
                         Text(role(member.role)).foregroundStyle(.secondary)
                     }
                 }
