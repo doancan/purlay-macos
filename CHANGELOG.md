@@ -4,6 +4,8 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-24
+
 ### Changed
 
 - The app speaks the server 0.8.0 contract.
