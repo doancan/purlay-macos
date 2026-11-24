@@ -158,6 +158,8 @@ public final class AppModel {
         set { if let sessionOwner { sessionOwner.workspacePeople = newValue } else { sessionPeople = newValue } }
     }
     var channelPeople: [Uuid: [User]] = [:]
+    /// What each member of the workspace says of themselves (title, status, time zone), as the member list last gave it.
+    var memberProfiles: [Uuid: WorkspaceMember] = [:]
 
     // MARK: Threads
 

@@ -93,6 +93,9 @@ struct MessageRow: View {
                 .accessibilityHidden(true)
         } else if message.webhookName != nil {
             AppAvatar(size: Size.sizeAvatarLg)
+        } else if let sender = message.sender {
+            PersonCardButton(model: model, user: sender) { Avatar(user: sender, size: Size.sizeAvatarLg) }
+                .accessibilityLabel(sender.displayName)
         } else {
             Avatar(user: message.sender, size: Size.sizeAvatarLg)
         }
@@ -102,12 +105,21 @@ struct MessageRow: View {
         headerContent.accessibilityElement(children: .combine)
     }
 
+    @ViewBuilder private var senderName: some View {
+        let name = Text(message.webhookName ?? message.sender?.displayName ?? String(localized: "Purlay"))
+            .typeStyle(Typography.heading)
+            .foregroundStyle(NativePalette.ink.style)
+            .lineLimit(1)
+        if message.webhookName == nil, let sender = message.sender {
+            PersonCardButton(model: model, user: sender) { name }
+        } else {
+            name
+        }
+    }
+
     private var headerContent: some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.space2) {
-            Text(message.webhookName ?? message.sender?.displayName ?? String(localized: "Purlay"))
-                .typeStyle(Typography.heading)
-                .foregroundStyle(NativePalette.ink.style)
-                .lineLimit(1)
+            senderName
                 .layoutPriority(-1)
             if message.webhookName != nil { WebhookBadge() }
             Text(message.createdAt.date, format: .dateTime.hour().minute())

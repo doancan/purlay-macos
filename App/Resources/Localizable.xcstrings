@@ -223,6 +223,38 @@
         }
       }
     },
+    "%@ · %@ h ahead of you": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$@ h ahead of you"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · sizden %@ sa ileride"
+          }
+        }
+      }
+    },
+    "%@ · %@ h behind you": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$@ h behind you"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · sizden %@ sa geride"
+          }
+        }
+      }
+    },
     "%@#%lld · %@": {
       "localizations": {
         "en": {
@@ -7479,6 +7511,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yanıtı konuda gösterir"
+          }
+        }
+      }
+    },
+    "Shows this person’s profile": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kişinin profilini gösterir"
           }
         }
       }
