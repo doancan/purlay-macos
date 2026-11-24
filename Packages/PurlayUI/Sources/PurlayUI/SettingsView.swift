@@ -174,6 +174,7 @@ public struct SettingsView: View {
     private var notificationsPage: some View {
 
         Form {
+            NotificationPermissionSection()
             Section("On This Mac") {
                 Toggle(
                     "Notify me while Purlay is in the background",

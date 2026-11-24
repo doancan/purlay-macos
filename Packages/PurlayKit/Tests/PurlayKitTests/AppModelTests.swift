@@ -719,3 +719,19 @@ struct SessionEndTests {
         #expect(h.model.notices.isEmpty)
     }
 }
+
+@MainActor
+@Suite("a workspace that is no longer there")
+struct StaleWorkspaceTests {
+    @Test("the one remembered from before is left for the first the person belongs to, not for an empty window")
+    func fallsBack() async throws {
+        let h = ModelHarness()
+        try h.rememberedSession()
+        let stale = Uuid("0199155c-6200-7b7f-8c11-0000000000cc")
+        let model = AppModel(h.model.environment, workspaceID: stale)
+        await model.launch()
+        #expect(model.phase == .ready)
+        #expect(model.workspace?.slug == "acme")
+        #expect(model.engine != nil)
+    }
+}

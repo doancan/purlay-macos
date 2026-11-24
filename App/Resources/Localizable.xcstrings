@@ -5615,6 +5615,16 @@
         }
       }
     },
+    "Notifications are off for Purlay in System Settings, so there are no notices and no Dock badge.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purlay için Sistem Ayarları'nda bildirimler kapalı; bu yüzden ne bildirim ne de Dock rozeti çıkar."
+          }
+        }
+      }
+    },
     "Notifications matching this filter will appear here.": {
       "localizations": {
         "tr": {
@@ -5801,6 +5811,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Konuşmayı Yeni Pencerede Aç"
+          }
+        }
+      }
+    },
+    "Open Notification Settings": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim Ayarlarını Aç"
           }
         }
       }
@@ -6331,6 +6351,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Purlay"
+          }
+        }
+      }
+    },
+    "Purlay asks the first time something needs you.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purlay, ilk kez sana ihtiyaç duyulduğunda izin ister."
           }
         }
       }
@@ -7941,6 +7971,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bu oturum açma isteğinin süresi doldu veya zaten kullanıldı. Yeniden dene."
+          }
+        }
+      }
+    },
+    "The Dock badge is off for Purlay in System Settings.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purlay için Dock rozeti Sistem Ayarları'nda kapalı."
           }
         }
       }

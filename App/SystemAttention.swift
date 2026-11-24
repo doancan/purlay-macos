@@ -132,7 +132,7 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
     private static func mayTell(_ center: UNUserNotificationCenter) async -> Bool {
         switch await center.notificationSettings().authorizationStatus {
         case .authorized, .provisional, .ephemeral: return true
-        case .notDetermined: return (try? await center.requestAuthorization(options: [.alert])) ?? false
+        case .notDetermined: return (try? await center.requestAuthorization(options: [.alert, .badge])) ?? false
         default: return false
         }
     }

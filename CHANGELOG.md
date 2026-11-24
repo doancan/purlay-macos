@@ -21,6 +21,9 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ### Fixed
 
+- Opening the app behind another one no longer announces the mentions that were already waiting.
+- A workspace remembered from an earlier run that you are no longer in no longer leaves an empty window: the app opens the last one you used, or the first.
+- Settings → Notifications says when macOS has notifications or the Dock badge turned off for Purlay (which silences both) and opens System Settings for it; the app now asks for the badge permission too.
 - In the dark theme the buttons that appear over a message are readable again (they took the brand blue on dark glass), and the keyboard ring is a neutral grey instead of an unrelated blue.
 - A session that ended while the app was away is found when you return to it, not at the next refused request; one that ends within three days is announced once, so the end is not a surprise.
 - Picture and avatar fade-ins respect Reduce Motion.

@@ -685,13 +685,11 @@ public final class AppModel {
                 phase = .ready
                 return
             }
+            // The one remembered from before, if the person is still in it; otherwise the last one used, otherwise the first.
             let membership =
-                preferredWorkspaceID.map { id in
-                    me.memberships.first { $0.workspace.id == id }
-                }
-                ?? (me.memberships.first {
-                    $0.workspace.slug == environment.preferences.string(for: "workspace")
-                } ?? me.memberships.first)
+                preferredWorkspaceID.flatMap { id in me.memberships.first { $0.workspace.id == id } }
+                ?? me.memberships.first { $0.workspace.slug == environment.preferences.string(for: "workspace") }
+                ?? me.memberships.first
             guard let membership else {
                 // Signed in, in no workspace: nothing to show here yet.
                 workspace = nil
@@ -708,8 +706,9 @@ public final class AppModel {
             if load.corruptFile != nil { say(.outboxCorrupt) }
             let channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
             guard context == contextGeneration else { return }
-            engine.setChannels(channels)
+            // The baseline first: giving the engine its channels makes the model look, and what was already waiting is not news.
             attention.prime(channels)
+            engine.setChannels(channels)
             watchJoined()
             await loadChannelGroups()
             engine.start()
