@@ -24,14 +24,40 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 }
 
 /// A transient control surface, with an opaque, outlined equivalent for accessibility settings.
+/// The one switch for Liquid Glass on what the app draws itself (its floating controls, lists and buttons). The system's own bars keep
+/// the system's glass, which only the system's accessibility settings change.
+enum LiquidGlass {
+    static let key = "appearance.liquidGlass"
+}
+
+/// A button in the glass style, or in the solid one when Liquid Glass is off, so every button follows the same setting.
+struct GlassButton: ViewModifier {
+    var prominent = false
+    @AppStorage(LiquidGlass.key) private var liquidGlass = true
+
+    @ViewBuilder func body(content: Content) -> some View {
+        switch (liquidGlass, prominent) {
+        case (true, true): content.buttonStyle(.glassProminent)
+        case (true, false): content.buttonStyle(.glass)
+        case (false, true): content.buttonStyle(.borderedProminent)
+        case (false, false): content.buttonStyle(.bordered)
+        }
+    }
+}
+
+extension View {
+    func glassButton(prominent: Bool = false) -> some View { modifier(GlassButton(prominent: prominent)) }
+}
+
 struct ControlSurface: ViewModifier {
     var radius: Double = Radius.radius2xl
     var interactive = false
+    @AppStorage(LiquidGlass.key) private var liquidGlass = true
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
-        if reduceTransparency || contrast == .increased {
+        if !liquidGlass || reduceTransparency || contrast == .increased {
             content
                 .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: radius))
                 .overlay {

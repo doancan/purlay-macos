@@ -187,6 +187,16 @@
         }
       }
     },
+    "%@ was added to the channel.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kanala eklendi."
+          }
+        }
+      }
+    },
     "%@ would reach everybody, and Purlay does not send to everybody. Mention people by name.": {
       "localizations": {
         "tr": {
@@ -807,6 +817,7 @@
         }
       }
     },
+    "/%@": {},
     "1 hour": {
       "localizations": {
         "tr": {
@@ -1123,12 +1134,32 @@
         }
       }
     },
+    "Add a shrug to your message": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajına omuz silkme ekle"
+          }
+        }
+      }
+    },
     "Add reaction": {
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Tepki ekle"
+          }
+        }
+      }
+    },
+    "Add someone to this channel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanala biri ekle"
           }
         }
       }
@@ -1259,6 +1290,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tüm mesajlar"
+          }
+        }
+      }
+    },
+    "Allow Notifications": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimlere İzin Ver"
           }
         }
       }
@@ -1843,6 +1884,16 @@
         }
       }
     },
+    "Channel muted.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kanal sessize alındı."
+          }
+        }
+      }
+    },
     "Channel or message URL": {
       "localizations": {
         "tr": {
@@ -1859,6 +1910,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kanal veya kişi"
+          }
+        }
+      }
+    },
+    "Channel starred.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kanal yıldızlandı."
+          }
+        }
+      }
+    },
+    "Channel unmuted.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kanalın sesi açıldı."
           }
         }
       }
@@ -2239,6 +2310,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Güvenle giriş yapmak için tarayıcıda devam et."
+          }
+        }
+      }
+    },
+    "Controls, lists and buttons use the system's translucent glass. Off, they are solid. Reduce Transparency always wins.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontroller, listeler ve düğmeler sistemin yarı saydam camını kullanır. Kapalıyken düzdürler. Saydamlığı Azalt her zaman önceliklidir."
           }
         }
       }
@@ -2973,6 +3054,16 @@
         }
       }
     },
+    "Deep Work ended.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derin Çalışma bitti."
+          }
+        }
+      }
+    },
     "Deep Work for 2 Hours": {
       "localizations": {
         "tr": {
@@ -3009,6 +3100,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Derin Çalışma kesintileri sessize alır"
+          }
+        }
+      }
+    },
+    "Deep Work started.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derin Çalışma başladı."
           }
         }
       }
@@ -3623,6 +3724,16 @@
         }
       }
     },
+    "Get notified about mentions again": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bahsedilmelerde yeniden bildirim al"
+          }
+        }
+      }
+    },
     "Get notified about new replies": {
       "localizations": {
         "tr": {
@@ -4179,6 +4290,16 @@
         }
       }
     },
+    "Leave this channel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanaldan ayrıl"
+          }
+        }
+      }
+    },
     "Leave this channel?": {
       "localizations": {
         "tr": {
@@ -4261,6 +4382,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bağlantılar yedi gün geçerlidir ve birden fazla kişi kullanabilir. Artık gerekmediğinde bağlantıyı iptal et."
+          }
+        }
+      }
+    },
+    "Liquid Glass": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liquid Glass"
           }
         }
       }
@@ -4835,6 +4966,26 @@
         }
       }
     },
+    "Messages waiting for their time to be sent.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderilme zamanını bekleyen mesajlar."
+          }
+        }
+      }
+    },
+    "Messages you asked to come back to.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri dönmek istediğin mesajlar."
+          }
+        }
+      }
+    },
     "Mitigating": {
       "localizations": {
         "tr": {
@@ -4961,6 +5112,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kanalı Sessize Al"
+          }
+        }
+      }
+    },
+    "Mute this channel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanalı sessize al"
           }
         }
       }
@@ -5475,6 +5636,16 @@
         }
       }
     },
+    "Nobody in this workspace has the handle @%@.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu çalışma alanında @%@ kullanıcı adına sahip kimse yok."
+          }
+        }
+      }
+    },
     "Not a Question": {
       "localizations": {
         "tr": {
@@ -5596,6 +5767,7 @@
       }
     },
     "Notification type": {
+      "extractionState": "stale",
       "localizations": {
         "tr": {
           "stringUnit": {
@@ -6065,6 +6237,16 @@
         }
       }
     },
+    "Other": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer"
+          }
+        }
+      }
+    },
     "Other Role": {
       "localizations": {
         "tr": {
@@ -6355,6 +6537,16 @@
         }
       }
     },
+    "Purlay has not asked to tell you things yet, so it is not in System Settings.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purlay henüz bildirim izni istemedi; bu yüzden Sistem Ayarları'nda görünmüyor."
+          }
+        }
+      }
+    },
     "Question": {
       "localizations": {
         "tr": {
@@ -6631,6 +6823,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Grubu kaldır ve konuşmalarını varsayılan bölümlerine döndür"
+          }
+        }
+      }
+    },
+    "Remove the star from this channel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanalın yıldızını kaldır"
           }
         }
       }
@@ -6995,6 +7197,46 @@
         }
       }
     },
+    "Say something as an action": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir şeyi eylem olarak söyle"
+          }
+        }
+      }
+    },
+    "Say what to look for: /search words": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neyi arayacağını yaz: /search sözcükler"
+          }
+        }
+      }
+    },
+    "Say what you are doing: /me waves": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne yaptığını yaz: /me el sallıyor"
+          }
+        }
+      }
+    },
+    "Say who to add: /invite @handle": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kimi ekleyeceğini yaz: /invite @kullanıcıadı"
+          }
+        }
+      }
+    },
     "Schedule": {
       "localizations": {
         "tr": {
@@ -7205,6 +7447,16 @@
         }
       }
     },
+    "Searching…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aranıyor…"
+          }
+        }
+      }
+    },
     "Send": {
       "localizations": {
         "tr": {
@@ -7396,6 +7648,7 @@
       }
     },
     "Show": {
+      "extractionState": "stale",
       "localizations": {
         "tr": {
           "stringUnit": {
@@ -7705,6 +7958,26 @@
         }
       }
     },
+    "Star removed.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yıldız kaldırıldı."
+          }
+        }
+      }
+    },
+    "Star this channel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanalı yıldızla"
+          }
+        }
+      }
+    },
     "Starred": {
       "localizations": {
         "tr": {
@@ -7731,6 +8004,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bir Saatlik Derin Çalışma Başlat"
+          }
+        }
+      }
+    },
+    "Start Deep Work, or end it with off": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derin Çalışmayı başlat, off ile bitir"
           }
         }
       }
@@ -7766,6 +8049,7 @@
       }
     },
     "State": {
+      "extractionState": "stale",
       "localizations": {
         "tr": {
           "stringUnit": {
@@ -7891,6 +8175,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "KONU"
+          }
+        }
+      }
+    },
+    "That command does not take words.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu komut sözcük almaz."
+          }
+        }
+      }
+    },
+    "That did not work. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olmadı. Tekrar dene."
           }
         }
       }
@@ -8775,6 +9079,16 @@
         }
       }
     },
+    "Use /deepwork for an hour, /deepwork 30m, 2h or tomorrow, or /deepwork off": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/deepwork bir saat için, /deepwork 30m, 2h veya tomorrow, bitirmek için /deepwork off"
+          }
+        }
+      }
+    },
     "Use This Mac’s Time Zone": {
       "localizations": {
         "tr": {
@@ -9065,6 +9379,16 @@
         }
       }
     },
+    "You are not a member of this channel.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanalın üyesi değilsin."
+          }
+        }
+      }
+    },
     "You are signed out here. The server could not be reached, so this session stays valid there until it expires.": {
       "localizations": {
         "tr": {
@@ -9141,6 +9465,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sunucunun tutabileceği en fazla aramayı kaydettin. Önce birini sil."
+          }
+        }
+      }
+    },
+    "You left the channel.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kanaldan ayrıldın."
           }
         }
       }
@@ -9455,6 +9789,16 @@
         }
       }
     },
+    "“/%@” is not a command. Start with // to send it as words.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“/%@” bir komut değil. Sözcük olarak göndermek için // ile başla."
+          }
+        }
+      }
+    },
     "•": {
       "localizations": {
         "tr": {
@@ -9471,26 +9815,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "⌘K"
-          }
-        }
-      }
-    },
-    "Purlay has not asked to tell you things yet, so it is not in System Settings.": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Purlay henüz bildirim izni istemedi; bu yüzden Sistem Ayarları'nda görünmüyor."
-          }
-        }
-      }
-    },
-    "Allow Notifications": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bildirimlere İzin Ver"
           }
         }
       }

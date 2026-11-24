@@ -39,48 +39,48 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                DestinationRow(
-                    title: "Inbox",
-                    systemImage: model.attentionCount > 0 ? "tray.full.fill" : "tray",
-                    nativeSelection: true,
-                    selected: model.inboxOpen && !model.savedOpen && !model.draftsOpen,
-                    count: model.attentionCount, shortcut: "⇧⌘I"
-                ) { selection = .inbox }
-                .tag(SidebarSelection.inbox)
-                DestinationRow(
-                    title: "Open Topics", systemImage: "bubble.left.and.text.bubble.right",
-                    nativeSelection: true, selected: model.unresolvedOpen, shortcut: "⌥⌘U"
-                ) { selection = .unresolved }
-                .tag(SidebarSelection.unresolved)
-                if model.hasModule(.issues) {
+                VStack(spacing: 0) {
                     DestinationRow(
-                        title: "Issues", systemImage: "checklist", nativeSelection: true, selected: model.issuesOpen
-                    ) { selection = .issues }
-                    .tag(SidebarSelection.issues)
-                }
-                if model.supportsReminders {
+                        title: "Inbox",
+                        systemImage: model.attentionCount > 0 ? "tray.full.fill" : "tray",
+                        nativeSelection: true,
+                        selected: model.inboxOpen && !model.savedOpen && !model.draftsOpen,
+                        count: model.attentionCount, shortcut: "⇧⌘I"
+                    ) { selection = .inbox }
                     DestinationRow(
-                        title: "Reminders", systemImage: "bell.badge", selected: model.remindersOpen,
-                        count: model.reminderItems.count
-                    ) { model.remindersOpen = true }
-                }
-                if model.supportsScheduling {
-                    DestinationRow(title: "Scheduled", systemImage: "clock", selected: model.scheduledOpen) {
-                        model.scheduledOpen = true
+                        title: "Open Topics", systemImage: "bubble.left.and.text.bubble.right",
+                        nativeSelection: true, selected: model.unresolvedOpen, shortcut: "⌥⌘U"
+                    ) { selection = .unresolved }
+                    if model.hasModule(.issues) {
+                        DestinationRow(
+                            title: "Issues", systemImage: "checklist", nativeSelection: true, selected: model.issuesOpen
+                        ) { selection = .issues }
+                    }
+                    if model.supportsReminders {
+                        DestinationRow(
+                            title: "Reminders", systemImage: "bell.badge", selected: model.remindersOpen,
+                            count: model.reminderItems.count
+                        ) { model.remindersOpen = true }
+                    }
+                    if model.supportsScheduling {
+                        DestinationRow(title: "Scheduled", systemImage: "clock", selected: model.scheduledOpen) {
+                            model.scheduledOpen = true
+                        }
+                    }
+                    DestinationRow(
+                        title: "Saved Messages", systemImage: "bookmark",
+                        selected: model.savedOpen, count: model.savedIDs.count
+                    ) { model.savedOpen = true }
+                    DestinationRow(
+                        title: "Drafts", systemImage: "square.and.pencil",
+                        selected: model.draftsOpen, count: model.draftCount, shortcut: "⌥⇧⌘D"
+                    ) {
+                        model.draftsOpen = true
                     }
                 }
-                DestinationRow(
-                    title: "Saved Messages", systemImage: "bookmark",
-                    selected: model.savedOpen, count: model.savedIDs.count
-                ) { model.savedOpen = true }
-                DestinationRow(
-                    title: "Drafts", systemImage: "square.and.pencil",
-                    selected: model.draftsOpen, count: model.draftCount, shortcut: "⌥⇧⌘D"
-                ) {
-                    model.draftsOpen = true
-                }
             }
-            // The destination rows sit on the same column as the channel rows' symbols and have the same pill edges.
+            // The destination rows are one row of the list, not several: a row with a selection tag is laid out with other insets than one
+            // without, and in one row every symbol is on the same column by construction.
             .listRowInsets(EdgeInsets(top: 2, leading: -Spacing.space1, bottom: 2, trailing: -Spacing.space1))
             .listRowBackground(Color.clear)
             Section {
@@ -140,8 +140,8 @@ struct SidebarView: View {
                     Text("Browse the workspace's channels, or start a conversation.")
                         .font(.caption).foregroundStyle(.secondary)
                     HStack(spacing: Spacing.space3) {
-                        Button("Browse Channels…") { sheet = .browse }.buttonStyle(.link)
-                        Button("New Conversation") { sheet = .conversation }.buttonStyle(.link)
+                        Button("Browse Channels…") { sheet = .browse }.buttonStyle(.bordered).controlSize(.small)
+                        Button("New Conversation") { sheet = .conversation }.buttonStyle(.bordered).controlSize(.small)
                     }
                 }
                 .padding(.vertical, Spacing.space3)
@@ -158,7 +158,7 @@ struct SidebarView: View {
                     Button("Show All Channels") {
                         query = ""
                         unreadOnly = false
-                    }.buttonStyle(.link)
+                    }.buttonStyle(.bordered).controlSize(.small)
                 }
                 .padding(.vertical, Spacing.space3)
                 .listRowSeparator(.hidden)
@@ -480,8 +480,6 @@ private struct WorkspaceHeader: View {
     let model: AppModel
     @Binding var sheet: ChannelSheet?
     @Environment(\.openSettings) private var openSettings
-    @State private var hovering = false
-
     var body: some View {
         Menu {
             if let sessions {
@@ -525,14 +523,7 @@ private struct WorkspaceHeader: View {
             }
             .padding(.horizontal, Spacing.space2)
             .padding(.vertical, Spacing.space1)
-            .background(hovering ? Color.primary.opacity(0.07) : .clear, in: .rect(cornerRadius: Radius.radiusLg))
-            // A border at rest says it is a control; the hover fill is the same shape.
-            .overlay {
-                RoundedRectangle(cornerRadius: Radius.radiusLg)
-                    .strokeBorder(NativePalette.border.style, lineWidth: Stroke.strokeHairline)
-            }
-            .contentShape(.rect)
-            .onHover { hovering = $0 }
+            .switcherSurface()
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -593,7 +584,7 @@ private struct AccountFooter: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(Spacing.space2)
-            .contentShape(.rect)
+            .switcherSurface()
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -619,4 +610,24 @@ private struct AccountFooter: View {
         sessions?.prepareSettings(for: model)
         openSettings()
     }
+}
+
+/// What the sidebar's two switchers (workspace, account) look like: a border at rest that says it is a control, a fill under the pointer.
+private struct SwitcherSurface: ViewModifier {
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(hovering ? Color.primary.opacity(0.07) : .clear, in: .rect(cornerRadius: Radius.radiusLg))
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.radiusLg)
+                    .strokeBorder(NativePalette.border.style, lineWidth: Stroke.strokeHairline)
+            }
+            .contentShape(.rect)
+            .onHover { hovering = $0 }
+    }
+}
+
+extension View {
+    fileprivate func switcherSurface() -> some View { modifier(SwitcherSurface()) }
 }

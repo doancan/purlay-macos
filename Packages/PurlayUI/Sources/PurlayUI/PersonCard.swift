@@ -62,7 +62,7 @@ struct PersonCard: View {
                 } label: {
                     Label("Message", systemImage: "bubble.left").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .glassButton(prominent: true)
                 .controlSize(.large)
             }
         }

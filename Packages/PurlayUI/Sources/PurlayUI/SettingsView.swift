@@ -24,6 +24,7 @@ public struct SettingsView: View {
     @AppStorage("composer.formatting") private var formatting = false
     @AppStorage("composer.hints") private var hints = true
     @AppStorage("sidebar.translucent") private var translucentSidebar = true
+    @AppStorage(LiquidGlass.key) private var liquidGlass = true
     @State private var copied = false
     @Environment(\.openURL) private var openURL
 
@@ -135,6 +136,11 @@ public struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle("Translucent sidebar", isOn: $translucentSidebar)
+                Toggle("Liquid Glass", isOn: $liquidGlass)
+                Text(
+                    "Controls, lists and buttons use the system's translucent glass. Off, they are solid. Reduce Transparency always wins."
+                )
+                .font(.callout).foregroundStyle(.secondary)
             }
             Section("Messages") {
                 Picker("Message spacing", selection: $compact) {

@@ -42,7 +42,7 @@ struct ThreadPanel: View {
                                     Text("Check your connection and try again.")
                                         .font(.callout).foregroundStyle(.secondary)
                                     Button("Try Again") { Task { await model.reloadThread() } }
-                                        .buttonStyle(.glassProminent)
+                                        .glassButton(prominent: true)
                                 }
                                 .frame(maxWidth: .infinity).padding(Spacing.space6)
                             } else if !thread.isLoaded {
@@ -98,7 +98,7 @@ struct ThreadPanel: View {
                             } label: {
                                 Label("Jump to Latest", systemImage: "arrow.down")
                             }
-                            .buttonStyle(.glass).padding(.bottom, Spacing.space3)
+                            .glassButton().padding(.bottom, Spacing.space3)
                         }
                     }
                     .scrollIndicators(.automatic)
@@ -212,7 +212,7 @@ private struct Status: View {
                         changing = false
                     }
                 }
-                .buttonStyle(.glass)
+                .glassButton()
                 .controlSize(.small)
                 .disabled(changing)
                 // ⇧⌘R is the Message menu's: a shortcut kept here would stop working when this row scrolled out of the panel.

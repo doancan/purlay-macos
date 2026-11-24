@@ -145,7 +145,7 @@ struct AddBookmarkSheet: View {
             GlassEffectContainer(spacing: Spacing.space2) {
                 HStack {
                     Spacer()
-                    Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                    Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).glassButton()
                         .disabled(busy)
                     Button(action: add) {
                         HStack {
@@ -153,7 +153,7 @@ struct AddBookmarkSheet: View {
                             Text(busy ? "Adding…" : "Add Bookmark")
                         }
                     }
-                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).disabled(url == nil || busy)
+                    .keyboardShortcut(.defaultAction).glassButton(prominent: true).disabled(url == nil || busy)
                 }
             }
             .controlSize(.large).padding(Spacing.space4)
@@ -208,7 +208,7 @@ struct BookmarkDetails: View {
                 }
                 if canChange {
                     Button("Add Bookmark…", systemImage: "plus") { model.addingBookmark = channel.id }
-                        .buttonStyle(.link)
+                        .buttonStyle(.bordered).controlSize(.small)
                 }
             }
         }
@@ -258,7 +258,7 @@ struct PostingDetails: View {
                     Button("Change in Browser…", systemImage: "safari") {
                         if let url = model.webURL(.channel(channel.id)) { openURL(url) }
                     }
-                    .buttonStyle(.link)
+                    .buttonStyle(.bordered).controlSize(.small)
                     .help("Who can post is changed in the channel's settings in the browser")
                 }
             }
