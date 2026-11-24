@@ -49,6 +49,6 @@ struct DraftsSheet: View {
                 .listStyle(.inset)
             }
         }
-        .frame(width: Size.sizePalette, height: Size.sizePaletteList + Size.sizeHeader)
+        .modifier(ModalFrame(width: Size.sizePalette, height: Size.sizePaletteList + Size.sizeHeader))
     }
 }

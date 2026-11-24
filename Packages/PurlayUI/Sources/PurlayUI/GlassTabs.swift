@@ -3,17 +3,17 @@ import SwiftUI
 
 /// A row of tabs on a capsule of glass, the chosen one a raised pill that slides to the next choice rather than jumping. Lighter
 /// than the system's segmented control, whose grey track reads heavy on a white inspector.
-struct GlassTabs<Tab: Hashable & Identifiable>: View {
+struct GlassTabs<Tab: Hashable>: View {
     let tabs: [Tab]
     @Binding var selection: Tab
-    let title: (Tab) -> LocalizedStringKey
+    let title: (Tab) -> Text
     /// A symbol beside each title, where the tabs are pages of their own (Settings) rather than views of one thing.
     var image: ((Tab) -> String)? = nil
     @Namespace private var pill
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(tabs) { tab in
+            ForEach(tabs, id: \.self) { tab in
                 let chosen = tab == selection
                 Button {
                     selection = tab
@@ -21,6 +21,7 @@ struct GlassTabs<Tab: Hashable & Identifiable>: View {
                     label(tab)
                         .font(.callout.weight(chosen ? .semibold : .regular))
                         .foregroundStyle(NativePalette.ink.style)
+                        .padding(.horizontal, Spacing.space3)
                         .frame(maxWidth: .infinity, minHeight: Size.sizeControl - Spacing.space1)
                         .background {
                             if chosen {
@@ -43,9 +44,13 @@ struct GlassTabs<Tab: Hashable & Identifiable>: View {
 
     @ViewBuilder private func label(_ tab: Tab) -> some View {
         if let image {
-            Label(title(tab), systemImage: image(tab))
+            Label {
+                title(tab)
+            } icon: {
+                Image(systemName: image(tab))
+            }
         } else {
-            Text(title(tab))
+            title(tab)
         }
     }
 }

@@ -106,9 +106,7 @@ extension AppModel {
     /// The person chose a channel: whatever page was in its place (the inbox) gives way to it. A re-read the server asks for
     /// goes through `open` and leaves the page where it is.
     public func showChannel(_ channelID: Uuid) async {
-        inboxOpen = false
-        unresolvedOpen = false
-        issuesOpen = false
+        closePages()
         await open(channelID)
     }
 

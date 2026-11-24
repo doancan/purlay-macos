@@ -329,7 +329,7 @@ public final class AppModel {
     public var paletteOpen = false
     public var searchOpen = false
     public var pinsOpen = false
-    public var remindersOpen = false
+    public var remindersOpen = false { didSet { if remindersOpen { closePages(except: .reminders) } } }
     public var reminderTarget: Message?
     public var deletionTarget: Message?
     var deletingMessages: Set<Uuid> = []
@@ -337,14 +337,27 @@ public final class AppModel {
     var loadingReminders = false
     var failedReminders = false
     var reminderGeneration = 0
-    public var scheduledOpen = false
+    public var scheduledOpen = false { didSet { if scheduledOpen { closePages(except: .scheduled) } } }
     public internal(set) var scheduledItems: [ScheduledMessage] = []
     public internal(set) var scheduledLoading = false
     public internal(set) var scheduledFailed = false
     var scheduledGeneration = 0
-    public var savedOpen = false
+    public var savedOpen = false { didSet { if savedOpen { closePages(except: .saved) } } }
     public var shortcutsOpen = false
-    public var draftsOpen = false
+
+    /// The pages that stand in the place of a channel: one at a time, and none once a channel is chosen.
+    enum Page { case inbox, unresolved, issues, reminders, scheduled, saved, drafts }
+
+    func closePages(except page: Page? = nil) {
+        if page != .inbox { inboxOpen = false }
+        if page != .unresolved { unresolvedOpen = false }
+        if page != .issues { issuesOpen = false }
+        if page != .reminders { remindersOpen = false }
+        if page != .scheduled { scheduledOpen = false }
+        if page != .saved { savedOpen = false }
+        if page != .drafts { draftsOpen = false }
+    }
+    public var draftsOpen = false { didSet { if draftsOpen { closePages(except: .drafts) } } }
     public private(set) var draftRevision = 0
 
     /// Which channels have a draft, and which have been looked at: not observed, since `draftRevision` says when it changed.

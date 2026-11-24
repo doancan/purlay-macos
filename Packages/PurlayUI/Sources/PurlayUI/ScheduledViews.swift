@@ -117,13 +117,11 @@ struct ScheduledSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Scheduled Messages").font(.title2.bold())
-                Spacer()
-                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.loadScheduled() } }
-                    .labelStyle(.iconOnly).disabled(model.scheduledLoading)
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
-            }.padding(20)
+            SheetHeader(
+                title: "Scheduled Messages", subtitle: "Messages waiting for their time to be sent.", image: "clock",
+                refresh: { Task { await model.loadScheduled() } }, refreshing: model.scheduledLoading
+            ) { dismiss() }
+            Divider()
             if let failure { Text(failure).foregroundStyle(.red).padding(.horizontal) }
             if model.scheduledFailed {
                 HStack {
@@ -187,7 +185,7 @@ struct ScheduledSheet: View {
                     }.padding(.vertical, 6)
                 }
             }
-        }.frame(width: 600, height: 500)
+        }.modifier(ModalFrame(width: 600, height: 500))
             .task {
                 await model.loadScheduled()
                 while !Task.isCancelled {

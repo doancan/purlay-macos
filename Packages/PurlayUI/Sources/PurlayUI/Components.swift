@@ -24,21 +24,56 @@ struct SheetHeading: View {
     }
 }
 
+private struct IsPageKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// The view is shown as a page of the window, not as a sheet over it: there is nothing to dismiss and no fixed size.
+    var isPage: Bool {
+        get { self[IsPageKey.self] }
+        set { self[IsPageKey.self] = newValue }
+    }
+}
+
+/// A sheet's fixed size, or, as a page, the room the window gives it up to a width that reads well.
+struct ModalFrame: ViewModifier {
+    let width: Double
+    let height: Double
+    @Environment(\.isPage) private var isPage
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if isPage {
+            content.frame(maxWidth: 880).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            content.frame(width: width, height: height)
+        }
+    }
+}
+
 /// Sheets keep their heading at the top, independently of the height of a list, loading state or empty state below it.
 struct SheetHeader: View {
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey
     let image: String
     var closeTitle: LocalizedStringKey = "Done"
+    /// A list that can be read again offers it beside Done.
+    var refresh: (() -> Void)?
+    var refreshing = false
     let close: () -> Void
+    @Environment(\.isPage) private var isPage
 
     var body: some View {
         HStack(spacing: Spacing.space4) {
             SheetHeading(title: title, subtitle: subtitle, image: image)
-            Button(closeTitle, action: close)
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.glass)
-                .fixedSize()
+            if let refresh {
+                Button("Refresh", systemImage: "arrow.clockwise", action: refresh)
+                    .labelStyle(.iconOnly).glassButton().fixedSize().disabled(refreshing)
+            }
+            if !isPage {
+                Button(closeTitle, action: close)
+                    .keyboardShortcut(.cancelAction)
+                    .glassButton()
+                    .fixedSize()
+            }
         }
         .padding(Spacing.space5)
         .fixedSize(horizontal: false, vertical: true)

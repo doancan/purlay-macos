@@ -20,8 +20,7 @@ extension AppModel {
     public func openIssues() async {
         guard hasModule(.issues) else { return }
         navigationGeneration += 1
-        inboxOpen = false
-        unresolvedOpen = false
+        closePages(except: .issues)
         issuesOpen = true
         closeThread()
         await reloadIssues()
