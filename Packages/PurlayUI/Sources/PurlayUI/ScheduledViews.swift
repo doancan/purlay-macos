@@ -152,6 +152,7 @@ struct ScheduledSheet: View {
                             }
                             Spacer()
                             Menu {
+                                Button("Send Now", systemImage: "paperplane") { sendNow(message) }
                                 Button("Edit…") { editing = message }
                                 Button("Cancel Scheduled Message…", role: .destructive) { cancelling = message }
                             } label: {
@@ -218,5 +219,14 @@ struct ScheduledSheet: View {
             } message: { _ in
                 Text("It will not be sent. This cannot be undone.")
             }
+    }
+
+    private func sendNow(_ message: ScheduledMessage) {
+        Task {
+            busy = message.id
+            failure = nil
+            defer { busy = nil }
+            do { try await model.sendScheduledNow(message) } catch { failure = error.localizedDescription }
+        }
     }
 }

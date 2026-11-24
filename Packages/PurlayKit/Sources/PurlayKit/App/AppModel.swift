@@ -50,6 +50,7 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case followFailed
         case editFailed
         case deleteFailed
+        case profileFailed
         case reactionFailed
         /// The person already has as many reactions on the message as one may (D-249).
         case reactionLimit

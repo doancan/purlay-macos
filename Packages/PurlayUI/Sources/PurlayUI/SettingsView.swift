@@ -207,24 +207,7 @@ public struct SettingsView: View {
                     .font(.title2.weight(.semibold))
                 Text(page.detail).foregroundStyle(.secondary)
             }
-            if page == .profile, let me = model.me {
-                Section {
-                    LabeledContent("Name", value: me.user.displayName)
-                    LabeledContent("Handle", value: "@" + me.user.username)
-                    if let title = me.profile.title { LabeledContent("Title", value: title) }
-                    if let status = me.profile.status { LabeledContent("Status", value: status) }
-                    if let zone = me.profile.timeZone { LabeledContent("Time Zone", value: zone) }
-                } header: {
-                    Text("Profile")
-                } footer: {
-                    Text(
-                        model.nameFollowsGitHub
-                            ? "Your name comes from your GitHub account. Change it on GitHub and it updates here."
-                            : "Change your name, title, status and time zone in your browser."
-                    )
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-            }
+            if page == .profile { ProfileForm(model: model) }
             if page == .account, let me = model.me {
                 Section("Signed In") {
                     LabeledContent("Email", value: me.user.email)
@@ -347,7 +330,7 @@ extension SettingsPage {
 
     fileprivate var action: LocalizedStringKey {
         switch self {
-        case .profile: "Edit Profile in Browser"
+        case .profile: "Open Profile in Browser"
         case .account: "Manage Account in Browser"
         case .members: "Manage Members in Browser"
         case .invitations: "Manage Invitations in Browser"

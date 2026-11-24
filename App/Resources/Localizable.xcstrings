@@ -775,6 +775,16 @@
         }
       }
     },
+    "1 hour": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 saat"
+          }
+        }
+      }
+    },
     "1. Open Invitations in your browser and create an invitation link.": {
       "localizations": {
         "tr": {
@@ -801,6 +811,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "3. Kişi giriş yapar ve daveti kabul ederek üye olarak katılır."
+          }
+        }
+      }
+    },
+    "30 minutes": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 dakika"
+          }
+        }
+      }
+    },
+    "4 hours": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4 saat"
           }
         }
       }
@@ -1711,16 +1741,6 @@
         }
       }
     },
-    "Change your name, title, status and time zone in your browser.": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adını, unvanını, durumunu ve saat dilimini tarayıcıda değiştir."
-          }
-        }
-      }
-    },
     "Channel": {
       "localizations": {
         "tr": {
@@ -1951,12 +1971,32 @@
         }
       }
     },
+    "Clear after": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu süre sonra temizle"
+          }
+        }
+      }
+    },
     "Clear search and filters": {
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Aramayı ve filtreleri temizle"
+          }
+        }
+      }
+    },
+    "Clears %@.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ tarihinde temizlenir."
           }
         }
       }
@@ -2651,6 +2691,16 @@
         }
       }
     },
+    "Could not save your profile. Check your connection and try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profilin kaydedilemedi. Bağlantını kontrol edip yeniden dene."
+          }
+        }
+      }
+    },
     "Could not search": {
       "localizations": {
         "tr": {
@@ -3111,6 +3161,16 @@
         }
       }
     },
+    "Don’t clear": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temizleme"
+          }
+        }
+      }
+    },
     "Draft": {
       "localizations": {
         "tr": {
@@ -3177,16 +3237,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Düzenle"
-          }
-        }
-      }
-    },
-    "Edit Profile in Browser": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Profili Tarayıcıda Düzenle"
           }
         }
       }
@@ -5067,6 +5117,16 @@
         }
       }
     },
+    "No Emoji": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emoji Yok"
+          }
+        }
+      }
+    },
     "No Emoji Found": {
       "localizations": {
         "tr": {
@@ -5377,6 +5437,16 @@
         }
       }
     },
+    "Not set": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlanmadı"
+          }
+        }
+      }
+    },
     "Nothing Completed Yet": {
       "localizations": {
         "tr": {
@@ -5623,6 +5693,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Konuşmayı Yeni Pencerede Aç"
+          }
+        }
+      }
+    },
+    "Open Profile in Browser": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profili Tarayıcıda Aç"
           }
         }
       }
@@ -6627,6 +6707,16 @@
         }
       }
     },
+    "Revert": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri Al"
+          }
+        }
+      }
+    },
     "Review administrative changes and who made them.": {
       "localizations": {
         "tr": {
@@ -7003,6 +7093,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gönder  ↩"
+          }
+        }
+      }
+    },
+    "Send Now": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi Gönder"
           }
         }
       }
@@ -7547,6 +7647,26 @@
         }
       }
     },
+    "Status emoji": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durum emojisi"
+          }
+        }
+      }
+    },
+    "Statuses are at most %lld characters.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durum en fazla %lld karakter olabilir."
+          }
+        }
+      }
+    },
     "Stay in the flow, from the keyboard.": {
       "localizations": {
         "tr": {
@@ -8057,6 +8177,16 @@
         }
       }
     },
+    "This week": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu hafta"
+          }
+        }
+      }
+    },
     "This workspace doesn’t have chat. Ask whoever runs the server to turn it on, or open the workspace in your browser.": {
       "localizations": {
         "tr": {
@@ -8137,6 +8267,16 @@
         }
       }
     },
+    "Time zone": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saat dilimi"
+          }
+        }
+      }
+    },
     "Time zone: %@": {
       "localizations": {
         "tr": {
@@ -8153,6 +8293,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Başlık"
+          }
+        }
+      }
+    },
+    "Titles are at most %lld characters.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unvan en fazla %lld karakter olabilir."
           }
         }
       }
@@ -8457,6 +8607,16 @@
         }
       }
     },
+    "Use This Mac’s Time Zone": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Mac'in Saat Dilimini Kullan"
+          }
+        }
+      }
+    },
     "Use a Purlay channel or message link.": {
       "localizations": {
         "tr": {
@@ -8557,6 +8717,16 @@
         }
       }
     },
+    "What are you up to?": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neyle meşgulsün?"
+          }
+        }
+      }
+    },
     "What is this channel for?": {
       "localizations": {
         "tr": {
@@ -8583,6 +8753,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ne karara bağlandı"
+          }
+        }
+      }
+    },
+    "What you do here": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burada ne yapıyorsun"
           }
         }
       }
