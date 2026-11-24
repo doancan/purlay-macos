@@ -22,11 +22,13 @@ struct MemberCardTests {
         let past = Timestamp(now.addingTimeInterval(-60)).description
         let future = Timestamp(now.addingTimeInterval(600)).description
         let expired = MemberCard(
-            try member(profile: #"{"title":"Lead","timeZone":null,"status":"Out","statusEmoji":"🌴","statusUntil":"\#(past)"}"#),
+            try member(
+                profile: #"{"title":"Lead","timeZone":null,"status":"Out","statusEmoji":"🌴","statusUntil":"\#(past)"}"#),
             now: now)
         #expect(expired.status == nil && expired.statusEmoji == nil && expired.title == "Lead")
         let live = MemberCard(
-            try member(profile: #"{"title":null,"timeZone":null,"status":"Out","statusEmoji":"🌴","statusUntil":"\#(future)"}"#),
+            try member(
+                profile: #"{"title":null,"timeZone":null,"status":"Out","statusEmoji":"🌴","statusUntil":"\#(future)"}"#),
             now: now)
         #expect(live.status == "Out" && live.statusEmoji == "🌴")
     }

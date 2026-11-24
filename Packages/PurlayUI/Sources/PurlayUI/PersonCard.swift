@@ -11,10 +11,14 @@ struct PersonCardButton<Label: View>: View {
     @State private var open = false
 
     var body: some View {
-        Button { open = true } label: { label() }
-            .buttonStyle(.plain)
-            .popover(isPresented: $open, arrowEdge: .bottom) { PersonCard(model: model, user: user) { open = false } }
-            .accessibilityHint("Shows this person’s profile")
+        Button {
+            open = true
+        } label: {
+            label()
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $open, arrowEdge: .bottom) { PersonCard(model: model, user: user) { open = false } }
+        .accessibilityHint("Shows this person’s profile")
     }
 }
 
