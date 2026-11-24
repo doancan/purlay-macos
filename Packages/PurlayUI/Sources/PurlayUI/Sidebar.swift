@@ -464,11 +464,12 @@ private struct WorkspaceHeader: View {
     let model: AppModel
     @Binding var sheet: ChannelSheet?
     @Environment(\.openSettings) private var openSettings
+    @State private var hovering = false
 
     var body: some View {
         Menu {
             if let sessions {
-                WorkspaceSwitchItems(sessions: sessions, model: model)
+                WorkspaceChoice(sessions: sessions, model: model)
                 Divider()
             }
             Section {
@@ -491,16 +492,14 @@ private struct WorkspaceHeader: View {
             }
         } label: {
             HStack(spacing: Spacing.space2) {
-                Text(initials)
-                    .font(Typography.label.font.weight(.bold))
-                    .foregroundStyle(Colors.onAccent.style)
-                    .frame(width: Size.sizeControl, height: Size.sizeControl)
-                    .background(Colors.accent.style, in: .rect(cornerRadius: Radius.radiusLg))
+                if let workspace = model.workspace {
+                    WorkspaceTile(workspace: workspace)
+                }
                 VStack(alignment: .leading, spacing: Stroke.strokeFocus) {
                     Text(model.workspace?.name ?? "Purlay")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(NativePalette.ink.style).lineLimit(1)
-                    Text("Workspace")
+                    Text(model.workspaceRoleTitle)
                         .font(.system(size: 11)).foregroundStyle(NativePalette.secondary.style)
                 }
                 Spacer(minLength: 0)
@@ -508,17 +507,19 @@ private struct WorkspaceHeader: View {
                     .imageScale(.small)
                     .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, Spacing.space2)
+            .padding(.vertical, Spacing.space1)
+            .background(hovering ? Color.primary.opacity(0.07) : .clear, in: .rect(cornerRadius: Radius.radiusLg))
             .contentShape(.rect)
+            .onHover { hovering = $0 }
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .padding(.vertical, Spacing.space3)
+        .help("Switch workspace")
         .accessibilityLabel(Text("Workspace \(model.workspace?.name ?? "")"))
     }
-
-    private var initials: String { Avatar.initials(model.workspace?.name ?? "P") }
-
 }
 
 /// Who the person is, at the sidebar's foot, on glass: their face, their name, and Deep Work while it lasts; the menu has

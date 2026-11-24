@@ -7835,6 +7835,26 @@
         }
       }
     },
+    "Switch to %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Çalışma Alanına Geç"
+          }
+        }
+      }
+    },
+    "Switch workspace": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalışma alanı değiştir"
+          }
+        }
+      }
+    },
     "System": {
       "localizations": {
         "tr": {

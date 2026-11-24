@@ -218,7 +218,7 @@ public struct SettingsView: View {
                 Section("Workspace") {
                     LabeledContent("Name", value: workspace.name)
                     LabeledContent("Address", value: workspace.slug)
-                    LabeledContent("Your Role", value: roleTitle)
+                    LabeledContent("Your Role", value: model.workspaceRoleTitle)
                 }
             }
             if page == .members {
@@ -257,14 +257,6 @@ public struct SettingsView: View {
         }
         .formStyle(.grouped)
         .textSelection(.enabled)
-    }
-
-    private var roleTitle: String {
-        switch model.workspaceRole {
-        case .owner: String(localized: "Owner")
-        case .admin: String(localized: "Administrator")
-        default: String(localized: "Member")
-        }
     }
 }
 

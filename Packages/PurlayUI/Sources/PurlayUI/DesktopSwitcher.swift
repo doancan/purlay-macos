@@ -25,31 +25,10 @@ public struct DesktopSwitcher: View {
                     }
                 }
             }
-            WorkspaceSwitchItems(sessions: sessions, model: sessions.active)
+            WorkspaceChoice(sessions: sessions, model: sessions.active)
         } label: {
             Label("Switch Workspace", systemImage: "square.stack.3d.up")
         }
         .help("Switch Workspace")
-    }
-}
-
-struct WorkspaceSwitchItems: View {
-    let sessions: DesktopSessions
-    let model: AppModel
-
-    var body: some View {
-        if let memberships = model.me?.memberships, memberships.count > 1 {
-            Section("Workspaces") {
-                ForEach(memberships, id: \.workspace.id) { membership in
-                    Button {
-                        Task { await sessions.selectWorkspace(membership.workspace.id, from: model) }
-                    } label: {
-                        Label(
-                            membership.workspace.name,
-                            systemImage: model.workspace?.id == membership.workspace.id ? "checkmark" : "building.2")
-                    }
-                }
-            }
-        }
     }
 }

@@ -46,7 +46,7 @@ struct MessageRow: View {
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationHover), value: hovering)
         .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationMark), value: highlighted)
         .overlay(alignment: .leading) {
-            if keyboard { Rectangle().fill(Colors.focusRing.style).frame(width: Stroke.strokeMarker * 1.5) }
+            if keyboard { Rectangle().fill(NativePalette.focusRing.style).frame(width: Stroke.strokeMarker * 1.5) }
         }
         .overlay(alignment: .topTrailing) {
             if (hovering || picking) && !deleted && !editing {
@@ -303,7 +303,7 @@ private struct EditBox: View {
             .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusLg))
             .overlay {
                 RoundedRectangle(cornerRadius: Radius.radiusLg)
-                    .strokeBorder(Colors.focusRing.style, lineWidth: Stroke.strokeHairline)
+                    .strokeBorder(NativePalette.focusRing.style, lineWidth: Stroke.strokeHairline)
             }
             HStack {
                 Text("Escape to cancel, Return to save").font(.caption).foregroundStyle(.secondary)
@@ -416,7 +416,8 @@ private struct ActionBar: View {
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
-
+        // Borderless buttons take the window's tint, which is the brand blue: on the dark glass that is a blue that cannot be read.
+        .foregroundStyle(NativePalette.ink.style)
     }
 }
 

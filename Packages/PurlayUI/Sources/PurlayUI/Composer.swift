@@ -138,7 +138,9 @@ struct ComposerView: View {
         .modifier(ControlSurface(radius: Radius.radius2xl + Spacing.space1))
         .overlay {
             RoundedRectangle(cornerRadius: Radius.radius2xl + Spacing.space1)
-                .strokeBorder(Colors.focusRing.style, lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline)
+                .strokeBorder(
+                    NativePalette.focusRing.style, lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline
+                )
                 .opacity(dropping || state.isFocused ? 1 : 0)
                 .allowsHitTesting(false)
         }
