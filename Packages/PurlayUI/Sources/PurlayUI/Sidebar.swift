@@ -544,9 +544,6 @@ private struct AccountFooter: View {
             Section {
                 Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
                 Button("Sign Out Everywhere…") { confirmingEverywhere = true }
-                Button("Add Server…") {
-                    if let sessions { sessions.addServer() } else { Task { await model.chooseAnotherServer() } }
-                }
             }
         } label: {
             HStack(spacing: Spacing.space2) {

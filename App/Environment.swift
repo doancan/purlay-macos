@@ -29,15 +29,17 @@ enum RealEnvironment {
             Bundle.main.bundleIdentifier ?? "dev.purlay.mac", isDirectory: true)
         #if DEBUG
             let allowsLocalHTTP = true
+            let serverAddress = ProcessInfo.processInfo.environment["PURLAY_DEV_SERVER"] ?? ServerAddress.hosted
         #else
             let allowsLocalHTTP = false
+            let serverAddress = ServerAddress.hosted
         #endif
         let clientHeader = ClientHeader.value(appVersion: version)
         return AppEnvironment(
             transport: URLSessionTransport(), sessions: KeychainSessionStore(), preferences: UserDefaultsPreferences(),
             authenticator: SystemBrowserAuthenticator(), appVersion: version,
             deviceName: Host.current().localizedName ?? DeviceName.fallback,
-            allowsLocalHTTP: allowsLocalHTTP, dataDirectory: directory,
+            allowsLocalHTTP: allowsLocalHTTP, serverAddress: serverAddress, dataDirectory: directory,
             openSocket: { origin, session in
                 URLSessionSocketTransport(origin: origin.description, clientHeader: clientHeader, cookie: { session })
                     .openSocket(session: session)
@@ -53,7 +55,7 @@ enum RealEnvironment {
     }
 
     #if DEBUG
-        /// A development shortcut, in debug builds only: point the app at a local server with a session that is already made, so the
+        /// A development shortcut, in debug builds only: a session that is already made for the local server `PURLAY_DEV_SERVER` names, so the
         /// screens can be looked at without the browser. `PURLAY_DEV_SERVER=http://localhost:4390 PURLAY_DEV_SESSION=<value>`.
         static func seedDevelopmentSession(_ environment: AppEnvironment) {
             let variables = ProcessInfo.processInfo.environment
@@ -62,7 +64,6 @@ enum RealEnvironment {
             else { return }
             try? environment.sessions.save(
                 StoredSession(cookie: session, expiresAt: nil, origin: address.description), for: address)
-            environment.preferences.set(address.description, for: AppModel.serverKey)
         }
     #endif
 }

@@ -44,9 +44,9 @@
 
 1. [Download the latest release](https://github.com/doancan/purlay-macos/releases/latest).
 2. Extract the ZIP and move **Purlay.app** to **Applications**.
-3. Open Purlay, enter your server address, and sign in.
+3. Open Purlay and sign in with your browser. Your Mac stays signed in until you sign out.
 
-**Requirements:** an Apple Silicon Mac, macOS 26 or later, and access to a [Purlay server](https://github.com/doancan/purlay) 0.5.0 or later. The desktop app connects to your server; it does not host one.
+**Requirements:** an Apple Silicon Mac, macOS 26 or later, and an account on [purlay.app](https://purlay.app). The desktop app is a client; it does not host a server.
 
 **Coming from 0.1.0?** Install 0.1.1 manually once. Version 0.1.0 has no built-in updater. From 0.1.1 onward, use **Purlay → Check for Updates…** or enable automatic checks in **Settings → Updates**. Intel builds are no longer provided.
 

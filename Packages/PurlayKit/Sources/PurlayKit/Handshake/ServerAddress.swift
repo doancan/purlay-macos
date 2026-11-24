@@ -6,6 +6,9 @@ import Foundation
 public struct ServerAddress: Sendable, Hashable, CustomStringConvertible {
     public let origin: URL
 
+    /// The server the app signs in to.
+    public static let hosted = "https://purlay.app"
+
     public enum Problem: Error, Sendable, Equatable {
         case empty
         /// Not an address a browser would open: spaces, control characters, an unreadable host.

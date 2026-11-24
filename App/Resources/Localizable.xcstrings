@@ -1041,16 +1041,6 @@
         }
       }
     },
-    "Add Server…": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sunucu Ekle…"
-          }
-        }
-      }
-    },
     "Add a bookmark to this channel": {
       "localizations": {
         "tr": {
@@ -1871,16 +1861,6 @@
         }
       }
     },
-    "Choose Another Server": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başka Bir Sunucu Seç"
-          }
-        }
-      }
-    },
     "Choose Remind Me from a message’s menu. Due reminders appear in Inbox.": {
       "localizations": {
         "tr": {
@@ -2127,16 +2107,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tamamlandı"
-          }
-        }
-      }
-    },
-    "Connect": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bağlan"
           }
         }
       }
@@ -3317,16 +3287,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Geçerli bir Purlay kanal ya da mesaj bağlantısı gir."
-          }
-        }
-      }
-    },
-    "Enter the address of your team's Purlay server.": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ekibinin Purlay sunucusunun adresini gir."
           }
         }
       }
@@ -7117,26 +7077,6 @@
         }
       }
     },
-    "Server address": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sunucu adresi"
-          }
-        }
-      }
-    },
-    "Servers and Workspaces": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sunucular ve Çalışma Alanları"
-          }
-        }
-      }
-    },
     "Set Reminder": {
       "localizations": {
         "tr": {
@@ -7617,6 +7557,16 @@
         }
       }
     },
+    "Stay signed in on this Mac": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Mac'te oturumunuz açık kalsın"
+          }
+        }
+      }
+    },
     "Strikethrough  ⇧⌘X": {
       "localizations": {
         "tr": {
@@ -7637,12 +7587,12 @@
         }
       }
     },
-    "Switch Workspace or Server": {
+    "Switch Workspace": {
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalışma Alanını veya Sunucuyu Değiştir"
+            "value": "Çalışma Alanı Değiştir"
           }
         }
       }
@@ -8507,16 +8457,6 @@
         }
       }
     },
-    "Use Another Server": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başka Bir Sunucu Kullan"
-          }
-        }
-      }
-    },
     "Use a Purlay channel or message link.": {
       "localizations": {
         "tr": {
@@ -8613,16 +8553,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Webhook"
-          }
-        }
-      }
-    },
-    "Welcome to Purlay": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Purlay'a Hoş Geldin"
           }
         }
       }
@@ -8737,12 +8667,12 @@
         }
       }
     },
-    "Workspaces on This Server": {
+    "Workspaces": {
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu Sunucudaki Çalışma Alanları"
+            "value": "Çalışma Alanları"
           }
         }
       }
@@ -8873,6 +8803,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Artık buraya erişimin yok."
+          }
+        }
+      }
+    },
+    "You stay signed in on this Mac until you sign out.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkış yapana kadar bu Mac'te oturumunuz açık kalır."
           }
         }
       }
@@ -9033,26 +8973,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gönderilmemiş mesajların okunamadı ve kenara alındı."
-          }
-        }
-      }
-    },
-    "Your workspace, on your server": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çalışma alanın, kendi sunucunda"
-          }
-        }
-      }
-    },
-    "chat.example.com": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "chat.example.com"
           }
         }
       }

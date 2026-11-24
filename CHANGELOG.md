@@ -4,6 +4,11 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+### Changed
+
+- **Sign-in is only at purlay.app.** The app no longer asks for a server address: it opens straight to the sign-in page, and "Use Another Server", "Choose Another Server" and "Add Server…" are gone. A workspace of another server kept by an earlier version is not opened, and a `purlay://` link to another server is refused. Workspaces of your account still switch from the toolbar.
+- The sign-in page now shows the notice of why you are signed out (an ended or expired session) above the button, and says that this Mac stays signed in until you sign out.
+
 ### Fixed
 
 - Search, the jump palette and the list sheets (Pins, Reminders, Scheduled, Saved, Drafts, Shortcuts, Browse Channels) now close when you press anywhere outside them, including the sidebar and the toolbar, or when the window loses the keyboard, instead of only with Escape.

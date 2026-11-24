@@ -132,6 +132,12 @@ extension SnapshotTests {
         _ = try draw(InboxPage(model: m), named: "updates-failed")
     }
 
+    @Test("the sign-in page, waiting and not")
+    func signIn() throws {
+        for dark in [true, false] { _ = try draw(SignInView(model: model(), busy: false), dark: dark, named: "sign-in") }
+        _ = try draw(SignInView(model: model(), busy: true), named: "sign-in-busy")
+    }
+
     @Test("a workspace without chat")
     func chatOff() throws {
         _ = try draw(ChatOffView(model: model()), named: "chat-off")

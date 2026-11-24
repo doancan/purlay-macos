@@ -87,6 +87,8 @@ public struct AppEnvironment {
     public var appVersion: SemanticVersion
     public var deviceName: String
     public var allowsLocalHTTP: Bool
+    /// The one server this app signs in to: Purlay's own. Only a development build points it elsewhere.
+    public var serverAddress: String
     /// Where per-person files are kept (`outbox/<userId>.json`).
     public var dataDirectory: URL
     /// An `OpenSocket` for this server's canonical address and this session.
@@ -103,7 +105,8 @@ public struct AppEnvironment {
     public init(
         transport: any HTTPTransport, sessions: any SessionStore, preferences: any PreferenceStore,
         authenticator: any WebAuthenticator,
-        appVersion: SemanticVersion, deviceName: String, allowsLocalHTTP: Bool, dataDirectory: URL,
+        appVersion: SemanticVersion, deviceName: String, allowsLocalHTTP: Bool,
+        serverAddress: String = ServerAddress.hosted, dataDirectory: URL,
         openSocket: @escaping (ServerAddress, String) -> OpenSocket, schedule: @escaping Schedule,
         random: @escaping () -> Double = { Double.random(in: 0...1) },
         clock: @escaping @Sendable () -> Date = Date.init,
@@ -120,6 +123,7 @@ public struct AppEnvironment {
         self.appVersion = appVersion
         self.deviceName = deviceName
         self.allowsLocalHTTP = allowsLocalHTTP
+        self.serverAddress = serverAddress
         self.dataDirectory = dataDirectory
         self.attention = attention
         self.openSocket = openSocket

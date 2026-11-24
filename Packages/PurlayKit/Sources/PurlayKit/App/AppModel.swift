@@ -82,8 +82,6 @@ public enum ServerProblem: Equatable, Sendable {
 public final class AppModel {
     public enum Phase: Equatable, Sendable {
         case launching
-        /// No server yet, or the one kept cannot be used: asks for an address.
-        case needsServer
         case checking
         case problem(ServerProblem)
         case signedOut
@@ -99,7 +97,6 @@ public final class AppModel {
     }
     @ObservationIgnored var onPhaseChange: (() -> Void)?
     @ObservationIgnored var onSessionEnded: (() -> Void)?
-    @ObservationIgnored var onChooseAnotherServer: (() -> Void)?
     private let preferredWorkspaceID: Uuid?
     public private(set) var server: ServerAddress?
     public private(set) var serverInfo: ClientInfo?
@@ -145,8 +142,6 @@ public final class AppModel {
     public private(set) var isActive = true
     /// The newest message is in view: reading what is not seen is not reading.
     public private(set) var atBottom = true
-
-    public static let serverKey = "server"
 
     let uploadIDs: MessageIDGenerator
 
@@ -477,7 +472,7 @@ public final class AppModel {
 
     // MARK: Starting
 
-    /// At launch: the server this app was last pointed at, if any.
+    /// At launch: the app's server, where a session kept from the last run is picked up again.
     public func launch() async {
         if let sessionOwner {
             await sessionOwner.launch()
@@ -487,24 +482,20 @@ public final class AppModel {
         guard !launched else { return }
         launched = true
         phase = .launching
-        guard let typed = environment.preferences.string(for: Self.serverKey) else {
-            phase = .needsServer
-            return
-        }
-        await connect(to: typed)
+        await connect()
     }
 
-    /// Points the app at a server, asks what it is, and goes on to sign-in or to the person's workspace if a session is kept.
-    public func connect(to typed: String) async {
+    /// Asks the app's server what it is, and goes on to sign-in or to the person's workspace if a session is kept.
+    public func connect() async {
         if let sessionOwner {
-            await sessionOwner.connect(to: typed)
+            await sessionOwner.connect()
             return
         }
         let address: ServerAddress
         do {
-            address = try ServerAddress.parse(typed, allowsLocalHTTP: environment.allowsLocalHTTP)
+            address = try ServerAddress.parse(environment.serverAddress, allowsLocalHTTP: environment.allowsLocalHTTP)
         } catch {
-            phase = .needsServer
+            phase = .problem(.unreachable)
             say(.invalidAddress(error))
             return
         }
@@ -530,7 +521,6 @@ public final class AppModel {
         case .ready(let info, let canonical):
             serverInfo = info
             origin = canonical
-            environment.preferences.set(address.description, for: Self.serverKey)
             await resumeOrAskToSignIn(address)
         case .appTooOld(let minimum, let info):
             serverInfo = info
@@ -542,30 +532,6 @@ public final class AppModel {
             serverInfo = info
             phase = .problem(.unusableOrigin(text))
         }
-    }
-
-    /// Forgets the server, so the next launch asks again: changing server signs out (one at a time).
-    public func chooseAnotherServer() async {
-        if let sessionOwner {
-            await sessionOwner.chooseAnotherServer()
-            return
-        }
-        if let onChooseAnotherServer {
-            onChooseAnotherServer()
-            return
-        }
-        switch await signOut(.thisDevice) {
-        case .credentialKept, .notDone: return
-        case .done, .serverNotTold: break
-        }
-        observation?.cancel()
-        observation = nil
-        manager = nil
-        environment.preferences.set(nil, for: Self.serverKey)
-        server = nil
-        origin = nil
-        serverInfo = nil
-        phase = .needsServer
     }
 
     // MARK: The session

@@ -120,7 +120,7 @@ final class ModelHarness {
             AppEnvironment(
                 transport: server, sessions: sessions, preferences: preferences, authenticator: browser,
                 appVersion: SemanticVersion("0.1.0")!, deviceName: "Test Mac", allowsLocalHTTP: allowsLocalHTTP,
-                dataDirectory: directory,
+                serverAddress: "http://localhost:4390", dataDirectory: directory,
                 openSocket: { [weak self] _, session in
                     self?.openedWith.append(session)
                     return { _, handlers in
@@ -164,7 +164,7 @@ final class ModelHarness {
 
     /// Signs in through the browser and waits for the first screen.
     func signedIn() async {
-        await model.connect(to: "localhost:4390")
+        await model.connect()
         await model.signIn()
         await settle()
         sockets.last?.handlers.opened()
@@ -177,35 +177,36 @@ final class ModelHarness {
                 cookie: FakeServer.sessionValue, expiresAt: Date(timeIntervalSince1970: 4_000_000_000),
                 origin: "http://localhost:4390"),
             for: try ServerAddress.parse("localhost:4390", allowsLocalHTTP: true))
-        preferences.set("http://localhost:4390", for: AppModel.serverKey)
     }
 }
 
 @MainActor
 @Suite("starting")
 struct StartingTests {
-    @Test("with no server kept, the app asks for one")
-    func needsServer() async {
+    @Test("at launch with no session kept, the app connects to its server and asks the person to sign in")
+    func launchesIntoSignIn() async {
         let h = ModelHarness()
         await h.model.launch()
-        #expect(h.model.phase == .needsServer)
+        #expect(h.model.phase == .signedOut)
     }
 
-    @Test("a server the app can talk to is remembered, and with no session kept the person is asked to sign in")
+    @Test("with no session kept the person is asked to sign in")
     func signedOut() async {
         let h = ModelHarness()
-        await h.model.connect(to: "localhost:4390")
+        await h.model.connect()
         #expect(h.model.phase == .signedOut)
-        #expect(h.preferences.string(for: AppModel.serverKey) == "http://localhost:4390")
         #expect(h.model.serverInfo?.contractVersion == 1)
     }
 
-    @Test("what is typed that is not a server's address is said, and the person stays where they were")
+    @Test("an address the app cannot use is said, and nothing is asked of it")
     func invalidAddress() async {
         let h = ModelHarness()
-        await h.model.connect(to: "https://user:pw@x.test")
-        #expect(h.model.phase == .needsServer)
-        #expect(h.model.notices.map(\.kind) == [.invalidAddress(.hasCredentials)])
+        var environment = h.model.environment
+        environment.serverAddress = "https://user:pw@x.test"
+        let model = AppModel(environment)
+        await model.launch()
+        #expect(model.phase == .problem(.unreachable))
+        #expect(model.notices.map(\.kind) == [.invalidAddress(.hasCredentials)])
         #expect(h.server.requests.isEmpty, "nothing was asked of a place that is not an address")
     }
 
@@ -213,17 +214,17 @@ struct StartingTests {
     func problems() async {
         let down = ModelHarness()
         down.server.edit { $0.online = false }
-        await down.model.connect(to: "localhost:4390")
+        await down.model.connect()
         #expect(down.model.phase == .problem(.unreachable))
 
         let page = ModelHarness()
         page.server.edit { $0.infoStatus = 404 }
-        await page.model.connect(to: "localhost:4390")
+        await page.model.connect()
         #expect(page.model.phase == .problem(.notAPurlayServer))
 
         let limited = ModelHarness()
         limited.server.edit { $0.infoStatus = 429 }
-        await limited.model.connect(to: "localhost:4390")
+        await limited.model.connect()
         #expect(limited.model.phase == .problem(.rateLimited(retryAfter: nil)), "a 429 is a count, whatever it says")
     }
 
@@ -231,7 +232,7 @@ struct StartingTests {
     func versions() async {
         let new = ModelHarness()
         new.server.edit { $0.clientInfo = FakeServer.clientInfo(minApp: "9.0.0") }
-        await new.model.connect(to: "localhost:4390")
+        await new.model.connect()
         guard case .problem(.appTooOld(let minimum)) = new.model.phase else {
             Issue.record("not too old: \(new.model.phase)")
             return
@@ -240,7 +241,7 @@ struct StartingTests {
 
         let old = ModelHarness()
         old.server.edit { $0.clientInfo = FakeServer.clientInfo(contract: 0) }
-        await old.model.connect(to: "localhost:4390")
+        await old.model.connect()
         #expect(old.model.phase == .problem(.serverTooOld(contract: 0)))
     }
 
@@ -250,7 +251,7 @@ struct StartingTests {
     func unusableOrigin() async {
         let h = ModelHarness()
         h.server.edit { $0.clientInfo = FakeServer.clientInfo(appUrl: "ftp://x.test") }
-        await h.model.connect(to: "localhost:4390")
+        await h.model.connect()
         #expect(h.model.phase == .problem(.unusableOrigin("ftp://x.test")))
     }
 
@@ -272,7 +273,6 @@ struct StartingTests {
             StoredSession(
                 cookie: "old", expiresAt: Date(timeIntervalSince1970: 1_000), origin: "http://localhost:4390"),
             for: try ServerAddress.parse("localhost:4390", allowsLocalHTTP: true))
-        h.preferences.set("http://localhost:4390", for: AppModel.serverKey)
         await h.model.launch()
         #expect(h.model.phase == .signedOut)
         #expect(h.model.notices.map(\.kind) == [.sessionExpired])
@@ -300,7 +300,7 @@ struct SigningInTests {
     @Test("closing the page ends it quietly: nothing is said, and the person is where they were")
     func cancelled() async {
         let h = ModelHarness(browser: ScriptedBrowser { _ in throw WebAuthenticatorError.cancelled })
-        await h.model.connect(to: "localhost:4390")
+        await h.model.connect()
         await h.model.signIn()
         #expect(h.model.phase == .signedOut)
         #expect(h.model.notices.isEmpty)
@@ -309,7 +309,7 @@ struct SigningInTests {
     @Test("a code the server does not know is said, and the person can try again")
     func rejected() async {
         let h = ModelHarness()
-        await h.model.connect(to: "localhost:4390")
+        await h.model.connect()
         h.server.edit { $0.tokenStatus = 404 }
         await h.model.signIn()
         #expect(h.model.phase == .signedOut)
@@ -323,7 +323,7 @@ struct SigningInTests {
     @Test("a server that answers with no session in it is said, and the person is not shown a signed-in app")
     func noSession() async {
         let h = ModelHarness()
-        await h.model.connect(to: "localhost:4390")
+        await h.model.connect()
         h.server.edit { $0.cookieOnToken = false }
         await h.model.signIn()
         #expect(h.model.phase == .signedOut)
@@ -416,7 +416,7 @@ struct SignedInTests {
     @Test("an upgrade the server refuses because this app is too old is a problem to show, not a loop")
     func upgradeRefused() async {
         let h = ModelHarness()
-        await h.model.connect(to: "localhost:4390")
+        await h.model.connect()
         await h.model.signIn()
         await h.settle()
         h.last.handlers.refused(426)
@@ -568,16 +568,6 @@ struct SigningOutTests {
         }
         #expect(h.model.phase == .ready)
         #expect(h.model.notices.map(\.kind).contains(.signOutEverywhereFailed))
-    }
-
-    @Test("choosing another server signs out first, and asks for the address again")
-    func anotherServer() async {
-        let h = ModelHarness()
-        await h.signedIn()
-        await h.model.chooseAnotherServer()
-        #expect(h.model.phase == .needsServer)
-        #expect(h.preferences.string(for: AppModel.serverKey) == nil)
-        #expect(h.server.requests.contains { $0.url.path == "/auth/logout" })
     }
 }
 
