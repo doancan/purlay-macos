@@ -12,6 +12,8 @@ final class ComposerState {
     var text = ""
     var mention: MentionQuery?
     var suggestions: [User] = []
+    /// The slash commands the first word could be, while a `/` is being typed at the start. One list is open at a time.
+    var commands: [SlashCommand] = []
     var highlighted = 0
     var notice: LocalizedStringKey?
     /// Set by the text view: puts markdown where the caret is, as a key would.
@@ -19,6 +21,8 @@ final class ComposerState {
     var showEmoji: (() -> Void)?
     /// Set by the text view: writes a person's handle in place of what was typed after the `@`.
     var choose: ((User) -> Void)?
+    /// Set by the text view: writes a command's name (and a space for what follows it) in place of what was typed.
+    var chooseCommand: ((SlashCommand) -> Void)?
     /// Set by the text view: replaces everything (a draft read, or the box emptied after a send) without being undone into.
     var replaceAll: ((String) -> Void)?
     /// Set by the composer view: shows or hides the preview, as its button does.
@@ -35,6 +39,7 @@ final class ComposerState {
         self.text = text
         mention = nil
         suggestions = []
+        commands = []
         highlighted = 0
         replaceAll?(text)
     }
@@ -183,6 +188,7 @@ struct ComposerTextView: NSViewRepresentable {
                 NSApp.orderFrontCharacterPalette(nil)
             }
             state.choose = { [weak self] user in self?.choose(user) }
+            state.chooseCommand = { [weak self] command in self?.chooseCommand(command) }
             state.focusAndType = { [weak self] typed in
                 guard let view = self?.view else { return }
                 view.window?.makeFirstResponder(view)
@@ -227,6 +233,18 @@ struct ComposerTextView: NSViewRepresentable {
             guard let view else { return }
             let state = parent.state
             let selection = view.selectedRange()
+            if selection.length == 0, let typed = SlashCommand.query(view.string, caret: selection.location) {
+                let found = SlashCommand.matching(typed)
+                // A command typed out in full, matching nothing else, offers nothing: a list would take the Return that runs it.
+                let complete = found.count == 1 && found[0].rawValue == typed
+                if state.commands.isEmpty { state.highlighted = 0 }
+                state.commands = complete ? [] : found
+                state.highlighted = min(state.highlighted, max(state.commands.count - 1, 0))
+                if state.mention != nil { state.mention = nil }
+                if !state.suggestions.isEmpty { state.suggestions = [] }
+                return
+            }
+            if !state.commands.isEmpty { state.commands = [] }
             guard selection.length == 0, let mention = MentionSuggest.query(view.string, caret: selection.location)
             else {
                 clearMention()
@@ -249,6 +267,7 @@ struct ComposerTextView: NSViewRepresentable {
             let state = parent.state
             if state.mention != nil { state.mention = nil }
             if !state.suggestions.isEmpty { state.suggestions = [] }
+            if !state.commands.isEmpty { state.commands = [] }
         }
 
         // MARK: Keys
@@ -259,19 +278,25 @@ struct ComposerTextView: NSViewRepresentable {
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let state = parent.state
             let isReturn = event.keyCode == 36 || event.keyCode == 76
-            if !state.suggestions.isEmpty {
+            let listed = state.commands.isEmpty ? state.suggestions.count : state.commands.count
+            if listed > 0 {
                 switch event.keyCode {
                 case 126:
-                    state.highlighted = (state.highlighted - 1 + state.suggestions.count) % state.suggestions.count
+                    state.highlighted = (state.highlighted - 1 + listed) % listed
                     return true
                 case 125:
-                    state.highlighted = (state.highlighted + 1) % state.suggestions.count
+                    state.highlighted = (state.highlighted + 1) % listed
                     return true
                 case 48 where flags.isEmpty, 36 where flags.isEmpty, 76 where flags.isEmpty:
-                    choose(state.suggestions[state.highlighted])
+                    if state.commands.isEmpty {
+                        choose(state.suggestions[state.highlighted])
+                    } else {
+                        chooseCommand(state.commands[state.highlighted])
+                    }
                     return true
                 case 53:
                     clearMention()
+                    state.commands = []
                     state.suggestions = []
                     state.mention = nil
                     return true
@@ -357,6 +382,13 @@ struct ComposerTextView: NSViewRepresentable {
             apply(
                 ComposerText.insert(
                     view.string, TextSelection(start: range.location, end: range.location + range.length), kind))
+            view.window?.makeFirstResponder(view)
+        }
+
+        func chooseCommand(_ command: SlashCommand) {
+            guard let view else { return }
+            let caret = view.selectedRange().location
+            view.insertText("/\(command.rawValue) ", replacementRange: NSRange(location: 0, length: caret))
             view.window?.makeFirstResponder(view)
         }
 

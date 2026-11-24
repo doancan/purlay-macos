@@ -196,6 +196,20 @@ public struct PurlayCommands: Commands {
         }
     }
 
+    /// ⌘1 to ⌘9 move between the workspaces of the account, in the order the switcher lists them.
+    @ViewBuilder private var workspaceItems: some View {
+        if let sessions, let memberships = model.me?.memberships, memberships.count > 1 {
+            Divider()
+            ForEach(Array(memberships.prefix(9).enumerated()), id: \.element.workspace.id) { index, membership in
+                Button("Switch to \(membership.workspace.name)") {
+                    Task { await sessions.selectWorkspace(membership.workspace.id, from: model) }
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                .disabled(!ready)
+            }
+        }
+    }
+
     @ViewBuilder private var goItems: some View {
         Button("Inbox") { Task { await model.openInbox() } }
             .keyboardShortcut("i", modifiers: [.command, .shift])
@@ -211,6 +225,7 @@ public struct PurlayCommands: Commands {
         Button("Drafts") { model.draftsOpen = true }
             .keyboardShortcut("d", modifiers: [.command, .option, .shift])
             .disabled(!ready)
+        workspaceItems
         Divider()
         Button("Previous Channel") { Task { await model.goToChannel(.previous) } }
             .keyboardShortcut(.upArrow, modifiers: .option)

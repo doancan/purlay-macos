@@ -4,6 +4,13 @@ import PurlayContract
 extension AppModel {
     // MARK: People
 
+    /// What a person says of themselves, for the card shown from their name: nothing until the member list has been read, and a
+    /// status that has run out is not said.
+    public func memberCard(for id: Uuid) -> MemberCard? {
+        guard let member = (sessionOwner ?? self).memberProfiles[id] else { return nil }
+        return MemberCard(member, now: environment.clock())
+    }
+
     /// Who a mention written in the open channel would reach, and nobody while that is not known.
     public var mentionCandidates: [User] {
         guard let channelID = selectedChannel, let me else { return [] }
@@ -22,6 +29,8 @@ extension AppModel {
         if let members = try? await api.listWorkspaceMembers(workspaceId: workspace.id.value) {
             guard session == contextGeneration else { return false }
             workspacePeople = members.map(\.user)
+            (sessionOwner ?? self).memberProfiles = Dictionary(
+                members.map { ($0.user.id, $0) }, uniquingKeysWith: { _, latest in latest })
             loaded = true
         }
         if let channelID = selectedChannel, chat.channels[channelID]?.type == .private,
@@ -69,4 +78,38 @@ extension AppModel {
 
     /// Whether this workspace has chat, the module this app is made for.
     public var chatAvailable: Bool { me == nil || hasModule(.chat) }
+}
+
+/// The part of a member's profile worth showing next to a message, with what has expired left out.
+public struct MemberCard: Equatable, Sendable {
+    public let user: User
+    public let title: String?
+    public let status: String?
+    public let statusEmoji: String?
+    public let timeZone: TimeZone?
+    public let role: UserRole
+    public let isGuest: Bool
+
+    init(_ member: WorkspaceMember, now: Date) {
+        user = member.user
+        role = member.role
+        isGuest = member.accessKind == .guest
+        title = Self.text(member.profile.title)
+        let statusIsLive = member.profile.statusUntil.map { $0.date > now } ?? true
+        status = statusIsLive ? Self.text(member.profile.status) : nil
+        statusEmoji = statusIsLive ? Self.text(member.profile.statusEmoji) : nil
+        timeZone = member.profile.timeZone.flatMap(TimeZone.init(identifier:))
+    }
+
+    private static func text(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    /// How far the person's clock is from `zone`'s, in whole hours rounded toward the nearer half hour; nil without a zone.
+    public func hoursAhead(of zone: TimeZone, at date: Date) -> Double? {
+        guard let timeZone else { return nil }
+        let seconds = timeZone.secondsFromGMT(for: date) - zone.secondsFromGMT(for: date)
+        return Double(seconds) / 3_600
+    }
 }

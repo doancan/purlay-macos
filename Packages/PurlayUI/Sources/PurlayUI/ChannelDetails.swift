@@ -57,7 +57,7 @@ struct ChannelDetails: View {
                     .help("Close channel details")
             }
             .padding(Spacing.space4)
-            GlassTabs(tabs: ChannelDetailTab.allCases, selection: tabSelection, title: \.title)
+            GlassTabs(tabs: ChannelDetailTab.allCases, selection: tabSelection, title: { Text($0.title) })
                 .padding(.horizontal, Spacing.space4)
                 .padding(.bottom, Spacing.space3)
             Divider()
@@ -166,7 +166,7 @@ struct ChannelDetails: View {
                 Button("Open in Browser", systemImage: "safari") {
                     if let url = model.webURL(.channel(channel.id)) { openURL(url) }
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.bordered).controlSize(.small)
             }
             .padding(Spacing.space5)
         }
@@ -235,7 +235,7 @@ struct ChannelDetails: View {
                 } description: {
                     Text("Check your connection and try again.")
                 } actions: {
-                    Button("Try Again", action: refresh).buttonStyle(.glass)
+                    Button("Try Again", action: refresh).glassButton()
                 }
             } else if tab == .members {
                 memberList
@@ -321,7 +321,7 @@ struct ChannelDetails: View {
                     } label: {
                         if fileRequest != nil { ProgressView().controlSize(.small) } else { Text("Load More Files") }
                     }
-                    .buttonStyle(.glass).disabled(fileRequest != nil).frame(maxWidth: .infinity)
+                    .glassButton().disabled(fileRequest != nil).frame(maxWidth: .infinity)
                 }
             }
             .padding(Spacing.space4)

@@ -100,25 +100,18 @@ struct OpenConversationLinkTests {
         #expect(desktop.linkProblem == nil)
     }
 
-    @Test(
-        "an unknown server waits for explicit sign-in, then opens the pending channel without signing out existing accounts"
-    )
-    func signInContinuation() async throws {
+    @Test("a link to a server that is not the app's is refused, and the open account is left alone")
+    func otherServer() async throws {
         let h = ModelHarness()
         try h.rememberedSession()
         let desktop = desktop(h)
         await desktop.launch()
         let first = desktop.active
         await desktop.openLink(url(port: 4391, channel: 2))
-        #expect(desktop.active.phase == .signedOut)
-        #expect(desktop.pendingLink != nil)
-        #expect(first.phase == .ready)
-        await desktop.active.signIn()
-        await h.settle()
+        #expect(desktop.linkProblem == .invalid)
         #expect(desktop.pendingLink == nil)
-        #expect(desktop.active.selectedChannel == Uuid(channel(2)))
-        #expect(desktop.active.server?.description == "http://localhost:4391")
-        #expect(first.phase == .ready)
+        #expect(desktop.sessions.count == 1)
+        #expect(desktop.active === first && first.phase == .ready)
     }
 
     @Test("unknown workspaces, inaccessible channels, and message/channel mismatches fail visibly")

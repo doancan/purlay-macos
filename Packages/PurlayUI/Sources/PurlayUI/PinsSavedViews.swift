@@ -39,7 +39,7 @@ struct PinsSheet: View {
             } description: {
                 Text("Check your connection and try again.")
             } actions: {
-                Button("Try Again") { revision &+= 1 }.buttonStyle(.glass)
+                Button("Try Again") { revision &+= 1 }.glassButton()
             }
         } else if model.pinnedMessages.isEmpty {
             EmptyState(
@@ -82,19 +82,20 @@ struct SavedSheet: View {
             ) {
                 dismiss()
             }
-            Picker("State", selection: $state) {
-                Text("In Progress").tag(SavedState.inProgress)
-                Text("Completed").tag(SavedState.completed)
-                Text("Archived").tag(SavedState.archived)
+            GlassTabs(tabs: [SavedState.inProgress, .completed, .archived], selection: $state) {
+                switch $0 {
+                case .inProgress: Text("In Progress")
+                case .completed: Text("Completed")
+                case .archived: Text("Archived")
+                case .unknown: Text("Other")
+                }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             .padding(.horizontal, Spacing.space5)
             .padding(.bottom, Spacing.space4)
             Divider()
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: Size.sizePalette, height: Size.sizeDialog - Spacing.space10)
+        .modifier(ModalFrame(width: Size.sizePalette, height: Size.sizeDialog - Spacing.space10))
         .task(id: "\(state.rawValue)-\(revision)") { await model.loadSaved(state) }
     }
 
@@ -108,7 +109,7 @@ struct SavedSheet: View {
             } description: {
                 Text("Check your connection and try again.")
             } actions: {
-                Button("Try Again") { revision &+= 1 }.buttonStyle(.glass)
+                Button("Try Again") { revision &+= 1 }.glassButton()
             }
         case .loaded:
             if model.savedItems.isEmpty {
@@ -137,7 +138,7 @@ struct SavedSheet: View {
                                     Text("Load More")
                                 }
                             }
-                            .buttonStyle(.glass).disabled(model.loadingMoreSaved)
+                            .glassButton().disabled(model.loadingMoreSaved)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, Spacing.space2)
                     }

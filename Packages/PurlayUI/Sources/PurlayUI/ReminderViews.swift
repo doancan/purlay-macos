@@ -53,13 +53,11 @@ struct RemindersSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Reminders").font(.title2.bold())
-                Spacer()
-                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.loadReminders() } }
-                    .labelStyle(.iconOnly).disabled(model.remindersLoading)
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
-            }.padding(20)
+            SheetHeader(
+                title: "Reminders", subtitle: "Messages you asked to come back to.", image: "bell.badge",
+                refresh: { Task { await model.loadReminders() } }, refreshing: model.remindersLoading
+            ) { dismiss() }
+            Divider()
             if let failure { Text(failure).foregroundStyle(.red).padding(.horizontal) }
             if model.remindersFailed {
                 HStack {
@@ -119,7 +117,7 @@ struct RemindersSheet: View {
                     }.padding(.vertical, 6)
                 }
             }
-        }.frame(width: 600, height: 500)
+        }.modifier(ModalFrame(width: 600, height: 500))
             .task { await model.loadReminders() }
             .sheet(isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
                 if let editing { ReminderSheet(model: model, message: editing) }

@@ -19,19 +19,19 @@ struct UnresolvedPageView: View {
                         Text(Words.channelLabel(channel)).tag(Optional(channel.id))
                     }
                 }
-                .frame(maxWidth: 320)
-                Picker(
-                    "Show",
+                .frame(maxWidth: 320, alignment: .leading)
+                GlassTabs(
+                    tabs: [UnresolvedFilter.all, .unanswered, .assignedToMe],
                     selection: Binding(
                         get: { model.unresolvedFilter },
                         set: { filter in Task { await model.setUnresolvedFilter(filter) } })
                 ) {
-                    Text("All").tag(UnresolvedFilter.all)
-                    Text("Unanswered").tag(UnresolvedFilter.unanswered)
-                    Text("Assigned to Me").tag(UnresolvedFilter.assignedToMe)
+                    switch $0 {
+                    case .all: Text("All")
+                    case .unanswered: Text("Unanswered")
+                    case .assignedToMe: Text("Assigned to Me")
+                    }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .fixedSize()
                 Spacer()
                 Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.loadUnresolved() } }
@@ -92,7 +92,7 @@ struct UnresolvedPageView: View {
                         Button("Resolve", systemImage: "checkmark.circle") {
                             Task { await model.resolveUnresolved(message) }
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.bordered).controlSize(.small)
                         // A question nobody has replied to has nothing to resolve yet (D-204).
                         .disabled(
                             model.unresolvedUpdating.contains(message.id) || (message.thread?.replyCount ?? 0) == 0)

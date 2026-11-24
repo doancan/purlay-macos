@@ -12,14 +12,8 @@ struct InboxPage: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Picker("Notification type", selection: category) {
-                    ForEach(Inbox.Category.allCases) { category in
-                        Text(title(of: category)).tag(category)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 420)
+                GlassTabs(tabs: Inbox.Category.allCases, selection: category) { Text(title(of: $0)) }
+                    .frame(maxWidth: 460)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Spacing.space4)
@@ -33,12 +27,9 @@ struct InboxPage: View {
         .navigationSubtitle(subtitle)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker("Show", selection: filter) {
-                    Text("All").tag(AppModel.InboxFilter.all)
-                    Text("Unread").tag(AppModel.InboxFilter.unread)
+                GlassTabs(tabs: [AppModel.InboxFilter.all, .unread], selection: filter) {
+                    $0 == .all ? Text("All") : Text("Unread")
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .fixedSize()
             }
             ToolbarItem(placement: .primaryAction) {
@@ -94,7 +85,7 @@ struct InboxPage: View {
                 Text("Check your connection and try again.")
             } actions: {
                 Button("Try Again") { Task { await model.setInboxFilter(model.inboxFilter) } }
-                    .buttonStyle(.glassProminent)
+                    .glassButton(prominent: true)
             }
         case .loaded:
             if model.inboxRows.isEmpty {
@@ -146,7 +137,7 @@ struct InboxPage: View {
                 Text(model.inboxLoadingMore ? "Loading…" : "Load More")
             }
         }
-        .buttonStyle(.glass)
+        .glassButton()
         .disabled(model.inboxLoadingMore)
     }
 
@@ -239,7 +230,7 @@ private struct InboxRowView: View {
         .overlay(alignment: .topTrailing) {
             if row.isUnread && hovering {
                 Button("Mark Read", systemImage: "checkmark") { Task { await model.markInboxRead(row) } }
-                    .buttonStyle(.glass)
+                    .glassButton()
                     .controlSize(.small)
                     .padding(Spacing.space2)
                     .transition(.opacity)
@@ -337,7 +328,7 @@ private struct UpdatesList: View {
                 Text("Check your connection and try again.")
             } actions: {
                 Button("Try Again") { Task { await model.reloadUpdates() } }
-                    .buttonStyle(.glassProminent)
+                    .glassButton(prominent: true)
             }
         case .loaded:
             if model.updateRows.isEmpty {
@@ -371,7 +362,7 @@ private struct UpdatesList: View {
                             Text(model.updatesLoadingMore ? "Loading…" : "Load More")
                         }
                     }
-                    .buttonStyle(.glass)
+                    .glassButton()
                     .disabled(model.updatesLoadingMore)
                     .padding(Spacing.space4)
                     .frame(maxWidth: .infinity)

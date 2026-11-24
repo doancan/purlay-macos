@@ -55,6 +55,7 @@ extension AppErrorBody {
         case .settingsChangeFailed: return .settingsChangeFailed
         case .serverChangeRefused: return .serverChangeRefused
         case .clientTooOld: return .clientTooOld
+        case .workspaceAccessRequired: return .workspaceAccessRequired
         case .other(let other): return ErrorCode(rawValue: other.code.rawValue)
         }
     }

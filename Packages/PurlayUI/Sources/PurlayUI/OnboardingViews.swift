@@ -48,7 +48,7 @@ struct OnboardingCard<Content: View>: View {
             VStack(alignment: .leading, spacing: Spacing.space4) {
                 identityLine("Conversations that stay in context", image: "bubble.left.and.bubble.right")
                 identityLine("Space to focus with Deep Work", image: "moon")
-                identityLine("Your workspace, on your server", image: "server.rack")
+                identityLine("Stay signed in on this Mac", image: "checkmark.shield")
             }
         }
     }
@@ -80,66 +80,61 @@ struct OnboardingCard<Content: View>: View {
     }
 }
 
-/// Asks for the address of the server (M-9): one server at a time.
-struct ServerAddressView: View {
-    let model: AppModel
-    @State private var address = ""
-    @FocusState private var focused: Bool
+/// Waiting for the server or the workspace, which is most of every launch of a signed-in app: the icon, breathing, and nothing of the
+/// sign-in page. What is happening is said only if the wait is long enough to be felt, and a quick launch never shows a word.
+struct LaunchView: View {
+    let label: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var arrived = false
+    @State private var pulsing = false
+    @State private var wordsShown = false
+
+    private static let iconSize: Double = 96
 
     var body: some View {
-        OnboardingCard(
-            title: "Welcome to Purlay",
-            subtitle: String(localized: "Enter the address of your team's Purlay server.")
-        ) {
-            VStack(spacing: Spacing.space3) {
-                Text("Server address").font(.callout.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
-                TextField("chat.example.com", text: $address)
-                    .textFieldStyle(.plain)
-                    .typeStyle(Typography.title)
-                    .padding(Spacing.space3)
-                    .accessibilityLabel("Server address")
-                    .background(NativePalette.raised.style, in: .rect(cornerRadius: Radius.radiusXl))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Radius.radiusXl)
-                            .strokeBorder(focused ? Colors.focusRing.style : NativePalette.border.style)
-                    }
-                    .autocorrectionDisabled()
-                    .focused($focused)
-                    .onSubmit(connect)
-                Button(action: connect) {
-                    Label("Connect", systemImage: "arrow.right").frame(maxWidth: .infinity)
+        VStack(spacing: Spacing.space8) {
+            ZStack {
+                ForEach(0..<2, id: \.self) { ring in
+                    RoundedRectangle(cornerRadius: Self.iconSize * 0.23, style: .continuous)
+                        .strokeBorder(Colors.accent.color.opacity(0.5), lineWidth: Stroke.strokeHairline * 1.5)
+                        .frame(width: Self.iconSize, height: Self.iconSize)
+                        .scaleEffect(pulsing ? 1.55 : 1)
+                        .opacity(pulsing ? 0 : 0.7)
+                        .animation(
+                            reduceMotion
+                                ? nil
+                                : .easeOut(duration: 2.2).repeatForever(autoreverses: false).delay(Double(ring) * 1.1),
+                            value: pulsing)
                 }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
-                .disabled(address.trimmingCharacters(in: .whitespaces).isEmpty)
-                ForEach(model.notices) { notice in
-                    NoticeBanner(notice: notice) { model.dismiss(notice) }
-                }
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().frame(width: Self.iconSize, height: Self.iconSize)
+                    .scaleEffect(arrived ? 1 : 0.86)
+                    .opacity(arrived ? 1 : 0)
+                    .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+            }
+            .accessibilityHidden(true)
+            Text(label)
+                .typeStyle(Typography.body).foregroundStyle(NativePalette.secondary.style)
+                .opacity(wordsShown ? 1 : 0)
+                .contentTransition(.opacity)
+                .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep), value: label)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(.ultraThinMaterial, for: .window)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .task {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.78)) { arrived = true }
+            pulsing = true
+            try? await Task.sleep(for: .milliseconds(900))
+            withAnimation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep)) {
+                wordsShown = true
             }
         }
-        .onAppear { focused = true }
-    }
-
-    private func connect() {
-        let typed = address
-        Task { await model.connect(to: typed) }
     }
 }
 
-/// Waiting for the server or the workspace: the icon and what is happening, never an empty window.
-struct CheckingView: View {
-    let label: String
-
-    var body: some View {
-        OnboardingCard(title: "Purlay", subtitle: label) {
-            ProgressView().controlSize(.small)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// A server this app cannot use, and why, with the two things that can be done: try again, or choose another server.
+/// Purlay cannot be reached or used, and why, with the one thing that can be done: try again.
 struct ProblemView: View {
     let model: AppModel
     let problem: ServerProblem
@@ -148,31 +143,22 @@ struct ProblemView: View {
         let words = Words.problem(problem)
         OnboardingCard(title: LocalizedStringKey(words.title), subtitle: words.detail.isEmpty ? nil : words.detail) {
             VStack(spacing: Spacing.space3) {
-                if let server = model.server {
-                    Label(server.description, systemImage: "server.rack")
-                        .typeStyle(Typography.code)
-                        .foregroundStyle(NativePalette.secondary.style)
+                Button(action: retry) {
+                    Label("Try Again", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
                 }
-                HStack(spacing: Spacing.space2) {
-                    Button("Choose Another Server") { Task { await model.chooseAnotherServer() } }
-                        .buttonStyle(.glass)
-                    Button("Try Again", action: retry)
-                        .buttonStyle(.glassProminent)
-                        .keyboardShortcut(.defaultAction)
-                }
+                .glassButton(prominent: true)
                 .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
             }
         }
     }
 
     private func retry() {
-        guard let server = model.server else { return }
-        Task { await model.connect(to: server.description) }
+        Task { await model.connect() }
     }
 }
 
 struct SignInView: View {
-    @Environment(\.desktopSessions) private var sessions
     let model: AppModel
     let busy: Bool
 
@@ -183,10 +169,8 @@ struct SignInView: View {
                 localized: "Continue in your browser to sign in securely.")
         ) {
             VStack(spacing: Spacing.space3) {
-                if let server = model.server {
-                    Label(server.description, systemImage: "server.rack")
-                        .typeStyle(Typography.code)
-                        .foregroundStyle(NativePalette.secondary.style)
+                ForEach(model.notices) { notice in
+                    NoticeBanner(notice: notice) { model.dismiss(notice) }
                 }
                 Button {
                     Task { await model.signIn() }
@@ -197,18 +181,13 @@ struct SignInView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .glassButton(prominent: true)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
                 .disabled(busy)
-                Button("Use Another Server") {
-                    if let sessions { sessions.addServer() } else { Task { await model.chooseAnotherServer() } }
-                }
-                .buttonStyle(.link)
-                .disabled(busy)
-                ForEach(model.notices) { notice in
-                    NoticeBanner(notice: notice) { model.dismiss(notice) }
-                }
+                Label("You stay signed in on this Mac until you sign out.", systemImage: "lock")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

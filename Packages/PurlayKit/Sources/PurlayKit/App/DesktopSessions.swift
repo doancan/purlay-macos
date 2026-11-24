@@ -15,7 +15,7 @@ public final class DesktopSession: Identifiable {
         self.model = model
     }
 
-    public var title: String { model.workspace?.name ?? model.server?.description ?? "Add Server" }
+    public var title: String { model.workspace?.name ?? model.server?.description ?? "Purlay" }
 }
 
 @MainActor @Observable
@@ -53,16 +53,19 @@ public final class DesktopSessions {
         self.environment = environment
         active = AppModel(environment)
         attention = DesktopAttention(environment.attention)
+        let server =
+            (try? ServerAddress.parse(environment.serverAddress, allowsLocalHTTP: environment.allowsLocalHTTP))?
+            .description ?? environment.serverAddress
+        // A workspace of another server, kept by a version that allowed one, is not opened: this app has the one.
         let descriptors =
-            environment.preferences.string(for: Self.storageKey)
+            (environment.preferences.string(for: Self.storageKey)
             .flatMap { $0.data(using: .utf8) }
-            .flatMap { try? JSONDecoder().decode([Descriptor].self, from: $0) } ?? []
+            .flatMap { try? JSONDecoder().decode([Descriptor].self, from: $0) } ?? [])
+            .filter { $0.server == server }
         let initial =
             descriptors.isEmpty
             ? [
-                Descriptor(
-                    id: UUID(), server: environment.preferences.string(for: AppModel.serverKey), workspace: nil,
-                    legacy: true)
+                Descriptor(id: UUID(), server: server, workspace: nil, legacy: true)
             ]
             : descriptors
         selectedID =
@@ -101,19 +104,6 @@ public final class DesktopSessions {
         persist()
     }
 
-    /// Reuses an unfinished address form, leaving authenticated connections running.
-    public func addServer() {
-        if let blank = sessions.first(where: { $0.model.server == nil }) {
-            select(blank.id)
-            return
-        }
-        let descriptor = Descriptor(id: UUID(), server: nil, workspace: nil, legacy: false)
-        append(descriptor)
-        select(descriptor.id)
-        let model = active
-        Task { await model.launch() }
-    }
-
     public func selectWorkspace(_ workspace: Uuid, from model: AppModel) async {
         guard let server = model.server, model.me?.memberships.contains(where: { $0.workspace.id == workspace }) == true
         else { return }
@@ -121,7 +111,7 @@ public final class DesktopSessions {
             $0.model.origin == model.origin && ($0.model.workspace?.id ?? $0.descriptor.workspace) == workspace
         }) {
             select(existing.id)
-            if existing.model.phase == .signedOut { await existing.model.connect(to: server.description) }
+            if existing.model.phase == .signedOut { await existing.model.connect() }
             return
         }
         let descriptor = Descriptor(id: UUID(), server: server.description, workspace: workspace, legacy: false)
@@ -181,12 +171,12 @@ public final class DesktopSessions {
             }
             return matches.first { $0.model.phase == .ready } ?? matches.first
         }
-        if matchingSession() == nil {
-            addServer()
-            let model = active
-            await model.connect(to: link.server.description)
+        guard generation == linkGeneration, let source = matchingSession() else {
+            // A link to a server that is not this app's is not followed.
+            pendingLink = nil
+            linkProblem = .invalid
+            return
         }
-        guard generation == linkGeneration, let source = matchingSession() else { return }
         select(source.id)
         guard source.model.phase == .ready else { return }
         guard let membership = source.model.me?.memberships.first(where: { $0.workspace.slug == link.workspaceSlug })
@@ -214,13 +204,11 @@ public final class DesktopSessions {
             scoped.dataDirectory = environment.dataDirectory.appendingPathComponent(
                 "sessions/\(descriptor.id.uuidString)", isDirectory: true)
         }
-        if let server = descriptor.server { scoped.preferences.set(server, for: AppModel.serverKey) }
         scoped.attention = DesktopAttentionSource(owner: attention, id: descriptor.id.uuidString)
         let model = AppModel(scoped, workspaceID: descriptor.workspace)
         model.setActive(false)
         let session = DesktopSession(descriptor, model: model)
         sessions.append(session)
-        model.onChooseAnotherServer = { [weak self] in self?.addServer() }
         model.onPhaseChange = { [weak self, weak session] in
             guard let self, let session else { return }
             self.changed(session)

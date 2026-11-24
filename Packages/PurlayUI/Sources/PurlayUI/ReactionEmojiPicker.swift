@@ -11,7 +11,9 @@ struct ReactionEmojiPicker: View {
     @FocusState private var searching: Bool
     @Environment(\.dismiss) private var dismiss
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 8)
+    /// Square cells of one size, so what is under the pointer is the same shape for every emoji, whatever its glyph's width.
+    static let cell: Double = 34
+    private let columns = Array(repeating: GridItem(.fixed(Self.cell), spacing: Spacing.space1), count: 8)
     private var results: [ReactionEmoji] { ReactionEmojiCatalog.matching(query, category: category) }
     private var isSearching: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -90,13 +92,14 @@ struct ReactionEmojiPicker: View {
     }
 
     private func grid(_ emoji: [ReactionEmoji]) -> some View {
-        LazyVGrid(columns: columns, spacing: 4) {
+        LazyVGrid(columns: columns, spacing: Spacing.space1) {
             ForEach(emoji) { entry in
                 ReactionEmojiButton(entry: entry, selected: selected.contains(entry.symbol)) {
                     select(entry.symbol)
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func select(_ symbol: String) {
@@ -114,8 +117,8 @@ private struct ReactionEmojiButton: View {
     var body: some View {
         Button(action: action) {
             Text(entry.symbol)
-                .font(.title2)
-                .frame(maxWidth: .infinity, minHeight: 34)
+                .font(.system(size: 22))
+                .frame(width: ReactionEmojiPicker.cell, height: ReactionEmojiPicker.cell, alignment: .center)
                 .background {
                     RoundedRectangle(cornerRadius: Radius.radiusMd)
                         .fill(selected ? NativePalette.selection.style : NativePalette.hover.style)

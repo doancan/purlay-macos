@@ -9,6 +9,8 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case invalidAddress(ServerAddress.Problem)
         case signInFailed(SignInError)
         case sessionExpired
+        /// The session lasts a fixed time from sign-in: said a few days before, so the end is not a surprise.
+        case sessionEndsSoon(Date)
         case sessionEndedByServer
         case signedOutElsewhere
         /// This device is signed out and the server could not be told: its session lives until it expires or is ended from elsewhere.
@@ -50,6 +52,7 @@ public struct Notice: Equatable, Identifiable, Sendable {
         case followFailed
         case editFailed
         case deleteFailed
+        case profileFailed
         case reactionFailed
         /// The person already has as many reactions on the message as one may (D-249).
         case reactionLimit
@@ -82,8 +85,6 @@ public enum ServerProblem: Equatable, Sendable {
 public final class AppModel {
     public enum Phase: Equatable, Sendable {
         case launching
-        /// No server yet, or the one kept cannot be used: asks for an address.
-        case needsServer
         case checking
         case problem(ServerProblem)
         case signedOut
@@ -99,7 +100,6 @@ public final class AppModel {
     }
     @ObservationIgnored var onPhaseChange: (() -> Void)?
     @ObservationIgnored var onSessionEnded: (() -> Void)?
-    @ObservationIgnored var onChooseAnotherServer: (() -> Void)?
     private let preferredWorkspaceID: Uuid?
     public private(set) var server: ServerAddress?
     public private(set) var serverInfo: ClientInfo?
@@ -134,6 +134,8 @@ public final class AppModel {
     private var observation: Task<Void, Never>?
     private var noticeCounter = 0
     private var launched = false
+    private var warnedOfExpiry = false
+    private static let sessionWarning: TimeInterval = 3 * 86_400
     /// The newest message of each channel that was marked read from here, so the same one is not asked for twice.
     private var markedRead: [Uuid: Uuid] = [:]
     private var marking = Set<Uuid>()
@@ -145,8 +147,6 @@ public final class AppModel {
     public private(set) var isActive = true
     /// The newest message is in view: reading what is not seen is not reading.
     public private(set) var atBottom = true
-
-    public static let serverKey = "server"
 
     let uploadIDs: MessageIDGenerator
 
@@ -162,6 +162,8 @@ public final class AppModel {
         set { if let sessionOwner { sessionOwner.workspacePeople = newValue } else { sessionPeople = newValue } }
     }
     var channelPeople: [Uuid: [User]] = [:]
+    /// What each member of the workspace says of themselves (title, status, time zone), as the member list last gave it.
+    var memberProfiles: [Uuid: WorkspaceMember] = [:]
 
     // MARK: Threads
 
@@ -327,7 +329,7 @@ public final class AppModel {
     public var paletteOpen = false
     public var searchOpen = false
     public var pinsOpen = false
-    public var remindersOpen = false
+    public var remindersOpen = false { didSet { if remindersOpen { closePages(except: .reminders) } } }
     public var reminderTarget: Message?
     public var deletionTarget: Message?
     var deletingMessages: Set<Uuid> = []
@@ -335,14 +337,27 @@ public final class AppModel {
     var loadingReminders = false
     var failedReminders = false
     var reminderGeneration = 0
-    public var scheduledOpen = false
+    public var scheduledOpen = false { didSet { if scheduledOpen { closePages(except: .scheduled) } } }
     public internal(set) var scheduledItems: [ScheduledMessage] = []
     public internal(set) var scheduledLoading = false
     public internal(set) var scheduledFailed = false
     var scheduledGeneration = 0
-    public var savedOpen = false
+    public var savedOpen = false { didSet { if savedOpen { closePages(except: .saved) } } }
     public var shortcutsOpen = false
-    public var draftsOpen = false
+
+    /// The pages that stand in the place of a channel: one at a time, and none once a channel is chosen.
+    enum Page { case inbox, unresolved, issues, reminders, scheduled, saved, drafts }
+
+    func closePages(except page: Page? = nil) {
+        if page != .inbox { inboxOpen = false }
+        if page != .unresolved { unresolvedOpen = false }
+        if page != .issues { issuesOpen = false }
+        if page != .reminders { remindersOpen = false }
+        if page != .scheduled { scheduledOpen = false }
+        if page != .saved { savedOpen = false }
+        if page != .drafts { draftsOpen = false }
+    }
+    public var draftsOpen = false { didSet { if draftsOpen { closePages(except: .drafts) } } }
     public private(set) var draftRevision = 0
 
     /// Which channels have a draft, and which have been looked at: not observed, since `draftRevision` says when it changed.
@@ -477,7 +492,7 @@ public final class AppModel {
 
     // MARK: Starting
 
-    /// At launch: the server this app was last pointed at, if any.
+    /// At launch: the app's server, where a session kept from the last run is picked up again.
     public func launch() async {
         if let sessionOwner {
             await sessionOwner.launch()
@@ -487,24 +502,20 @@ public final class AppModel {
         guard !launched else { return }
         launched = true
         phase = .launching
-        guard let typed = environment.preferences.string(for: Self.serverKey) else {
-            phase = .needsServer
-            return
-        }
-        await connect(to: typed)
+        await connect()
     }
 
-    /// Points the app at a server, asks what it is, and goes on to sign-in or to the person's workspace if a session is kept.
-    public func connect(to typed: String) async {
+    /// Asks the app's server what it is, and goes on to sign-in or to the person's workspace if a session is kept.
+    public func connect() async {
         if let sessionOwner {
-            await sessionOwner.connect(to: typed)
+            await sessionOwner.connect()
             return
         }
         let address: ServerAddress
         do {
-            address = try ServerAddress.parse(typed, allowsLocalHTTP: environment.allowsLocalHTTP)
+            address = try ServerAddress.parse(environment.serverAddress, allowsLocalHTTP: environment.allowsLocalHTTP)
         } catch {
-            phase = .needsServer
+            phase = .problem(.unreachable)
             say(.invalidAddress(error))
             return
         }
@@ -530,7 +541,6 @@ public final class AppModel {
         case .ready(let info, let canonical):
             serverInfo = info
             origin = canonical
-            environment.preferences.set(address.description, for: Self.serverKey)
             await resumeOrAskToSignIn(address)
         case .appTooOld(let minimum, let info):
             serverInfo = info
@@ -542,30 +552,6 @@ public final class AppModel {
             serverInfo = info
             phase = .problem(.unusableOrigin(text))
         }
-    }
-
-    /// Forgets the server, so the next launch asks again: changing server signs out (one at a time).
-    public func chooseAnotherServer() async {
-        if let sessionOwner {
-            await sessionOwner.chooseAnotherServer()
-            return
-        }
-        if let onChooseAnotherServer {
-            onChooseAnotherServer()
-            return
-        }
-        switch await signOut(.thisDevice) {
-        case .credentialKept, .notDone: return
-        case .done, .serverNotTold: break
-        }
-        observation?.cancel()
-        observation = nil
-        manager = nil
-        environment.preferences.set(nil, for: Self.serverKey)
-        server = nil
-        origin = nil
-        serverInfo = nil
-        phase = .needsServer
     }
 
     // MARK: The session
@@ -625,6 +611,7 @@ public final class AppModel {
             let session = try await flow.signIn(to: server, origin: origin)
             await manager.adopt(session, for: server)
             cookieCache = session.cookie
+            warnedOfExpiry = false
             observe(manager)
             await bootstrap()
         } catch {
@@ -711,13 +698,11 @@ public final class AppModel {
                 phase = .ready
                 return
             }
+            // The one remembered from before, if the person is still in it; otherwise the last one used, otherwise the first.
             let membership =
-                preferredWorkspaceID.map { id in
-                    me.memberships.first { $0.workspace.id == id }
-                }
-                ?? (me.memberships.first {
-                    $0.workspace.slug == environment.preferences.string(for: "workspace")
-                } ?? me.memberships.first)
+                preferredWorkspaceID.flatMap { id in me.memberships.first { $0.workspace.id == id } }
+                ?? me.memberships.first { $0.workspace.slug == environment.preferences.string(for: "workspace") }
+                ?? me.memberships.first
             guard let membership else {
                 // Signed in, in no workspace: nothing to show here yet.
                 workspace = nil
@@ -734,8 +719,9 @@ public final class AppModel {
             if load.corruptFile != nil { say(.outboxCorrupt) }
             let channels = try await api.listChannels(workspaceId: membership.workspace.id.value)
             guard context == contextGeneration else { return }
-            engine.setChannels(channels)
+            // The baseline first: giving the engine its channels makes the model look, and what was already waiting is not news.
             attention.prime(channels)
+            engine.setChannels(channels)
             watchJoined()
             await loadChannelGroups()
             engine.start()
@@ -945,6 +931,22 @@ public final class AppModel {
         markReadIfSeen()
         markThreadReadIfSeen()
         (sessionOwner ?? self).tellAttention()
+        if active { Task { await checkSession() } }
+    }
+
+    /// A session that ended while the app was away is found now, not at the next refused request, and one about to end is said.
+    func checkSession() async {
+        if let sessionOwner {
+            await sessionOwner.checkSession()
+            return
+        }
+        guard phase == .ready, let manager else { return }
+        await manager.checkExpiry()
+        guard phase == .ready, !warnedOfExpiry, let end = await manager.expiresAt,
+            end.timeIntervalSince(environment.clock()) < Self.sessionWarning
+        else { return }
+        warnedOfExpiry = true
+        say(.sessionEndsSoon(end))
     }
 
     /// The person is at the end of the messages, or has scrolled up.

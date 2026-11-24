@@ -14,26 +14,40 @@ public struct RootView: View {
     /// The phase as a plain value, without what a problem carries, so a new problem does not replay the fade.
     private var phaseKey: Int {
         switch model.phase {
-        case .launching, .checking: 0
-        case .needsServer: 1
+        case .launching, .checking, .loading: 0
         case .problem: 2
         case .signedOut, .signingIn: 3
-        case .loading: 4
         case .ready: 5
+        }
+    }
+
+    /// What the window says while it waits, or nil when there is a screen to show.
+    private var waitingLabel: String? {
+        switch model.phase {
+        case .launching, .checking: String(localized: "Connecting…")
+        case .loading: String(localized: "Loading your workspace…")
+        default: nil
+        }
+    }
+
+    @ViewBuilder private var screen: some View {
+        switch model.phase {
+        case .launching, .checking, .loading: EmptyView()
+        case .problem(let problem): ProblemView(model: model, problem: problem)
+        case .signedOut: SignInView(model: model, busy: false)
+        case .signingIn: SignInView(model: model, busy: true)
+        case .ready:
+            if model.chatAvailable { MainView(model: model) } else { ChatOffView(model: model) }
         }
     }
 
     public var body: some View {
         Group {
-            switch model.phase {
-            case .launching, .checking: CheckingView(label: String(localized: "Connecting…"))
-            case .needsServer: ServerAddressView(model: model)
-            case .problem(let problem): ProblemView(model: model, problem: problem)
-            case .signedOut: SignInView(model: model, busy: false)
-            case .signingIn: SignInView(model: model, busy: true)
-            case .loading: CheckingView(label: String(localized: "Loading your workspace…"))
-            case .ready:
-                if model.chatAvailable { MainView(model: model) } else { ChatOffView(model: model) }
+            // Connecting and loading are one wait, so they are one view: the icon keeps breathing and only the words change.
+            if let wait = waitingLabel {
+                LaunchView(label: wait)
+            } else {
+                screen
             }
         }
         .transition(.opacity)
@@ -61,7 +75,7 @@ struct ChatOffView: View {
             )
         } actions: {
             if let url = model.webURL(.workspace) {
-                Button("Open in Browser") { openURL(url) }.buttonStyle(.glassProminent)
+                Button("Open in Browser") { openURL(url) }.glassButton(prominent: true)
             }
             Button("Sign Out") { Task { await model.signOut(.thisDevice) } }
         }

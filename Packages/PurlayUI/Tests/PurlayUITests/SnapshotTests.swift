@@ -132,6 +132,31 @@ extension SnapshotTests {
         _ = try draw(InboxPage(model: m), named: "updates-failed")
     }
 
+    @Test("the sign-in page, waiting and not")
+    func signIn() throws {
+        for dark in [true, false] {
+            _ = try draw(SignInView(model: model(), busy: false), dark: dark, named: "sign-in")
+        }
+        _ = try draw(SignInView(model: model(), busy: true), named: "sign-in-busy")
+    }
+
+    @Test("the profile editor")
+    func profile() throws {
+        let m = model()
+        let me = decoded(
+            MeResponse.self,
+            """
+            {"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ada","displayName":"Ada Lovelace","avatarUrl":null,\
+            "email":"ada@example.test"},"profile":{"title":"Mühendis","timeZone":"Europe/Istanbul","status":"Odaklanıyorum",\
+            "statusEmoji":"🎧"},"memberships":[],"mayCreateWorkspace":false,"isServerAdmin":false,"nameFromGitHub":false,\
+            "mustEnrolTwoFactor":false,"scheduledDeletions":[],"modules":["chat"],"awayChosen":false}
+            """)
+        m.me = me
+        for dark in [true, false] {
+            _ = try draw(Form { ProfileForm(model: m) }.formStyle(.grouped), height: 640, dark: dark, named: "profile")
+        }
+    }
+
     @Test("a workspace without chat")
     func chatOff() throws {
         _ = try draw(ChatOffView(model: model()), named: "chat-off")

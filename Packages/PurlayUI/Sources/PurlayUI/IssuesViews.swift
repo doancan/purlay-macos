@@ -11,17 +11,12 @@ struct IssuesPage: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Picker(
-                    "Show",
+                GlassTabs(
+                    tabs: [IssueFilter.open, .done],
                     selection: Binding(
                         get: { model.issueFilter },
                         set: { filter in Task { await model.setIssueFilter(filter) } })
-                ) {
-                    Text("Open").tag(IssueFilter.open)
-                    Text("Done").tag(IssueFilter.done)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                ) { $0 == .open ? Text("Open") : Text("Done") }
                 .fixedSize()
                 Spacer()
                 Button("New Issue", systemImage: "plus") { creating = true }
@@ -47,7 +42,7 @@ struct IssuesPage: View {
             } description: {
                 Text("Check your connection and try again.")
             } actions: {
-                Button("Try Again") { Task { await model.reloadIssues() } }.buttonStyle(.glassProminent)
+                Button("Try Again") { Task { await model.reloadIssues() } }.glassButton(prominent: true)
             }
         case .loaded:
             if model.issueItems.isEmpty {
@@ -79,7 +74,7 @@ struct IssuesPage: View {
                             Text(model.issuesLoadingMore ? "Loading…" : "Load More")
                         }
                     }
-                    .buttonStyle(.glass)
+                    .glassButton()
                     .disabled(model.issuesLoadingMore)
                     .padding(Spacing.space4)
                     .frame(maxWidth: .infinity)

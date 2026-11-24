@@ -12,6 +12,8 @@ final class FakeServer: HTTPTransport {
         var clientInfo = FakeServer.clientInfo()
         var infoStatus = 200
         var meStatus = 200
+        var profile = #"{"title":null,"timeZone":null,"status":null}"#
+        var profileStatus = 200
         var tokenStatus = 204
         var token = String(repeating: "5", count: 64)
         var cookieOnToken = true
@@ -221,11 +223,12 @@ final class FakeServer: HTTPTransport {
     static func meJSON(
         deepWorkUntil: String? = nil, role: String = "member", mustEnrolTwoFactor: Bool = false,
         nameFromGitHub: Bool = false, scheduledDeletions: [WorkspaceDeletion] = [], awayChosen: Bool = false,
-        modules: [String] = ["chat", "issues"], workspaceModules: [String]? = nil
+        modules: [String] = ["chat", "issues"], workspaceModules: [String]? = nil,
+        profile: String = #"{"title":null,"timeZone":null,"status":null}"#
     ) -> String {
         """
         {"user":{"id":"\(userID)","username":"ada","displayName":"Ada","avatarUrl":null,"email":"ada@example.test"},\
-        "profile":{"title":null,"timeZone":null,"status":null},\
+        "profile":\(profile),\
         "memberships":[{"workspace":{"id":"\(workspaceID)","name":"Acme","slug":"acme","avatarUrl":null},"role":"\(role)",\
         "joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":\(deepWorkUntil.map { "\"\($0)\"" } ?? "null")\(workspaceModules.map { ",\"modules\":\(encoded($0))" } ?? "")}],"mayCreateWorkspace":false,"isServerAdmin":false,\
         "nameFromGitHub":\(nameFromGitHub),"mustEnrolTwoFactor":\(mustEnrolTwoFactor),"scheduledDeletions":\(encoded(scheduledDeletions)),\
@@ -326,6 +329,14 @@ final class FakeServer: HTTPTransport {
             }
             if request.method == "GET" { return json(200, Self.encoded(snapshot.scheduled)) }
             let parts = path.split(separator: "/")
+            if request.method == "POST", parts.count == 6, parts[5] == "send", let id = Uuid(String(parts[4])) {
+                guard let sent = snapshot.scheduled.first(where: { $0.id == id }) else {
+                    return json(404, #"{"error":{"code":"SCHEDULED_MESSAGE_NOT_FOUND","message":"x"}}"#)
+                }
+                state.withLock { $0.scheduled.removeAll { $0.id == id } }
+                return json(
+                    200, Self.encoded(makeMessage(idAt(900), channel: parts[2].description, content: sent.content)))
+            }
             guard parts.count == 5, let channel = Uuid(String(parts[2])), let id = Uuid(String(parts[4])) else {
                 return HTTPResponse(status: 400)
             }
@@ -359,6 +370,20 @@ final class FakeServer: HTTPTransport {
                 snapshot.cookieOnToken
                 ? ["Set-Cookie": "__Host-purlay_session=\(Self.sessionValue); Path=/; Max-Age=2592000; HttpOnly"] : [:]
             return HTTPResponse(status: 204, headers: headers)
+        case ("PATCH", "/api/me/profile"):
+            guard hasSession, snapshot.sessionValid else { return unauthenticated() }
+            if snapshot.profileStatus != 200 {
+                return json(snapshot.profileStatus, #"{"error":{"code":"INTERNAL","message":"x"}}"#)
+            }
+            var merged =
+                (try? JSONSerialization.jsonObject(with: Data(snapshot.profile.utf8))) as? [String: Any] ?? [:]
+            let sent = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+            for (key, value) in sent where key != "displayName" { merged[key] = value }
+            let text =
+                (try? JSONSerialization.data(withJSONObject: merged, options: [.sortedKeys]))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? snapshot.profile
+            state.withLock { $0.profile = text }
+            return json(200, text)
         case ("GET", "/api/me"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(
@@ -367,7 +392,7 @@ final class FakeServer: HTTPTransport {
                     deepWorkUntil: snapshot.deepWorkUntil, role: snapshot.role,
                     mustEnrolTwoFactor: snapshot.mustEnrolTwoFactor, nameFromGitHub: snapshot.nameFromGitHub,
                     scheduledDeletions: snapshot.scheduledDeletions, awayChosen: snapshot.awayChosen,
-                    modules: snapshot.modules, workspaceModules: snapshot.workspaceModules))
+                    modules: snapshot.modules, workspaceModules: snapshot.workspaceModules, profile: snapshot.profile))
         case ("GET", "/api/workspaces/\(Self.workspaceID)/channels"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             return json(snapshot.channelsStatus, "[\(snapshot.chans.map(Self.json).joined(separator: ","))]")
@@ -820,7 +845,9 @@ final class FakeServer: HTTPTransport {
                 #"{"id":"\#($0.id.value)","title":"\#($0.title)","excerpt":null,"at":"2026-11-10T12:00:00.000Z","target":{"type":"issue","issueId":"\#($0.id.value)"}}"#
             }
             return json(
-                200, "{\"groups\":[{\"source\":\"issues\",\"hits\":[\(hits.joined(separator: ","))]}],\"skipped\":[]}")
+                200,
+                "{\"groups\":[{\"source\":\"issues\",\"more\":false,\"hits\":[\(hits.joined(separator: ","))]}],\"partial\":false,\"skipped\":[]}"
+            )
         case ("POST", _) where path.hasPrefix("/api/messages/") && path.hasSuffix("/link-preview"):
             guard hasSession, snapshot.sessionValid else { return unauthenticated() }
             if snapshot.linkPreviewStatus != 200 {
