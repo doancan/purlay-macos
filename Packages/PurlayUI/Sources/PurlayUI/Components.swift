@@ -66,7 +66,8 @@ struct SheetHeader: View {
             SheetHeading(title: title, subtitle: subtitle, image: image)
             if let refresh {
                 Button("Refresh", systemImage: "arrow.clockwise", action: refresh)
-                    .labelStyle(.iconOnly).glassButton().fixedSize().disabled(refreshing)
+                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(NativePalette.secondary.style)
+                    .help("Refresh").fixedSize().disabled(refreshing)
             }
             if !isPage {
                 Button(closeTitle, action: close)

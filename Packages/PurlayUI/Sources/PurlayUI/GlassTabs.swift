@@ -27,6 +27,10 @@ struct GlassTabs<Tab: Hashable>: View {
                             if chosen {
                                 Capsule()
                                     .fill(NativePalette.segmentKnob.style)
+                                    .overlay {
+                                        Capsule().strokeBorder(
+                                            NativePalette.border.style, lineWidth: Stroke.strokeHairline)
+                                    }
                                     .tokenShadow(Shadows.shadowCard)
                                     .matchedGeometryEffect(id: "pill", in: pill)
                             }
@@ -38,6 +42,9 @@ struct GlassTabs<Tab: Hashable>: View {
             }
         }
         .padding(Stroke.strokeFocus)
+        // A track that is darker than the chosen pill in both appearances, so the choice reads without colour: the glass alone is as
+        // light as the pill on a white page.
+        .background(Color.primary.opacity(0.07), in: Capsule())
         .modifier(ControlSurface(radius: Radius.radiusPill))
         .accessibilityElement(children: .contain)
     }
