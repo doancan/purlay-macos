@@ -80,15 +80,57 @@ struct OnboardingCard<Content: View>: View {
     }
 }
 
-/// Waiting for the server or the workspace: the icon and what is happening, never an empty window.
-struct CheckingView: View {
+/// Waiting for the server or the workspace, which is most of every launch of a signed-in app: the icon, breathing, and nothing of the
+/// sign-in page. What is happening is said only if the wait is long enough to be felt, and a quick launch never shows a word.
+struct LaunchView: View {
     let label: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var arrived = false
+    @State private var pulsing = false
+    @State private var wordsShown = false
+
+    private static let iconSize: Double = 96
 
     var body: some View {
-        OnboardingCard(title: "Purlay", subtitle: label) {
-            ProgressView().controlSize(.small)
+        VStack(spacing: Spacing.space8) {
+            ZStack {
+                ForEach(0..<2, id: \.self) { ring in
+                    RoundedRectangle(cornerRadius: Self.iconSize * 0.23, style: .continuous)
+                        .strokeBorder(Colors.accent.color.opacity(0.5), lineWidth: Stroke.strokeHairline * 1.5)
+                        .frame(width: Self.iconSize, height: Self.iconSize)
+                        .scaleEffect(pulsing ? 1.55 : 1)
+                        .opacity(pulsing ? 0 : 0.7)
+                        .animation(
+                            reduceMotion
+                                ? nil
+                                : .easeOut(duration: 2.2).repeatForever(autoreverses: false).delay(Double(ring) * 1.1),
+                            value: pulsing)
+                }
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().frame(width: Self.iconSize, height: Self.iconSize)
+                    .scaleEffect(arrived ? 1 : 0.86)
+                    .opacity(arrived ? 1 : 0)
+                    .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+            }
+            .accessibilityHidden(true)
+            Text(label)
+                .typeStyle(Typography.body).foregroundStyle(NativePalette.secondary.style)
+                .opacity(wordsShown ? 1 : 0)
+                .contentTransition(.opacity)
+                .animation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep), value: label)
         }
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(.ultraThinMaterial, for: .window)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .task {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.78)) { arrived = true }
+            pulsing = true
+            try? await Task.sleep(for: .milliseconds(900))
+            withAnimation(reduceMotion ? nil : Motion.easingStandard.animation(Motion.durationStep)) {
+                wordsShown = true
+            }
+        }
     }
 }
 
@@ -104,7 +146,7 @@ struct ProblemView: View {
                 Button(action: retry) {
                     Label("Try Again", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .glassButton(prominent: true)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
             }
@@ -139,7 +181,7 @@ struct SignInView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .glassButton(prominent: true)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
                 .disabled(busy)
