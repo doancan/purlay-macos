@@ -33,6 +33,17 @@ private struct SignedInBrowser: WebAuthenticator {
     }
 }
 
+private final class RecordedLiveTransport: HTTPTransport {
+    private let requests = Mutex<[String]>([])
+
+    var paths: [String] { requests.withLock { $0 } }
+
+    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
+        requests.withLock { $0.append(request.url.path) }
+        return try await URLSessionTransport().send(request)
+    }
+}
+
 @MainActor
 @Suite("against a real server: signing in as the application", .needsServer, .serialized)
 struct LiveSignInTests {
@@ -71,6 +82,41 @@ struct LiveSignInTests {
             #expect(error.status == 404)
             #expect(error.code == .nativeCodeNotFound)
         }
+    }
+
+    @Test(
+        "the app signs in and opens a core-only workspace without using any chat routes or sockets",
+        .enabled(if: ProcessInfo.processInfo.environment["PURLAY_TEST_CORE_ONLY"] == "1")
+    )
+    func coreOnlyWorkspace() async throws {
+        let world = try World.load()
+        let persona = try world.persona("dogancan")
+        let browser = SignedInBrowser(api: PurlayAPI(client: world.client(as: persona)), issued: .init())
+        let transport = RecordedLiveTransport()
+        let localDomain = "dev.purlay.contract-tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: localDomain))
+        defer { defaults.removePersistentDomain(forName: localDomain) }
+        let model = AppModel(
+            AppEnvironment(
+                transport: transport, sessions: InMemorySessionStore(),
+                preferences: UserDefaultsPreferences(suite: localDomain), authenticator: browser,
+                appVersion: world.appVersion, deviceName: "Contract Test Mac", allowsLocalHTTP: true,
+                serverAddress: world.server.description, dataDirectory: FileManager.default.temporaryDirectory,
+                openSocket: { _, _ in
+                    Issue.record("The core-only workspace tried to open a socket")
+                    return { _, _ in throw WebAuthenticatorError.failed("Unexpected socket") }
+                },
+                schedule: { _, _ in {} }, owner: InMemoryOwnerMemory()))
+        await model.launch()
+        #expect(model.phase == .signedOut)
+        await model.signIn()
+
+        #expect(model.phase == .ready)
+        #expect(model.workspace?.id.value == world.workspaceID)
+        #expect(model.me?.modules == [])
+        #expect(!model.chatAvailable)
+        #expect(Set(transport.paths) == ["/api/client", "/api/native/token", "/api/me"])
+        #expect(Set(model.availableSettingsPages).isSuperset(of: [.workspace, .members, .invitations, .data]))
     }
 
     @Test("signing out ends the application's session and no other, and an open socket is told and ends")

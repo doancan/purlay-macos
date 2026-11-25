@@ -3,6 +3,7 @@
 # server repository, on a port and in a database of its own, runs the contract tests against it, and stops it.
 #
 #   PURLAY_SERVER_CHECKOUT=~/Projects/purlay scripts/contract-test
+#   PURLAY_TEST_CORE_ONLY=1 scripts/contract-test  # only the macOS sign-in test, with chat switched off
 #
 # The server repository must be at the version `Contract/contract.lock` names (or a branch carrying it), with its web client
 # built (`apps/web/dist`) and a database up (`bun run db:up`). The demo only ever creates a database named `purlay_e2e…`.
@@ -37,8 +38,12 @@ stop_server() {
 }
 trap 'stop_server; rm -rf "$WORK"' EXIT
 
-(cd "$CHECKOUT" && exec bun --no-env-file --env-file=.env.test run scripts/demo.ts --no-build \
-  --db "purlay_e2e_macos_$PORT" --port "$PORT" --manifest "$MANIFEST") >"$LOG" 2>&1 &
+demo_args=(--no-build --db "purlay_e2e_macos_$PORT" --port "$PORT" --manifest "$MANIFEST")
+if [ "${PURLAY_TEST_CORE_ONLY:-}" = "1" ]; then
+  demo_args+=(--modules none)
+  set -- --filter coreOnlyWorkspace "$@"
+fi
+(cd "$CHECKOUT" && exec bun --no-env-file --env-file=.env.test run scripts/demo.ts "${demo_args[@]}") >"$LOG" 2>&1 &
 SERVER=$!
 
 for _ in $(seq 1 120); do
