@@ -9,17 +9,26 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [.library(name: "PurlayUI", targets: ["PurlayUI"])],
     dependencies: [
-        .package(path: "../PurlayKit"),
-        .package(path: "../PurlayContract"),
-        .package(path: "../PurlayTokens"),
-        .package(path: "../PurlayTestSupport"),
+        .package(url: "https://github.com/purlay/purlay-swift", from: "0.1.0")
     ],
     targets: [
         .target(
-            name: "PurlayUI", dependencies: ["PurlayKit", "PurlayContract", "PurlayTokens"], swiftSettings: strict),
+            name: "PurlayUI",
+            dependencies: [
+                .product(name: "PurlayKit", package: "purlay-swift"),
+                .product(name: "PurlayContract", package: "purlay-swift"),
+                .product(name: "PurlayTokens", package: "purlay-swift"),
+            ],
+            swiftSettings: strict),
         .testTarget(
             name: "PurlayUITests",
-            dependencies: ["PurlayUI", "PurlayKit", "PurlayContract", "PurlayTokens", "PurlayTestSupport"],
+            dependencies: [
+                "PurlayUI",
+                .product(name: "PurlayKit", package: "purlay-swift"),
+                .product(name: "PurlayContract", package: "purlay-swift"),
+                .product(name: "PurlayTokens", package: "purlay-swift"),
+                .product(name: "PurlayTestSupport", package: "purlay-swift"),
+            ],
             swiftSettings: strict),
     ],
     swiftLanguageModes: [.v6]

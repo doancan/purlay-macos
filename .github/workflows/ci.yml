@@ -1,0 +1,90 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Monday morning: build once on main so the week's pull requests start from a warm compilation cache.
+  schedule:
+    - cron: '47 3 * * 1'
+  workflow_dispatch:
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+env:
+  PURLAY_CACHE_DIR: ${{ github.workspace }}/.cache/compilation
+
+# The lanes of scripts/verify run side by side; `verify` at the end is the one check a pull request needs. The Release build
+# and its signed-entitlement check run in the release workflow, where a release is made.
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rules
+        run: scripts/verify rules
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+  test:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: when
+        run: |
+          echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - id: cas
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PURLAY_CACHE_DIR }}
+          key: cas-test-${{ steps.when.outputs.week }}-${{ steps.when.outputs.day }}
+          restore-keys: cas-test-${{ steps.when.outputs.week }}-
+      - name: Format, tests and snapshots
+        run: scripts/verify test
+      - name: Keep the compilation cache
+        if: success() && github.ref == 'refs/heads/main' && steps.cas.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PURLAY_CACHE_DIR }}
+          key: cas-test-${{ steps.when.outputs.week }}-${{ steps.when.outputs.day }}
+
+  app:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: brew install xcodegen
+      - id: when
+        run: |
+          echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - id: cas
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PURLAY_CACHE_DIR }}
+          key: cas-app-${{ steps.when.outputs.week }}-${{ steps.when.outputs.day }}
+          restore-keys: cas-app-${{ steps.when.outputs.week }}-
+      - name: The Debug app
+        run: scripts/verify app
+      - name: Keep the compilation cache
+        if: success() && github.ref == 'refs/heads/main' && steps.cas.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PURLAY_CACHE_DIR }}
+          key: cas-app-${{ steps.when.outputs.week }}-${{ steps.when.outputs.day }}
+
+  verify:
+    if: always()
+    needs: [rules, test, app]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every lane passed
+        run: |
+          echo '${{ toJSON(needs) }}'
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "false"

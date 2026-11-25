@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check release version
         shell: bash
         run: |
@@ -27,28 +27,22 @@ jobs:
           scripts/release-notes "$version" dist
       - name: Install XcodeGen
         run: brew install xcodegen
-      - uses: oven-sh/setup-bun@v2.2.0
+      - id: when
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      # A release starts from the week's latest compilation cache, and runs every lane, with the Release build, on one machine.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          bun-version: 1.4.3
-      - name: Prepare pinned contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          git clone https://github.com/doancan/purlay.git "$RUNNER_TEMP/server"
-          git -C "$RUNNER_TEMP/server" checkout de5ba4f6d32a3daefb7524dc93f16bdb451f0fcf
-          (cd "$RUNNER_TEMP/server" && bun install --frozen-lockfile && bun run contract:bundle --out "$GITHUB_WORKSPACE/Contract/bundle")
-          scripts/contract verify
-      - name: Check architecture and test packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          scripts/contract verify
-          scripts/generate --check
-          scripts/enforcement
-          scripts/enforcement --demo
-          for package in Tools/PurlayGen Packages/*; do
-            swift test --package-path "$package"
-          done
+          path: ${{ github.workspace }}/.cache/compilation
+          key: cas-release-${{ steps.when.outputs.week }}-${{ github.sha }}
+          restore-keys: |
+            cas-app-${{ steps.when.outputs.week }}-
+            cas-test-${{ steps.when.outputs.week }}-
+      - name: Verify
+        run: scripts/verify
+        env:
+          PURLAY_CACHE_DIR: ${{ github.workspace }}/.cache/compilation
+          BRANCH: main
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Import Developer ID certificate
         env:
           CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12 }}

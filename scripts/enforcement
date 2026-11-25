@@ -7,36 +7,51 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# The numbers each of these files states, one per line.
+floors() { # root: the macOS floor, as every file that declares one says it
+  local root="$1"
+  sed -n 's/^MACOSX_DEPLOYMENT_TARGET = \([0-9]*\)\..*/\1/p' "$root/Config/Base.xcconfig"
+  sed -n 's/^ *macOS: "\([0-9]*\)\..*"/\1/p' "$root/project.yml"
+  grep -rhoE --include=Package.swift '\.macOS\(\.v[0-9]+\)' "$root/Packages" | sed -E 's/.*\.v([0-9]+).*/\1/'
+}
+pins() { # root: the purlay-swift version each file asks for
+  local root="$1"
+  grep -A2 'PurlaySwift:' "$root/project.yml" | sed -n 's/^ *from: \(.*\)$/\1/p'
+  grep -rhoE --include=Package.swift 'purlay-swift", from: "[0-9.]+"' "$root/Packages" | sed -E 's/.*from: "([0-9.]+)"/\1/'
+}
+
 check() { # root
   local root="$1" failed=0
-  # The packages with no UI import neither SwiftUI nor AppKit.
-  for package in PurlayContract PurlayTokens PurlayKit PurlayTestSupport; do
-    if grep -rnE '^\s*(@_exported )?import (SwiftUI|AppKit|UIKit)\b' "$root/Packages/$package/Sources"; then
-      echo "FAIL: $package imports UI" >&2; failed=1
-    fi
-  done
-  # The views open no connection: PurlayUI reaches the network only through PurlayKit's protocols.
-  if grep -rnE '\b(URLSession|URLRequest|NWConnection|URLSessionWebSocketTask)\b' "$root/Packages/PurlayUI/Sources"; then
+  # One macOS floor: the build settings, the project and every package say the same number.
+  if [ "$(floors "$root" | sort -u | wc -l | tr -d ' ')" != "1" ]; then
+    echo "FAIL: the macOS floor is not one number:" >&2; floors "$root" | sort | uniq -c >&2; failed=1
+  fi
+  # One purlay-swift version: the project and every package ask for the same.
+  if [ "$(pins "$root" | sort -u | wc -l | tr -d ' ')" != "1" ]; then
+    echo "FAIL: purlay-swift is not pinned to one version:" >&2; pins "$root" | sort | uniq -c >&2; failed=1
+  fi
+  # The views open no connection: PurlayUI reaches the network only through PurlayKit's protocols (purlay-swift).
+  if grep -rnE --exclude-dir=.build '\b(URLSession|URLRequest|NWConnection|URLSessionWebSocketTask)\b' "$root/Packages/PurlayUI/Sources"; then
     echo "FAIL: PurlayUI touches the network" >&2; failed=1
   fi
   # Only the app's own folder for updates may import Sparkle.
-  if grep -rnE '^\s*import Sparkle\b' "$root/App" "$root/Packages" 2>/dev/null | grep -v '/App/Updates/'; then
+  if grep -rnE --exclude-dir=.build '^\s*import Sparkle\b' "$root/App" "$root/Packages" 2>/dev/null | grep -v '/App/Updates/'; then
     echo "FAIL: Sparkle imported outside App/Updates" >&2; failed=1
   fi
   # No third-party dependency beyond the two M-8 allows.
-  if grep -rnE '\.package\(url:' "$root/Packages" "$root/project.yml" 2>/dev/null | grep -vE 'swift-markdown|sparkle-project/Sparkle'; then
+  if grep -rnE --exclude-dir=.build '\.package\(url:' "$root/Packages" "$root/project.yml" 2>/dev/null | grep -vE 'swift-markdown|sparkle-project/Sparkle|purlay/purlay-swift'; then
     echo "FAIL: a dependency M-8 does not allow" >&2; failed=1
   fi
   # No escape from the compiler's concurrency checking.
-  if grep -rnE '(@unchecked Sendable|nonisolated\(unsafe\))' "$root/Packages" "$root/App" 2>/dev/null | grep -v 'enforcement-allow'; then
+  if grep -rnE --exclude-dir=.build '(@unchecked Sendable|nonisolated\(unsafe\))' "$root/Packages" "$root/App" 2>/dev/null | grep -v 'enforcement-allow'; then
     echo "FAIL: an unchecked concurrency escape" >&2; failed=1
   fi
   # Production code cannot trap on a value it was handed (§12.9): no `try!`, `as!`, `fatalError`, and no force unwrap or
   # implicitly unwrapped optional. A trap cannot be caught, so the rule is prevention. `preconditionFailure` stays for the
   # two invariants a test proves (a constant pattern, an id built to its own shape). Comment lines and generated code are
   # not looked at.
-  if grep -rnE --include='*.swift' '(try!|as!|fatalError\(|unsafelyUnwrapped|[]A-Za-z0-9_)]!([].),]|[[:space:]]*$))' \
-    "$root/App" "$root/Packages"/*/Sources 2>/dev/null | grep -v '/Generated/' | grep -v '/PurlayTestSupport/' | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'; then
+  if grep -rnE --exclude-dir=.build --include='*.swift' '(try!|as!|fatalError\(|unsafelyUnwrapped|[]A-Za-z0-9_)]!([].),]|[[:space:]]*$))' \
+    "$root/App" "$root/Packages"/*/Sources 2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'; then
     echo "FAIL: production code that can trap" >&2; failed=1
   fi
   return $failed
@@ -51,19 +66,19 @@ fail=0
 plant() { # name, file (relative), line
   local copy
   copy="$(mktemp -d)"
-  rsync -a --exclude .build --exclude .swiftpm Packages App project.yml "$copy"/
+  rsync -a --exclude .build --exclude .swiftpm Packages App Config project.yml "$copy"/
   printf '%s\n' "$3" >> "$copy/$2"
   if check "$copy" >/dev/null 2>&1; then echo "  NOT REFUSED  $1" >&2; fail=1; else echo "  refused      $1"; fi
   rm -rf "$copy"
 }
 check . >/dev/null
-plant "Kit imports SwiftUI" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "import SwiftUI"
-plant "Contract imports AppKit" Packages/PurlayContract/Sources/PurlayContract/PurlayContract.swift "import AppKit"
 plant "UI opens a session" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let session = URLSession.shared"
-plant "Sparkle in the kit" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "import Sparkle"
+plant "a second macOS floor" Packages/PurlayUI/Package.swift "// .macOS(.v15)"
+plant "a second purlay-swift pin" Packages/PurlayUI/Package.swift '// purlay-swift", from: "9.9.9"'
 plant "a dependency M-8 does not allow" project.yml "      - url: x # .package(url: \"https://example.test/KeychainAccess\")"
-plant "an unchecked Sendable" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "extension Foo: @unchecked Sendable {}"
-plant "a force unwrap" Packages/PurlayKit/Sources/PurlayKit/PurlayKit.swift "let first = [1].first!.description"
+plant "Sparkle in the UI package" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "import Sparkle"
+plant "an unchecked Sendable" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "extension Foo: @unchecked Sendable {}"
+plant "a force unwrap" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let first = [1].first!.description"
 plant "a try!" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let data = try! Data(contentsOf: URL(fileURLWithPath: \"/\"))"
 plant "an implicitly unwrapped optional" App/PurlayApp.swift "var window: NSWindow!"
 exit $fail
