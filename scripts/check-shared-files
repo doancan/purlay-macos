@@ -14,8 +14,10 @@ if [ "${PURLAY_OFFLINE:-}" = "1" ]; then echo "check-shared-files: skipped (PURL
 
 # The contents API, not raw.githubusercontent.com: that one is cached for minutes, and a change at the owner must be seen at once.
 API=https://api.github.com/repos/purlay
-auth=()
-[ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
+# Without a token the request is anonymous (and rate-limited). The header is held in a variable rather than an array because
+# an empty array is an unbound variable under `set -u` in the bash 3.2 that macOS ships.
+auth_header=""
+[ -n "${GITHUB_TOKEN:-}" ] && auth_header="Authorization: Bearer $GITHUB_TOKEN"
 scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
 failed=0
 
@@ -26,7 +28,7 @@ compare() { # owner path
   local owner="$1" path="$2"
   if [ "$owner" = "$self" ]; then echo "owner    $path"; return; fi
   [ -f "$path" ] || { echo "MISSING  $path (owned by $owner)" >&2; failed=1; return; }
-  if ! curl -fsSL --retry 2 "${auth[@]}" -H "Accept: application/vnd.github.raw+json" "$API/$owner/contents/$path?ref=main" -o "$scratch/file"; then
+  if ! curl -fsSL --retry 2 -H "${auth_header:-X-Purlay-Anonymous: 1}" -H "Accept: application/vnd.github.raw+json" "$API/$owner/contents/$path?ref=main" -o "$scratch/file"; then
     echo "FAIL: cannot read $owner/$path" >&2; failed=1; return
   fi
   if cmp -s "$scratch/file" "$path"; then echo "ok       $path"; else echo "DIFFERS  $path (owned by $owner)" >&2; failed=1; fi
