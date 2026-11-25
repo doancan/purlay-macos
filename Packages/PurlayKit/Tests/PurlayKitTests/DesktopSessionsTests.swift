@@ -35,23 +35,21 @@ struct DesktopTransport: HTTPTransport {
     }
 }
 
-@MainActor @Suite("desktop server and workspace sessions")
+@MainActor @Suite("desktop workspace sessions")
 struct DesktopSessionsTests {
     private func desktop(_ h: ModelHarness) -> DesktopSessions {
-        let second = FakeServer()
-        second.edit { $0.clientInfo = FakeServer.clientInfo(appUrl: "http://localhost:4391") }
         var environment = h.model.environment
-        environment.transport = DesktopTransport(first: h.server, second: second)
+        environment.transport = DesktopTransport(first: h.server, second: FakeServer())
         return DesktopSessions(environment)
     }
 
+    /// Opens the workspace the person belongs to besides the first.
     private func addSecond(_ desktop: DesktopSessions) async {
-        desktop.addServer()
-        await desktop.active.connect(to: "localhost:4391")
-        await desktop.active.signIn()
+        guard let first = desktop.sessions.first?.model else { return }
+        await desktop.selectWorkspace(Uuid(DesktopTransport.otherWorkspace)!, from: first)
     }
 
-    @Test("switching servers retains connections, separate drafts, and separate durable outboxes")
+    @Test("switching workspaces retains connections, separate drafts, and separate durable outboxes")
     func isolation() async throws {
         let h = ModelHarness()
         try h.rememberedSession()
@@ -82,7 +80,7 @@ struct DesktopSessionsTests {
         #expect(first.environment.dataDirectory == h.directory, "the initial account preserves existing storage")
     }
 
-    @Test("a second workspace restores the shared credential, keeps navigation, and signs out with its server only")
+    @Test("a second workspace restores the shared credential, keeps navigation, and signs out together with the first")
     func workspacesAndSignOut() async throws {
         let h = ModelHarness()
         try h.rememberedSession()
@@ -97,17 +95,13 @@ struct DesktopSessionsTests {
         #expect(studio.draft(for: Uuid(channel(1))!).isEmpty)
         #expect(first.workspace?.slug == "acme")
         #expect(h.server.requests.filter { $0.url.path == "/api/auth/native/token" }.isEmpty)
-        await addSecond(desktop)
-        let otherServer = desktop.active
         _ = await studio.signOut(.thisDevice)
         #expect(first.phase == .signedOut)
         #expect(studio.phase == .signedOut)
         #expect(first.me == nil && first.engine == nil)
-        #expect(otherServer.phase == .ready)
-        #expect(otherServer.engine != nil)
     }
 
-    @Test("launch restores every server and workspace, its selected session, and scoped drafts")
+    @Test("launch restores every workspace, its selected session, and scoped drafts")
     func restore() async throws {
         let h = ModelHarness()
         try h.rememberedSession()
@@ -117,21 +111,19 @@ struct DesktopSessionsTests {
         first.setDraft("first", for: Uuid(channel(1))!)
         await desktop.selectWorkspace(Uuid(DesktopTransport.otherWorkspace)!, from: first)
         desktop.active.setDraft("studio", for: Uuid(channel(1))!)
-        await addSecond(desktop)
-        desktop.active.setDraft("second", for: Uuid(channel(1))!)
         let selected = desktop.selectedID
         for session in desktop.sessions { session.model.invalidateLocalSession() }
         let restored = self.desktop(h)
         await restored.launch()
-        #expect(restored.sessions.count == 3)
+        #expect(restored.sessions.count == 2)
         #expect(restored.selectedID == selected)
-        #expect(restored.active.draft(for: Uuid(channel(1))!) == "second")
+        #expect(restored.active.draft(for: Uuid(channel(1))!) == "studio")
         #expect(restored.sessions[0].model.draft(for: Uuid(channel(1))!) == "first")
         #expect(restored.sessions[1].model.draft(for: Uuid(channel(1))!) == "studio")
         #expect(restored.sessions.allSatisfy { $0.model.phase == .ready })
     }
 
-    @Test("badges sum across accounts and notices with identical channel IDs route to their own server")
+    @Test("badges sum across accounts and notices with identical channel IDs route to their own workspace")
     func notifications() async throws {
         let h = ModelHarness()
         try h.rememberedSession()
@@ -150,7 +142,7 @@ struct DesktopSessionsTests {
         await desktop.openNotification(channel: Uuid(channel(1))!, sourceID: notice.sourceID)
         #expect(desktop.selectedID == firstID)
         _ = await desktop.active.signOut(.thisDevice)
-        #expect(h.attention.badge == 3)
+        #expect(h.attention.badge == nil, "one sign-in ends every workspace of the server")
         #expect(h.attention.retracted.contains(notice.id))
     }
 
@@ -172,21 +164,5 @@ struct DesktopSessionsTests {
         #expect(desktop.settingsModel === first)
         #expect(desktop.settingsModel.settingsPage == .account)
         #expect(desktop.active !== first)
-    }
-
-    @Test("adding an existing server selects its live session without replacing its engine")
-    func duplicate() async throws {
-        let h = ModelHarness()
-        try h.rememberedSession()
-        let desktop = desktop(h)
-        await desktop.launch()
-        let first = desktop.active
-        let engine = first.engine
-        desktop.addServer()
-        await desktop.active.connect(to: "localhost:4390")
-        #expect(desktop.sessions.count == 1)
-        #expect(desktop.active === first)
-        #expect(first.engine === engine)
-        #expect(first.phase == .ready)
     }
 }

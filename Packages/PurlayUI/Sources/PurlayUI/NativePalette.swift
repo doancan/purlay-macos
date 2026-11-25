@@ -27,6 +27,10 @@ enum NativePalette {
     static let codeSurface = token("code-surface", light: 0xf5f5f7, dark: 0x252527)
     static let codeChip = token("code-chip", light: 0xebebee, dark: 0x343437)
 
+    /// The keyboard ring and the dropping edge: the brand's blue where the canvas is light, and a neutral, lifted grey in the dark
+    /// themes, where a blue line reads as an unrelated colour on a grey surface.
+    static let focusRing = token("focus-ring", light: 0x5479dd, dark: 0xc4c4cc)
+
     /// Brand colour for primary actions, separate from neutral window chrome.
     static let brand = token("brand", light: 0x015bf7, dark: 0x5b96ff)
 

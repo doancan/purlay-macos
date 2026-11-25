@@ -112,6 +112,7 @@ struct MainView: View {
         if model.inboxOpen { return .inbox }
         if model.unresolvedOpen { return .unresolved }
         if model.issuesOpen { return .issues }
+        if model.remindersOpen || model.scheduledOpen || model.savedOpen || model.draftsOpen { return nil }
         return model.selectedChannel.map(SidebarSelection.channel)
     }
 
@@ -130,6 +131,14 @@ struct MainView: View {
                 UnresolvedPageView(model: model)
             } else if model.issuesOpen {
                 IssuesPage(model: model)
+            } else if model.remindersOpen {
+                RemindersSheet(model: model).environment(\.isPage, true).navigationTitle("Reminders")
+            } else if model.scheduledOpen {
+                ScheduledSheet(model: model).environment(\.isPage, true).navigationTitle("Scheduled Messages")
+            } else if model.savedOpen {
+                SavedSheet(model: model).environment(\.isPage, true).navigationTitle("Saved Messages")
+            } else if model.draftsOpen {
+                DraftsSheet(model: model).environment(\.isPage, true).navigationTitle("Drafts")
             } else if let id = model.selectedChannel, let channel = model.chat.channels[id] {
                 // Each channel its own scroll view: one that was scrolled far down a long feed keeps its place in a short one.
                 ChannelView(model: model, channel: channel).id(id)
@@ -146,8 +155,8 @@ struct MainView: View {
                 } description: {
                     Text("Open a channel, or start a conversation with your team.")
                 } actions: {
-                    Button("Browse Channels") { sheet = .browse }.buttonStyle(.glass)
-                    Button("New Conversation") { sheet = .conversation }.buttonStyle(.glassProminent)
+                    Button("Browse Channels") { sheet = .browse }.glassButton()
+                    Button("New Conversation") { sheet = .conversation }.glassButton(prominent: true)
                 }
             }
         }
@@ -157,6 +166,12 @@ struct MainView: View {
             VStack(spacing: 0) {
                 ConnectionBar(status: model.connection, degradedCount: model.degraded.count) { model.retryDegraded() }
                 DeepWorkBar(model: model)
+                if let id = model.selectedChannel, !model.inboxOpen, !model.unresolvedOpen, !model.issuesOpen,
+                    !model.remindersOpen, !model.scheduledOpen, !model.savedOpen, !model.draftsOpen,
+                    let channel = model.chat.channels[id]
+                {
+                    IncidentBar(model: model, channel: channel)
+                }
                 AccountNoticeBars(model: model)
                 ForEach(model.notices) { notice in
                     NoticeBanner(notice: notice) { model.dismiss(notice) }
@@ -291,33 +306,17 @@ private struct MainSheets: ViewModifier {
                 PinsSheet(model: model)
                     .dismissOnOutsidePress { model.pinsOpen = false }
             }
-            .sheet(isPresented: Binding(get: { model.remindersOpen }, set: { model.remindersOpen = $0 })) {
-                RemindersSheet(model: model)
-                    .dismissOnOutsidePress { model.remindersOpen = false }
-            }
             .sheet(
                 isPresented: Binding(
                     get: { model.reminderTarget != nil }, set: { if !$0 { model.reminderTarget = nil } })
             ) {
                 if let message = model.reminderTarget { ReminderSheet(model: model, message: message) }
             }
-            .sheet(isPresented: Binding(get: { model.scheduledOpen }, set: { model.scheduledOpen = $0 })) {
-                ScheduledSheet(model: model)
-                    .dismissOnOutsidePress { model.scheduledOpen = false }
-            }
-            .sheet(isPresented: Binding(get: { model.savedOpen }, set: { model.savedOpen = $0 })) {
-                SavedSheet(model: model)
-                    .dismissOnOutsidePress { model.savedOpen = false }
-            }
             .sheet(
                 isPresented: Binding(
                     get: { model.addingBookmark != nil }, set: { if !$0 { model.addingBookmark = nil } })
             ) {
                 if let channel = model.addingBookmark { AddBookmarkSheet(model: model, channel: channel) }
-            }
-            .sheet(isPresented: Binding(get: { model.draftsOpen }, set: { model.draftsOpen = $0 })) {
-                DraftsSheet(model: model)
-                    .dismissOnOutsidePress { model.draftsOpen = false }
             }
             .sheet(isPresented: Binding(get: { model.shortcutsOpen }, set: { model.shortcutsOpen = $0 })) {
                 ShortcutsSheet()
@@ -413,7 +412,7 @@ struct ChannelView: View {
                                 Text("Load Earlier Messages")
                             }
                         }
-                        .buttonStyle(.glass)
+                        .glassButton()
                         .controlSize(.small)
                         .disabled(model.loadingOlder)
                         .padding(Spacing.space3)
@@ -503,7 +502,7 @@ struct ChannelView: View {
                     } label: {
                         Label("Jump to Latest", systemImage: "arrow.down")
                     }
-                    .buttonStyle(.glass)
+                    .glassButton()
                     .padding(.bottom, Spacing.space3)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
@@ -615,7 +614,7 @@ private struct FeedLoadFailed: View {
         } description: {
             Text("Check your connection and try again.")
         } actions: {
-            Button("Try Again", action: retry).buttonStyle(.glassProminent)
+            Button("Try Again", action: retry).glassButton(prominent: true)
         }
         .frame(maxWidth: .infinity, minHeight: 280)
         .padding(.top, Spacing.space12)
@@ -682,8 +681,9 @@ struct PendingRow: View {
                     HStack(spacing: Spacing.space3) {
                         Label(failureText, systemImage: "exclamationmark.circle")
                             .typeStyle(Typography.caption).foregroundStyle(Colors.dangerText.style)
-                        Button("Retry", action: retry).buttonStyle(.link)
-                        Button("Delete", role: .destructive) { confirmingDiscard = true }.buttonStyle(.link)
+                        Button("Retry", action: retry).buttonStyle(.bordered).controlSize(.small)
+                        Button("Delete", role: .destructive) { confirmingDiscard = true }
+                            .buttonStyle(.bordered).controlSize(.small)
                     }
                 }
             }

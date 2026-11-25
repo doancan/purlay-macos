@@ -148,17 +148,17 @@ struct InboxModelTests {
         #expect(query(lists(h).last!, "types") == nil)
     }
 
-    @Test("changing server refreshes capability discovery instead of carrying the previous server's support")
+    @Test("signing in again refreshes capability discovery instead of carrying the previous session's support")
     func capabilityRefresh() async {
         let h = await opened([note(1)])
         #expect(!h.model.inboxFiltersLocally)
-        await h.model.chooseAnotherServer()
+        await h.model.signOut(.thisDevice)
         h.server.edit { $0.clientInfo = FakeServer.clientInfo(notificationTypeFilters: nil) }
         await h.signedIn()
         await h.model.setInboxCategory(.mentions)
         #expect(h.model.inboxFiltersLocally)
         #expect(query(lists(h).last!, "types") == nil)
-        await h.model.chooseAnotherServer()
+        await h.model.signOut(.thisDevice)
         h.server.edit { $0.clientInfo = FakeServer.clientInfo(notificationTypeFilters: true) }
         await h.signedIn()
         await h.model.setInboxCategory(.mentions)

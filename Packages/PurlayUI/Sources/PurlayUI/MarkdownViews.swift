@@ -90,6 +90,8 @@ private struct CodeBlock: View {
     @State private var expanded = false
     @State private var copied = false
     @State private var hovering = false
+    /// The code in colour: plain until the scan is done, with the same layout, so nothing moves when the colours arrive.
+    @State private var coloured: AttributedString?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var lines: Int { text.reduce(into: 1) { count, character in if character == "\n" { count += 1 } } }
@@ -101,7 +103,7 @@ private struct CodeBlock: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             ScrollView(.horizontal) {
-                Text(text)
+                Text(coloured ?? AttributedString(text))
                     .typeStyle(Typography.code)
                     .foregroundStyle(NativePalette.ink.style)
                     .textSelection(.enabled)
@@ -149,6 +151,11 @@ private struct CodeBlock: View {
                 .strokeBorder(NativePalette.divider.style, lineWidth: Stroke.strokeHairline)
         }
         .onHover { hovering = $0 }
+        .task(id: text) {
+            let tokens = SyntaxHighlighter.tokens(text, language: language)
+            guard tokens.contains(where: { $0.kind != .plain }) else { return }
+            coloured = Self.attributed(tokens)
+        }
         .task(id: copied) {
             guard copied else { return }
             try? await Task.sleep(for: .seconds(1.5))
@@ -156,6 +163,30 @@ private struct CodeBlock: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(language.map { "\($0) code" } ?? String(localized: "Code")))
+    }
+
+    private static func attributed(_ tokens: [SyntaxToken]) -> AttributedString {
+        var out = AttributedString()
+        for token in tokens {
+            var piece = AttributedString(token.text)
+            if let color = color(of: token.kind) { piece.foregroundColor = color }
+            out += piece
+        }
+        return out
+    }
+
+    private static func color(of kind: SyntaxKind) -> Color? {
+        switch kind {
+        case .plain: nil
+        case .keyword: Colors.syntaxKeyword.color
+        case .string, .added: Colors.syntaxString.color
+        case .number: Colors.syntaxNumber.color
+        case .comment: Colors.syntaxComment.color
+        case .function, .hunk: Colors.syntaxFunction.color
+        case .type: Colors.syntaxType.color
+        case .operator: Colors.syntaxOperator.color
+        case .removed: Colors.dangerText.color
+        }
     }
 
     private var header: some View {

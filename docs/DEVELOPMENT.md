@@ -14,8 +14,8 @@ xcodegen generate
 xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Debug -destination 'platform=macOS,arch=arm64' build
 ```
 
-Connect to a compatible Purlay server on first launch. The app is a client and does not start a server itself.
-For local development, `PURLAY_DEV_SERVER` and `PURLAY_DEV_SESSION` can seed a session in Debug builds only.
+The app signs in only to `https://purlay.app` (`ServerAddress.hosted`); it is a client and does not start a server itself.
+For local development, `PURLAY_DEV_SERVER` points a Debug build at another server, and with `PURLAY_DEV_SESSION` seeds a session there.
 
 Run `swift test` inside a package to check that layer, or `scripts/verify` for the full repository checks.
 

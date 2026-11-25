@@ -42,6 +42,7 @@ struct ComposerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.space2) {
+            if !state.commands.isEmpty { CommandList(state: state) }
             if !state.suggestions.isEmpty { SuggestionList(state: state) }
             if let notice = state.notice { ComposerNotice(text: notice) { state.notice = nil } }
             TypingLine(model: model, channel: channel)
@@ -138,7 +139,9 @@ struct ComposerView: View {
         .modifier(ControlSurface(radius: Radius.radius2xl + Spacing.space1))
         .overlay {
             RoundedRectangle(cornerRadius: Radius.radius2xl + Spacing.space1)
-                .strokeBorder(Colors.focusRing.style, lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline)
+                .strokeBorder(
+                    NativePalette.focusRing.style, lineWidth: dropping ? Stroke.strokeFocus : Stroke.strokeHairline
+                )
                 .opacity(dropping || state.isFocused ? 1 : 0)
                 .allowsHitTesting(false)
         }
@@ -198,7 +201,7 @@ struct ComposerView: View {
                     .fontWeight(.semibold)
                     .frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
             }
-            .buttonStyle(.glassProminent)
+            .glassButton(prominent: true)
             .tint(NativePalette.brand.color)
             .buttonBorderShape(.circle)
             .disabled(!canSend || over || state.isRewriting)
@@ -252,15 +255,37 @@ struct ComposerView: View {
     private func send() {
         // A rewrite in progress is not the message yet: Return belongs to Writing Tools until it ends.
         guard !state.isRewriting else { return }
+        if let line = SlashCommand.parse(state.text) {
+            Task { await run(line) }
+            return
+        }
         if let name = ComposerText.broadcastMention(state.text) {
             state.notice =
                 "\(name) would reach everybody, and Purlay does not send to everybody. Mention people by name."
             return
         }
-        guard parent == nil ? model.send(state.text) : model.sendReply(state.text) else { return }
+        submit(state.text)
+    }
+
+    private func submit(_ words: String) {
+        guard parent == nil ? model.send(words) : model.sendReply(words) else { return }
         saving?.cancel()
         state.notice = nil
         state.replaceText("")
+    }
+
+    /// A command is run through what the app already does for it; only `/me`, `/shrug` and `//` words are sent.
+    private func run(_ line: SlashCommand.Line) async {
+        switch await model.runSlash(line) {
+        case .send(let words):
+            submit(words)
+        case .done(let done):
+            saving?.cancel()
+            state.replaceText("")
+            state.notice = SlashWords.done(done)
+        case .refused(let refusal):
+            state.notice = SlashWords.refused(refusal)
+        }
     }
 }
 

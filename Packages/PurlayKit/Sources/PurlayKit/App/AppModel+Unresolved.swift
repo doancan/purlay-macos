@@ -6,8 +6,7 @@ extension AppModel {
 
     public func openUnresolved() async {
         navigationGeneration += 1
-        inboxOpen = false
-        issuesOpen = false
+        closePages(except: .unresolved)
         unresolvedOpen = true
         closeThread()
         await loadUnresolved()

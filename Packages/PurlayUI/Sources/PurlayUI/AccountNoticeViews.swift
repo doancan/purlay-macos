@@ -73,9 +73,9 @@ struct TwoFactorRequiredView: View {
             )
         } actions: {
             Button("Set Up in Browser") { if let url = model.twoFactorSetupURL { openURL(url) } }
-                .buttonStyle(.glassProminent)
+                .glassButton(prominent: true)
                 .disabled(model.twoFactorSetupURL == nil)
-            Button("Check Again") { Task { await model.refreshAccount() } }.buttonStyle(.glass)
+            Button("Check Again") { Task { await model.refreshAccount() } }.glassButton()
         }
     }
 }

@@ -24,6 +24,7 @@ public struct SettingsView: View {
     @AppStorage("composer.formatting") private var formatting = false
     @AppStorage("composer.hints") private var hints = true
     @AppStorage("sidebar.translucent") private var translucentSidebar = true
+    @AppStorage(LiquidGlass.key) private var liquidGlass = true
     @State private var copied = false
     @Environment(\.openURL) private var openURL
 
@@ -37,7 +38,7 @@ public struct SettingsView: View {
                     if !pages.isEmpty {
                         Section(group.title) {
                             ForEach(pages) { item in
-                                Label(item.title, systemImage: item.image).tag(item)
+                                Label(item.title, systemImage: item.image).labelStyle(SettingsRowLabel()).tag(item)
                             }
                         }
                     }
@@ -135,6 +136,11 @@ public struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle("Translucent sidebar", isOn: $translucentSidebar)
+                Toggle("Liquid Glass", isOn: $liquidGlass)
+                Text(
+                    "Controls, lists and buttons use the system's translucent glass. Off, they are solid. Reduce Transparency always wins."
+                )
+                .font(.callout).foregroundStyle(.secondary)
             }
             Section("Messages") {
                 Picker("Message spacing", selection: $compact) {
@@ -174,6 +180,7 @@ public struct SettingsView: View {
     private var notificationsPage: some View {
 
         Form {
+            NotificationPermissionSection()
             Section("On This Mac") {
                 Toggle(
                     "Notify me while Purlay is in the background",
@@ -207,24 +214,7 @@ public struct SettingsView: View {
                     .font(.title2.weight(.semibold))
                 Text(page.detail).foregroundStyle(.secondary)
             }
-            if page == .profile, let me = model.me {
-                Section {
-                    LabeledContent("Name", value: me.user.displayName)
-                    LabeledContent("Handle", value: "@" + me.user.username)
-                    if let title = me.profile.title { LabeledContent("Title", value: title) }
-                    if let status = me.profile.status { LabeledContent("Status", value: status) }
-                    if let zone = me.profile.timeZone { LabeledContent("Time Zone", value: zone) }
-                } header: {
-                    Text("Profile")
-                } footer: {
-                    Text(
-                        model.nameFollowsGitHub
-                            ? "Your name comes from your GitHub account. Change it on GitHub and it updates here."
-                            : "Change your name, title, status and time zone in your browser."
-                    )
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-            }
+            if page == .profile { ProfileForm(model: model) }
             if page == .account, let me = model.me {
                 Section("Signed In") {
                     LabeledContent("Email", value: me.user.email)
@@ -235,7 +225,7 @@ public struct SettingsView: View {
                 Section("Workspace") {
                     LabeledContent("Name", value: workspace.name)
                     LabeledContent("Address", value: workspace.slug)
-                    LabeledContent("Your Role", value: roleTitle)
+                    LabeledContent("Your Role", value: model.workspaceRoleTitle)
                 }
             }
             if page == .members {
@@ -275,14 +265,6 @@ public struct SettingsView: View {
         .formStyle(.grouped)
         .textSelection(.enabled)
     }
-
-    private var roleTitle: String {
-        switch model.workspaceRole {
-        case .owner: String(localized: "Owner")
-        case .admin: String(localized: "Administrator")
-        default: String(localized: "Member")
-        }
-    }
 }
 
 extension SettingsPage.Group {
@@ -321,7 +303,7 @@ extension SettingsPage {
         case .notifications: "bell.badge"
         case .profile: "person.crop.circle"
         case .account: "key"
-        case .members: "person.3"
+        case .members: "person.2"
         case .invitations: "person.badge.plus"
         case .integrations: "puzzlepiece.extension"
         case .audit: "list.clipboard"
@@ -347,7 +329,7 @@ extension SettingsPage {
 
     fileprivate var action: LocalizedStringKey {
         switch self {
-        case .profile: "Edit Profile in Browser"
+        case .profile: "Open Profile in Browser"
         case .account: "Manage Account in Browser"
         case .members: "Manage Members in Browser"
         case .invitations: "Manage Invitations in Browser"
@@ -361,6 +343,13 @@ extension SettingsPage {
 }
 
 private struct SettingsMembersSection: View {
+    /// "@ada", and the title after it when the person has one.
+    private func subtitle(of member: WorkspaceMember) -> String {
+        let handle = "@" + member.user.username
+        guard let title = member.profile.title, !title.isEmpty else { return handle }
+        return handle + " · " + title
+    }
+
     let model: AppModel
     @State private var members: WorkspaceMemberList = []
     @State private var loading = true
@@ -381,10 +370,17 @@ private struct SettingsMembersSection: View {
                     HStack {
                         Avatar(user: member.user, size: 32)
                         VStack(alignment: .leading) {
-                            Text(member.user.displayName).fontWeight(.medium)
-                            Text("@" + member.user.username).font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: Spacing.space1) {
+                                Text(member.user.displayName).fontWeight(.medium)
+                                if let emoji = member.profile.statusEmoji { Text(emoji) }
+                            }
+                            Text(subtitle(of: member)).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
+                        if member.accessKind == .guest {
+                            Text("Guest").font(.caption).padding(.horizontal, Spacing.space2)
+                                .background(.quaternary, in: .capsule)
+                        }
                         Text(role(member.role)).foregroundStyle(.secondary)
                     }
                 }
@@ -416,5 +412,16 @@ private struct SettingsMembersSection: View {
         case .member: "Member"
         case .unknown: "Other Role"
         }
+    }
+}
+
+/// A page's symbol in a column of one width, so the titles start on one line whatever the symbol's own width, and the rows are one height.
+private struct SettingsRowLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Spacing.space2) {
+            configuration.icon.frame(width: Size.sizeIconLg, height: Size.sizeIconLg)
+            configuration.title
+        }
+        .frame(minHeight: Size.sizeIconLg + Spacing.space1)
     }
 }

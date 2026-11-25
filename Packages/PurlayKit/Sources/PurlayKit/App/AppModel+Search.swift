@@ -280,9 +280,7 @@ extension AppModel {
             else { return false }
             let channelID = around.target.channelId
             if thread?.channel != channelID { closeThread() }
-            inboxOpen = false
-            unresolvedOpen = false
-            issuesOpen = false
+            closePages()
             selectedChannel = channelID
             if let workspace { environment.preferences.set(channelID.value, for: "channel.\(workspace.slug)") }
             var window = ChannelWindow()

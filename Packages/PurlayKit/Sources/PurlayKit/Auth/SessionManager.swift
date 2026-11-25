@@ -74,6 +74,12 @@ public actor SessionManager {
         return nil
     }
 
+    /// When the session in use ends, if the server said.
+    public var expiresAt: Date? {
+        if case .signedIn(let session, _) = state { return session.expiresAt }
+        return nil
+    }
+
     /// Every state from now on. The current one is delivered first.
     public func states() -> AsyncStream<State> {
         let id = UUID()

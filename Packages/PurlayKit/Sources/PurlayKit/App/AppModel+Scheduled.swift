@@ -118,4 +118,18 @@ extension AppModel {
         scheduledLoading = false
         scheduledItems.removeAll { $0.id == message.id }
     }
+
+    /// Sends a scheduled message now instead of at its time. The message itself arrives over the socket like any other.
+    public func sendScheduledNow(_ message: ScheduledMessage) async throws {
+        guard let api else { throw SchedulingFailure.unavailable }
+        let context = contextGeneration
+        do {
+            _ = try await api.sendScheduledMessage(
+                channelId: message.channelId.value, scheduledId: message.id.value)
+        } catch { throw SchedulingFailure.from(error) }
+        guard context == contextGeneration else { throw SchedulingFailure.sessionChanged }
+        scheduledGeneration += 1
+        scheduledLoading = false
+        scheduledItems.removeAll { $0.id == message.id }
+    }
 }

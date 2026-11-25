@@ -165,21 +165,6 @@ struct SessionRecoveryTests {
         #expect(h.server.requests.count == requests)
     }
 
-    @Test("changing server stops when this device's live credential could not be removed")
-    func failedSignOutKeepsServer() async {
-        let h = ModelHarness()
-        await h.signedIn()
-        let server = h.model.server
-        h.sessions.refuseDeletion(true)
-        h.server.edit { $0.online = false }
-        await h.model.chooseAnotherServer()
-        #expect(h.model.phase == .ready)
-        #expect(h.model.server == server)
-        #expect(h.model.me != nil)
-        #expect(h.preferences.string(for: AppModel.serverKey) == "http://localhost:4390")
-        #expect(h.model.notices.contains { $0.kind == .signOutFailed })
-    }
-
     @Test("searching a channel keeps the separating space ready for typing the search terms")
     func channelSearchInput() async {
         let h = ModelHarness()

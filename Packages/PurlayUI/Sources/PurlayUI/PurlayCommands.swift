@@ -105,7 +105,6 @@ public struct PurlayCommands: Commands {
             }
             CommandMenu("Message") { messageItems }
             CommandMenu("Channel") { channelItems }
-            CommandMenu("Go") { goItems }
             CommandMenu("Deep Work") {
                 Button(model.deepWorkEnds == nil ? "Start Deep Work for an Hour" : "End Deep Work") {
                     Task { await model.toggleDeepWork() }
@@ -114,6 +113,12 @@ public struct PurlayCommands: Commands {
                 .disabled(!ready)
                 Divider()
                 DeepWorkItems(model: model)
+            }
+        }
+        if model.chatAvailable || (model.me?.memberships.count ?? 0) > 1 {
+            CommandMenu("Go") {
+                if model.chatAvailable { goItems }
+                workspaceItems
             }
         }
         CommandGroup(replacing: .appSettings) {
@@ -202,6 +207,20 @@ public struct PurlayCommands: Commands {
             Button("Pinned Messages") { model.pinsOpen = true }
         } else {
             Button("No Channel Open") {}.disabled(true)
+        }
+    }
+
+    /// ⌘1 to ⌘9 move between the workspaces of the account, in the order the switcher lists them.
+    @ViewBuilder private var workspaceItems: some View {
+        if let sessions, let memberships = model.me?.memberships, memberships.count > 1 {
+            Divider()
+            ForEach(Array(memberships.prefix(9).enumerated()), id: \.element.workspace.id) { index, membership in
+                Button("Switch to \(membership.workspace.name)") {
+                    Task { await sessions.selectWorkspace(membership.workspace.id, from: model) }
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                .disabled(!ready)
+            }
         }
     }
 

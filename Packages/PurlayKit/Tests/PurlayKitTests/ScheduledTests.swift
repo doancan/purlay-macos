@@ -43,6 +43,20 @@ struct ScheduledTests {
         #expect(h.model.scheduledItems.isEmpty)
     }
 
+    @Test("sending one now takes it off the list, and one already sent is said")
+    func sendNow() async throws {
+        let h = await opened()
+        let channel = Uuid(channel(1))!
+        try await h.model.scheduleDraft(id: Uuid(UUID()), text: "Now", channel: channel, parent: nil, at: date)
+        await h.model.loadScheduled()
+        let item = try #require(h.model.scheduledItems.first)
+        try await h.model.sendScheduledNow(item)
+        #expect(h.model.scheduledItems.isEmpty)
+        #expect(h.server.requests.contains { $0.method == "POST" && $0.url.path.hasSuffix("/send") })
+        await #expect(throws: SchedulingFailure.self) { try await h.model.sendScheduledNow(item) }
+        #expect(h.model.scheduledItems.isEmpty)
+    }
+
     @Test("a refusal keeps draft text and a retry can finish")
     func retry() async throws {
         let h = await opened()

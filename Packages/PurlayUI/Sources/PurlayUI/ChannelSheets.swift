@@ -159,7 +159,7 @@ struct NewChannelSheet: View {
             GlassEffectContainer(spacing: Spacing.space2) {
                 HStack {
                     Spacer()
-                    Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                    Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).glassButton()
                         .disabled(busy)
                     Button(action: create) {
                         HStack {
@@ -167,7 +167,7 @@ struct NewChannelSheet: View {
                             Text(busy ? "Creating…" : "Create Channel")
                         }
                     }
-                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).disabled(made == nil || busy)
+                    .keyboardShortcut(.defaultAction).glassButton(prominent: true).disabled(made == nil || busy)
                 }
             }
             .controlSize(.large).padding(Spacing.space4)
@@ -238,7 +238,7 @@ struct BrowseChannelsSheet: View {
                             }
                             Spacer()
                             Button(joining == channel.id ? "Joining…" : "Join") { join(channel) }
-                                .buttonStyle(.glass).disabled(joining != nil)
+                                .glassButton().disabled(joining != nil)
                         }
                         .padding(.vertical, Spacing.space2)
                     }
@@ -307,7 +307,7 @@ struct NewConversationSheet: View {
                                         Image(systemName: "xmark").font(.caption2)
                                     }
                                 }
-                                .buttonStyle(.glass).controlSize(.small)
+                                .glassButton().controlSize(.small)
                                 .accessibilityLabel("Remove \(person.displayName)")
                             }
                         }
@@ -349,7 +349,7 @@ struct NewConversationSheet: View {
                     } description: {
                         Text("Check your connection and try again.")
                     } actions: {
-                        Button("Try Again") { refreshRevision &+= 1 }.buttonStyle(.glass)
+                        Button("Try Again") { refreshRevision &+= 1 }.glassButton()
                     }
                 } else if people.isEmpty {
                     EmptyState.search(text: query)
@@ -369,7 +369,7 @@ struct NewConversationSheet: View {
                 }
                 Spacer()
                 Button(busy ? "Opening…" : "Start Conversation", action: start)
-                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent).controlSize(.large)
+                    .keyboardShortcut(.defaultAction).glassButton(prominent: true).controlSize(.large)
                     .disabled(chosen.isEmpty || busy)
             }
             .padding(Spacing.space4)

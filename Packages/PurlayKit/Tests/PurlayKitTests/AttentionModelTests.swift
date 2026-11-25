@@ -32,6 +32,22 @@ struct AttentionModelTests {
         #expect(none.attention.badge == nil)
     }
 
+    @Test("what was waiting when the app opened is not news, even when it opened behind another app")
+    func firstLookInBackground() async {
+        let h = ModelHarness()
+        h.server.edit {
+            $0.chans = [
+                .init(n: 1, name: "api", mentions: 2), .init(n: 2, name: "design", mentions: 3),
+                .init(n: 3, name: "ops", mentions: 1),
+            ]
+        }
+        h.model.setActive(false)
+        await h.signedIn()
+        await h.settle()
+        #expect(h.attention.badge == 6)
+        #expect(h.attention.shown.isEmpty)
+    }
+
     @Test("what was waiting when the app opened is not news")
     func firstLook() async {
         let h = await signedIn([.init(n: 1, name: "api", mentions: 2)])

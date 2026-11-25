@@ -27,6 +27,13 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
 
     func setBadge(_ count: Int?) {
         NSApp?.dockTile.badgeLabel = count.map { $0 > 99 ? "99+" : String($0) }
+        guard count != nil else { return }
+        // Permission given before the badge was asked for stays without it; asking again with it is how it is added.
+        Task { [center] in
+            let settings = await center.notificationSettings()
+            guard settings.authorizationStatus == .authorized, settings.badgeSetting == .notSupported else { return }
+            _ = try? await center.requestAuthorization(options: [.alert, .badge])
+        }
     }
 
     func show(_ notice: AttentionNotice) {
@@ -132,7 +139,7 @@ final class SystemAttention: NSObject, AttentionPresenter, UNUserNotificationCen
     private static func mayTell(_ center: UNUserNotificationCenter) async -> Bool {
         switch await center.notificationSettings().authorizationStatus {
         case .authorized, .provisional, .ephemeral: return true
-        case .notDetermined: return (try? await center.requestAuthorization(options: [.alert])) ?? false
+        case .notDetermined: return (try? await center.requestAuthorization(options: [.alert, .badge])) ?? false
         default: return false
         }
     }
