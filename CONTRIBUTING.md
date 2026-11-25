@@ -13,7 +13,9 @@ Three lanes, which CI runs side by side: `rules` (project, branch name, shared f
 each refuses its violation, Turkish strings), `test` (format, `PurlayUI`'s tests and the screens' snapshots) and `app` (the Debug
 build, App Transport Security, the sandbox's entitlements). With no argument every lane runs and the Release build is checked
 too, which is what a release does. Compiled code is cached by content, so the second run is much faster than the first; keep a
-pull request's check short, and say why in its description if a change makes it slower.
+pull request's check short, and say why in its description if a change makes it slower. A pull request that changes only documents
+(`docs/`, `*.md`, `LICENSE`, `NOTICE`, `.editorconfig`, `CODEOWNERS`) skips the compiling lanes; `verify` accepts that only when the
+`changes` job said so.
 
 ## Where code goes
 
