@@ -1,0 +1,9 @@
+# Who is asked to review a change. One maintainer today; the lines exist so that a second can be given a path.
+# Later patterns win.
+*                       @doancan
+/Config/                @doancan
+/project.yml            @doancan
+/App/Resources/*.entitlements @doancan
+/App/Updates/           @doancan
+/scripts/               @doancan
+/.github/               @doancan

@@ -82,7 +82,7 @@ xcodebuild -project Purlay.xcodeproj -scheme Purlay \
 
 The wire contract, design tokens and client engine come from [`purlay-swift`](https://github.com/purlay/purlay-swift), shared with [`purlay-ios`](https://github.com/purlay/purlay-ios). Built with the macOS 27 SDK and its newest features, it still runs on macOS 26.
 
-See the [development guide](docs/DEVELOPMENT.md) for the pinned API contract, local setup, signing, and release process, and the [testing guide](docs/TESTING.md) for validation. Contributions follow the [contributor agreement](CLA.md).
+Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md). See the [development guide](docs/DEVELOPMENT.md) for the pinned API contract, local setup, signing, and release process, and the [testing guide](docs/TESTING.md) for validation. Contributions follow the [contributor agreement](CLA.md).
 
 ---
 

@@ -6,7 +6,7 @@
 #   PURLAY_OFFLINE=1 scripts/check-shared-files   skip (no network): never set in CI
 #
 # Owners: `purlay/purlay` (the server) for licence, contributor agreement, security policy and editor settings;
-#         `purlay/purlay-swift` for what the Swift repositories share: format rules, NOTICE and this script.
+#         `purlay/purlay-swift` for what the Swift repositories share: format rules, NOTICE and these scripts.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -19,8 +19,12 @@ auth=()
 scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
 failed=0
 
+# The repository this is, from its remote, so that an owner is not asked to match what it has not published yet.
+self="$(basename "$(git config --get remote.origin.url 2>/dev/null || true)" .git)"
+
 compare() { # owner path
   local owner="$1" path="$2"
+  if [ "$owner" = "$self" ]; then echo "owner    $path"; return; fi
   [ -f "$path" ] || { echo "MISSING  $path (owned by $owner)" >&2; failed=1; return; }
   if ! curl -fsSL --retry 2 "${auth[@]}" -H "Accept: application/vnd.github.raw+json" "$API/$owner/contents/$path?ref=main" -o "$scratch/file"; then
     echo "FAIL: cannot read $owner/$path" >&2; failed=1; return
@@ -29,5 +33,5 @@ compare() { # owner path
 }
 
 for path in LICENSE CLA.md SECURITY.md .editorconfig; do compare purlay "$path"; done
-for path in .swift-format NOTICE scripts/check-shared-files; do compare purlay-swift "$path"; done
+for path in .swift-format NOTICE scripts/check-shared-files scripts/check-branch; do compare purlay-swift "$path"; done
 exit $failed
