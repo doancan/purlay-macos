@@ -15,6 +15,9 @@ if git ls-files --error-unmatch Purlay.xcodeproj >/dev/null 2>&1; then
   echo "FAIL: Purlay.xcodeproj is tracked; project.yml is the definition" >&2; exit 1
 fi
 
+step "shared files are the owners' copies"
+scripts/check-shared-files
+
 step "architecture rules, and the demonstration that each one refuses its violation"
 scripts/enforcement
 scripts/enforcement --demo
