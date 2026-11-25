@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# XcodeGen at the pinned version, from its release, checked against the digest pinned here. On a hosted runner this takes a few seconds,
+# where `brew install xcodegen` took ten to seventeen (it updates Homebrew and pours a bottle). Nothing here is needed on a
+# machine that already has that version: the script says so and stops.
+#
+#   scripts/install-xcodegen          install, and add it to the PATH of the steps that follow when run by GitHub Actions
+#
+# To move to a newer version: change both lines below, with the digest GitHub shows for `xcodegen.zip` on that release.
+set -euo pipefail
+
+VERSION=2.48.0
+SHA256=620c9f0dc10849f94728ab5df52d225ebab8187439dd6fee1925e59e80dff892
+
+HOME_DIR="${XCODEGEN_HOME:-$HOME/.local/share/purlay/xcodegen-$VERSION}"
+BIN="$HOME_DIR/xcodegen/bin"
+
+announce() { # where it is, for the steps that follow
+  [ -n "${GITHUB_PATH:-}" ] && echo "$BIN" >> "$GITHUB_PATH"
+  echo "xcodegen $VERSION: $BIN"
+}
+
+if [ "$(xcodegen --version 2>/dev/null | sed -n 's/^Version: //p')" = "$VERSION" ]; then echo "xcodegen $VERSION: already installed"; exit 0; fi
+if [ -x "$BIN/xcodegen" ]; then announce; exit 0; fi
+
+work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+curl --fail --silent --show-error --location --retry 3 \
+  "https://github.com/yonaskolb/XcodeGen/releases/download/$VERSION/xcodegen.zip" --output "$work/xcodegen.zip"
+echo "$SHA256  $work/xcodegen.zip" | shasum -a 256 -c - >/dev/null \
+  || { echo "FAIL: the digest of xcodegen $VERSION is not the one pinned in scripts/install-xcodegen" >&2; exit 1; }
+mkdir -p "$HOME_DIR"
+unzip -q "$work/xcodegen.zip" -d "$HOME_DIR"
+announce
