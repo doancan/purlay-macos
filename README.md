@@ -4,8 +4,9 @@
   <p>Your team’s conversations, at home on the Mac.</p>
   <p>A native SwiftUI client for <a href="https://github.com/purlay/purlay">Purlay</a>, with Liquid Glass, keyboard navigation, and room to focus.</p>
   <p>
-    <a href="https://github.com/purlay/purlay-macos/releases/latest"><img src="https://img.shields.io/github/v/release/doancan/purlay-macos?style=flat-square&color=015bf7" alt="Latest release"></a>
+    <a href="https://github.com/purlay/purlay-macos/releases/latest"><img src="https://img.shields.io/github/v/release/purlay/purlay-macos?style=flat-square&color=015bf7" alt="Latest release"></a>
     <img src="https://img.shields.io/badge/macOS-26%2B-24292f?style=flat-square" alt="macOS 26 or later">
+    <img src="https://img.shields.io/badge/built_for-macOS_27-24292f?style=flat-square" alt="Built with the macOS 27 SDK">
     <img src="https://img.shields.io/badge/Apple_Silicon-arm64-24292f?style=flat-square" alt="Apple Silicon arm64">
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-24292f?style=flat-square" alt="AGPL-3.0 license"></a>
   </p>
@@ -78,6 +79,8 @@ xcodegen generate
 xcodebuild -project Purlay.xcodeproj -scheme Purlay \
   -configuration Debug -destination 'platform=macOS,arch=arm64' build
 ```
+
+The wire contract, design tokens and client engine come from [`purlay-swift`](https://github.com/purlay/purlay-swift), shared with [`purlay-ios`](https://github.com/purlay/purlay-ios). Built with the macOS 27 SDK and its newest features, it still runs on macOS 26.
 
 See the [development guide](docs/DEVELOPMENT.md) for the pinned API contract, local setup, signing, and release process, and the [testing guide](docs/TESTING.md) for validation. Contributions follow the [contributor agreement](CLA.md).
 
