@@ -29,9 +29,32 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           GITHUB_TOKEN: ${{ github.token }}
 
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.which.outputs.code }}
+      app: ${{ steps.which.outputs.app }}
+    steps:
+      - id: which
+        # A pull request that changes only documents has nothing to compile: its compiling lanes are skipped, and `verify` accepts
+        # that only when this job said so. Anything else, and every other event, runs them (main must save the caches).
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; echo "app=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files="$(gh pr diff "${{ github.event.pull_request.number }}" --name-only --repo "$GITHUB_REPOSITORY")"
+          if [ -z "$files" ] || printf '%s\n' "$files" | grep -vE '^(docs/|.*\.md$|LICENSE$|NOTICE$|\.editorconfig$|\.github/CODEOWNERS$)' | grep -q .; then echo "code=true" >> "$GITHUB_OUTPUT"; else echo "code=false" >> "$GITHUB_OUTPUT"; fi
+          if printf '%s\n' "$files" | grep -qE '^(App/|Tests/PurlayTests/|project\.yml|Config/)'; then echo "app=true" >> "$GITHUB_OUTPUT"; else echo "app=false" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   test:
     runs-on: xcode-27
     timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: when
@@ -56,6 +79,8 @@ jobs:
   app:
     runs-on: xcode-27
     timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: brew install xcodegen
@@ -80,11 +105,11 @@ jobs:
 
   verify:
     if: always()
-    needs: [rules, test, app]
+    needs: [rules, changes, test, app]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Every lane passed
         run: |
           echo '${{ toJSON(needs) }}'
-          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "false"
+          test "${{ needs.rules.result == 'success' && needs.changes.result == 'success' && (needs.test.result == 'success' || (needs.changes.outputs.code == 'false' && needs.test.result == 'skipped')) && (needs.app.result == 'success' || (needs.changes.outputs.code == 'false' && needs.app.result == 'skipped')) }}" = "true"
