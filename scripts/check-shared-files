@@ -35,5 +35,5 @@ compare() { # owner path
 }
 
 for path in LICENSE CLA.md SECURITY.md .editorconfig; do compare purlay "$path"; done
-for path in .swift-format NOTICE scripts/check-shared-files scripts/check-branch; do compare purlay-swift "$path"; done
+for path in .swift-format NOTICE scripts/check-shared-files scripts/check-branch scripts/install-xcodegen; do compare purlay-swift "$path"; done
 exit $failed

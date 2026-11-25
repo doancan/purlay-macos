@@ -26,7 +26,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
           scripts/release-notes "$version" dist
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: scripts/install-xcodegen
       - id: when
         run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
       # A release starts from the week's latest compilation cache, and runs every lane, with the Release build, on one machine.
