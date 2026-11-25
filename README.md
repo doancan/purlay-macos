@@ -2,17 +2,17 @@
   <img src="Design/purlay-logo.png" width="88" alt="Purlay logo">
   <h1>Purlay for macOS</h1>
   <p>Your team’s conversations, at home on the Mac.</p>
-  <p>A native SwiftUI client for <a href="https://github.com/doancan/purlay">Purlay</a>, with Liquid Glass, keyboard navigation, and room to focus.</p>
+  <p>A native SwiftUI client for <a href="https://github.com/purlay/purlay">Purlay</a>, with Liquid Glass, keyboard navigation, and room to focus.</p>
   <p>
-    <a href="https://github.com/doancan/purlay-macos/releases/latest"><img src="https://img.shields.io/github/v/release/doancan/purlay-macos?style=flat-square&color=015bf7" alt="Latest release"></a>
+    <a href="https://github.com/purlay/purlay-macos/releases/latest"><img src="https://img.shields.io/github/v/release/doancan/purlay-macos?style=flat-square&color=015bf7" alt="Latest release"></a>
     <img src="https://img.shields.io/badge/macOS-26%2B-24292f?style=flat-square" alt="macOS 26 or later">
     <img src="https://img.shields.io/badge/Apple_Silicon-arm64-24292f?style=flat-square" alt="Apple Silicon arm64">
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-24292f?style=flat-square" alt="AGPL-3.0 license"></a>
   </p>
   <p>
-    <a href="https://github.com/doancan/purlay-macos/releases/latest"><strong>Download for Mac</strong></a>
+    <a href="https://github.com/purlay/purlay-macos/releases/latest"><strong>Download for Mac</strong></a>
     &nbsp; · &nbsp; <a href="CHANGELOG.md">What’s new</a>
-    &nbsp; · &nbsp; <a href="https://github.com/doancan/purlay-macos/issues">Report an issue</a>
+    &nbsp; · &nbsp; <a href="https://github.com/purlay/purlay-macos/issues">Report an issue</a>
   </p>
 </div>
 
@@ -42,7 +42,7 @@
 
 ## Get started
 
-1. [Download the latest release](https://github.com/doancan/purlay-macos/releases/latest).
+1. [Download the latest release](https://github.com/purlay/purlay-macos/releases/latest).
 2. Extract the ZIP and move **Purlay.app** to **Applications**.
 3. Open Purlay and sign in with your browser. Your Mac stays signed in until you sign out.
 
@@ -84,7 +84,7 @@ See the [development guide](docs/DEVELOPMENT.md) for the pinned API contract, lo
 ---
 
 <div align="center">
-  <a href="https://github.com/doancan/purlay">Purlay server & web</a> ·
+  <a href="https://github.com/purlay/purlay">Purlay server & web</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="LICENSE">AGPL-3.0</a> ·
   <a href="NOTICE">Third-party notices</a>

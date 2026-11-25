@@ -5,10 +5,9 @@
 .swiftpm/
 DerivedData/
 build/
-# Fetched, pinned by Contract/contract.lock.
-Contract/bundle/
 # Local, never committed.
 *.local.md
 .DS_Store
 xcuserdata/
 Config/Local.xcconfig
+Package.resolved

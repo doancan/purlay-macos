@@ -1,10 +1,12 @@
 # Developing Purlay for macOS
 
-The native macOS client for [Purlay](https://github.com/doancan/purlay): Swift, SwiftUI with AppKit where it
+The native macOS client for [Purlay](https://github.com/purlay/purlay): Swift, SwiftUI with AppKit where it
 earns its place, drawn in Liquid Glass. Decided in `DECISIONS.md` D-186 of the server repository, which also owns
 the contract this client is generated from.
 
-Built with Swift 6 and SwiftUI for macOS 26 and later on Apple Silicon (arm64). Native split navigation, Liquid Glass controls, a translucent sidebar,
+Built with Swift 6 and SwiftUI against the macOS 27 SDK (Xcode 27), on Apple Silicon (arm64). macOS 27 is the
+primary target and uses its newest APIs; macOS 26, which introduced Liquid Glass, stays supported as the deployment
+floor, so anything that needs 27 sits behind `#available(macOS 27, *)` with a 26 path beside it. Native split navigation, Liquid Glass controls, a translucent sidebar,
 threads, an inbox, saved messages, drafts, channel members and file browsing share the same client model.
 
 Build with Xcode 27 or newer:
@@ -17,13 +19,13 @@ xcodebuild -project Purlay.xcodeproj -scheme Purlay -configuration Debug -destin
 The app signs in only to `https://purlay.app` (`ServerAddress.hosted`); it is a client and does not start a server itself.
 For local development, `PURLAY_DEV_SERVER` points a Debug build at another server, and with `PURLAY_DEV_SESSION` seeds a session there.
 
-Run `swift test` inside a package to check that layer, or `scripts/verify` for the full repository checks.
+Run `swift test` inside `Packages/PurlayUI` to check that layer, or `scripts/verify` for the full repository checks.
 
 Releases are built by `.github/workflows/release.yml` when a `v` tag matching `MARKETING_VERSION` is pushed.
 The workflow tests the packages, builds for Apple Silicon (arm64), signs with Developer ID, notarizes with Apple,
 and publishes a stapled app ZIP and SHA-256 checksum. Signing uses the repository secrets `MACOS_CERTIFICATE_P12`
 (base64-encoded PKCS#12), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
-The contract bundle is rebuilt from the server commit pinned in the workflow and checked against `Contract/contract.lock`.
+The wire contract, the tokens and the client engine come from [`purlay-swift`](https://github.com/purlay/purlay-swift), pinned by version in `project.yml` and `Packages/PurlayUI/Package.swift`; the contract pin and its generator live there.
 
 Updates use Sparkle 2.10.1. Release builds offer **Purlay > Check for Updates…** and an Updates settings tab;
 Debug builds leave the updater stopped and allow loading the prebuilt framework with ad-hoc signing;
@@ -36,7 +38,7 @@ the private key must never be committed. The release workflow uses its increasin
 The original 0.1.0 release has no updater: install the first Sparkle-enabled release manually once.
 
 Inbox type filters (All, Mentions, DMs, Threads) work alongside All / Unread and use the server's
-[notification type filter](https://github.com/doancan/purlay/issues/787). Each selection starts a new page sequence;
+[notification type filter](https://github.com/purlay/purlay/issues/787). Each selection starts a new page sequence;
 All omits `types`, and Threads requests both replies and resolutions. Mark All Read only affects visible rows.
 The client sends `types` only when `/api/client` advertises `capabilities.notificationTypeFilters: true`.
 Missing/false capabilities use local filtering without probing unsupported query parameters; Load More remains

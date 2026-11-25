@@ -27,26 +27,13 @@ jobs:
           scripts/release-notes "$version" dist
       - name: Install XcodeGen
         run: brew install xcodegen
-      - uses: oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version: 1.4.3
-      - name: Prepare pinned contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          git clone https://github.com/doancan/purlay.git "$RUNNER_TEMP/server"
-          git -C "$RUNNER_TEMP/server" checkout de5ba4f6d32a3daefb7524dc93f16bdb451f0fcf
-          (cd "$RUNNER_TEMP/server" && bun install --frozen-lockfile && bun run contract:bundle --out "$GITHUB_WORKSPACE/Contract/bundle")
-          scripts/contract verify
       - name: Check architecture and test packages
         shell: bash
         run: |
           set -euo pipefail
-          scripts/contract verify
-          scripts/generate --check
           scripts/enforcement
           scripts/enforcement --demo
-          for package in Tools/PurlayGen Packages/*; do
+          for package in Packages/*; do
             swift test --package-path "$package"
           done
       - name: Import Developer ID certificate
