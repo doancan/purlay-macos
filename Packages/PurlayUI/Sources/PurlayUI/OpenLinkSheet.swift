@@ -21,6 +21,7 @@ public struct DesktopLinkPresentation: ViewModifier {
                 switch sessions.linkProblem {
                 case .invalid: Text("Use a Purlay channel or message link.")
                 case .workspaceUnavailable: Text("This account does not belong to the workspace in the link.")
+                case .chatUnavailable: Text("Chat Isn’t Turned On")
                 case .conversationUnavailable:
                     Text("The conversation or message is unavailable. Check your access to the channel and try again.")
                 case nil: Text("")

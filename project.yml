@@ -18,7 +18,7 @@ packages:
     exactVersion: 2.10.1
   PurlaySwift:
     url: https://github.com/purlay/purlay-swift
-    from: 0.1.0
+    from: 0.2.0
   PurlayUI: { path: Packages/PurlayUI }
 targets:
   Purlay:
