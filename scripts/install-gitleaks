@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# gitleaks at the pinned version, from its release, checked against the digest pinned here for the platform it runs on.
+# Nothing is needed on a machine that already has that version: the script says so and stops.
+#
+#   scripts/install-gitleaks          install, and add it to the PATH of the steps that follow when run by GitHub Actions
+#
+# To move to a newer version: change VERSION and the three digests below, with the ones GitHub shows for the
+# `gitleaks_<version>_<platform>.tar.gz` assets of that release.
+set -euo pipefail
+
+VERSION=8.30.1
+SHA256_LINUX_X64=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+SHA256_DARWIN_ARM64=b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5
+SHA256_DARWIN_X64=dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709
+
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64) platform=linux_x64; sha256="$SHA256_LINUX_X64" ;;
+  Darwin-arm64) platform=darwin_arm64; sha256="$SHA256_DARWIN_ARM64" ;;
+  Darwin-x86_64) platform=darwin_x64; sha256="$SHA256_DARWIN_X64" ;;
+  *) echo "FAIL: no gitleaks $VERSION is pinned for $(uname -s) $(uname -m)" >&2; exit 1 ;;
+esac
+
+HOME_DIR="${GITLEAKS_HOME:-$HOME/.local/share/purlay/gitleaks-$VERSION}"
+
+announce() { # where it is, for the steps that follow
+  [ -n "${GITHUB_PATH:-}" ] && echo "$HOME_DIR" >> "$GITHUB_PATH"
+  echo "gitleaks $VERSION: $HOME_DIR"
+}
+
+if [ "$(gitleaks version 2>/dev/null | head -n 1)" = "$VERSION" ]; then echo "gitleaks $VERSION: already installed"; exit 0; fi
+if [ -x "$HOME_DIR/gitleaks" ]; then announce; exit 0; fi
+
+work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+curl --fail --silent --show-error --location --retry 3 \
+  "https://github.com/gitleaks/gitleaks/releases/download/v$VERSION/gitleaks_${VERSION}_${platform}.tar.gz" --output "$work/gitleaks.tar.gz"
+echo "$sha256  $work/gitleaks.tar.gz" | shasum -a 256 -c - >/dev/null \
+  || { echo "FAIL: the digest of gitleaks $VERSION for $platform is not the one pinned in scripts/install-gitleaks" >&2; exit 1; }
+mkdir -p "$HOME_DIR"
+tar -xzf "$work/gitleaks.tar.gz" -C "$HOME_DIR" gitleaks
+announce

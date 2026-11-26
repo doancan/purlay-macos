@@ -6,6 +6,7 @@
 #   scripts/verify rules    project, shared files, architecture rules and their demonstration, strings   (no Xcode needed)
 #   scripts/verify test     format, then PurlayUI's tests and the screens' snapshots
 #   scripts/verify app      the Debug app: build, App Transport Security, entitlements
+#   scripts/verify security the whole git history scanned for secrets (gitleaks, at the version scripts/install-gitleaks pins)
 #
 # Compilation is cached by content (Xcode's compilation cache) in PURLAY_CACHE_DIR, so a build in a fresh checkout reuses
 # what an earlier one compiled. CI builds with Xcode 27; set DEVELOPER_DIR to select it locally.
@@ -98,12 +99,22 @@ print(json.dumps(held, sort_keys=True, separators=(",", ":")))' "$configuration"
   done
 }
 
+security() {
+  step "no secret in the history"
+  scripts/install-gitleaks
+  # An installer run by hand cannot extend this shell's PATH (GitHub Actions does it through GITHUB_PATH); look where it puts the binary.
+  export PATH="${GITLEAKS_HOME:-$HOME/.local/share/purlay/gitleaks-$(sed -n 's/^VERSION=//p' scripts/install-gitleaks)}:$PATH"
+  command -v gitleaks >/dev/null || { echo "FAIL: gitleaks is not installed, so the history was not scanned" >&2; exit 1; }
+  gitleaks git --no-banner
+}
+
 case "${1:-all}" in
   rules) rules ;;
   test) tests ;;
   app) app "Debug" ;;
-  all) rules; tests; app "Debug Release" ;;
-  *) echo "usage: scripts/verify [rules|test|app]" >&2; exit 2 ;;
+  security) security ;;
+  all) rules; tests; app "Debug Release"; security ;;
+  *) echo "usage: scripts/verify [rules|test|app|security]" >&2; exit 2 ;;
 esac
 
 printf '\n\033[1mverify %s: everything passed\033[0m\n' "${1:-all}"
