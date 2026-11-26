@@ -1,0 +1,12 @@
+# Technical debt
+
+Debts that are known and accepted. A paid debt is deleted from this table; its history is in git.
+
+| ID | Debt | Impact | Repayment condition | Owner | Below the floor? |
+|---|---|---|---|---|---|
+| TD-001 | Comments in `App/`, `PurlayUI` and `scripts/` cite sections and milestones (`§12.3`, `M-3`, `M-8`, `M6-1`) of a plan that is not in the repository. A reader cannot follow them. | low: the code still reads | When a file is touched: replace the citation with a link to a doc, an ADR, or the server's `D-xxx`. Decide first what becomes of the rules the plan held (Q-002). | maintainer | no |
+| TD-002 | `TokenBinding.swift` says a source scan refuses colour literals outside it; `scripts/enforcement` has no such rule, and `NativePalette.swift` holds 19 lines of them by design. The promise is not enforced. | medium: drift from the tokens goes unseen | Add the rule to `scripts/enforcement` (allow the two files, with a `--demo` case) and correct the comment. | maintainer | no |
+| TD-003 | Sparkle is pinned to an exact version in `project.yml`, which Dependabot does not read; `dependabot.yml` covers GitHub Actions only. A Sparkle security release is noticed by hand. | medium: lag on an updater's fix | The release runbook checks Sparkle's latest release at every release; move to Dependabot-visible pinning if a fix is ever missed. | maintainer | no |
+| TD-004 | Nothing automated reaches the signed path: Developer ID signing, notarization, Sparkle's update, and the notification, Dock-badge and login-item permissions. They are proven only by a release run and by hand. | medium: a regression is found at release | A release run that fails, or a permission regression: add a check to `scripts/verify app` for what can be checked, and note the rest in `docs/runbooks/release.md`. | maintainer | no |
+| TD-005 | `scripts/enforcement`'s dependency allowlist still names `swift-markdown`, which nothing depends on. It would let one in without a decision. | low | The next edit of `scripts/enforcement`: remove the name. | maintainer | no |
+| TD-006 | Screens are covered by seven snapshots and six test files for about 11,000 lines of views; the model's behaviour is tested in `purlay-swift`, the views' mostly are not. | medium: a visual or accessibility regression is caught by eye | Each new or changed screen adds its states to `SnapshotTests` (a convention already); close the gap when a screen is next reworked. | maintainer | no |

@@ -6,21 +6,22 @@ The rules every Purlay repository shares (branches, commits, pull requests, the 
 ## Before you push
 
 ```sh
-scripts/verify
+make verify            # rules, test, app: what a pull request needs
+make verify-security   # the git history, scanned for secrets
 ```
 
-Three lanes, which CI runs side by side: `rules` (project, branch name, shared files, architecture rules with a demonstration that
-each refuses its violation, Turkish strings), `test` (format, `PurlayUI`'s tests and the screens' snapshots) and `app` (the Debug
-build, App Transport Security, the sandbox's entitlements). With no argument every lane runs and the Release build is checked
-too, which is what a release does. Compiled code is cached by content, so the second run is much faster than the first; keep a
+Four lanes in `scripts/verify`, which CI runs side by side: `rules` (project, branch name, shared files, architecture rules with a demonstration that
+each refuses its violation, Turkish strings), `test` (format, `PurlayUI`'s tests and the screens' snapshots), `app` (the Debug
+build, App Transport Security, the sandbox's entitlements) and `security` (gitleaks over the history). `make verify-all`, or
+`scripts/verify` with no argument, runs every lane and checks the Release build too, which is what a release does. `make setup` installs the pinned tools. Compiled code is cached by content, so the second run is much faster than the first; keep a
 pull request's check short, and say why in its description if a change makes it slower. A pull request that changes only documents
 (`docs/`, `*.md`, `LICENSE`, `NOTICE`, `.editorconfig`, `CODEOWNERS`) skips the compiling lanes; `verify` accepts that only when the
-`changes` job said so.
+`changes` job said so. The `security` lane always runs: a document can carry a secret.
 
 ## Where code goes
 
 The wire contract, tokens and client engine are in [`purlay-swift`](https://github.com/purlay/purlay-swift): change them there and
-raise the pin here (`project.yml` and `Packages/PurlayUI/Package.swift`; `scripts/enforcement` fails if the two disagree). Views are
+raise the pin here (`project.yml` and `Packages/PurlayUI/Package.swift`; `scripts/enforcement` fails if the two disagree; [`docs/runbooks/bump-shared-package.md`](docs/runbooks/bump-shared-package.md)). Views are
 in `PurlayUI` and open no connection; the app target is a shell. Built with the macOS 27 SDK and its newest APIs, behind
 `#available` with a macOS 26 path beside them.
 
@@ -37,4 +38,4 @@ belong to `purlay/purlay-swift`. Change them at their owner and copy; `scripts/c
 
 ## Releases
 
-Pushing a `v*` tag matching `MARKETING_VERSION` runs the release workflow (see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)).
+Pushing a `v*` tag matching `MARKETING_VERSION` runs the release workflow (see [`docs/runbooks/release.md`](docs/runbooks/release.md)).
