@@ -50,8 +50,8 @@ make verify   # rules, format and tests, the Debug app: what a pull request need
 ```
 
 A change is not done until this is green. Also: `make verify-security` (the history scanned for secrets, required in CI) and
-`make verify-all` (every lane, with the Release build, as a release runs it). The repositories are private, so the shared-files check
-needs `GITHUB_TOKEN="$(gh auth token)"`. CI runs the same lanes side by side.
+`make verify-all` (every lane, with the Release build, as a release runs it). The repositories are public, so the shared-files check
+needs no token, but an anonymous address may make 60 GitHub requests an hour and one run makes ten: `GITHUB_TOKEN="$(gh auth token)"` lifts the limit. CI runs the same lanes side by side.
 
 ## Project structure
 
