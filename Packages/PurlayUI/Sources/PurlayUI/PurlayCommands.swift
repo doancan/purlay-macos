@@ -37,6 +37,7 @@ public struct PurlayCommands: Commands {
     }
 
     private var ready: Bool { model.phase == .ready }
+    private var chatReady: Bool { ready && model.chatAvailable }
     private var channel: Channel? {
         guard ready, !model.inboxOpen, !model.unresolvedOpen, !model.issuesOpen else { return nil }
         return model.selectedChannel.flatMap { model.chat.channels[$0] }
@@ -49,16 +50,18 @@ public struct PurlayCommands: Commands {
 
     public var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New Conversation…") { actions?.newConversation() }
-                .keyboardShortcut("n")
-                .disabled(actions == nil)
-            Button("New Channel…") { actions?.newChannel() }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .disabled(actions == nil)
-            Button("Browse Channels…") { actions?.browse() }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-                .disabled(actions == nil)
-            Divider()
+            if model.chatAvailable {
+                Button("New Conversation…") { actions?.newConversation() }
+                    .keyboardShortcut("n")
+                    .disabled(actions == nil)
+                Button("New Channel…") { actions?.newChannel() }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                    .disabled(actions == nil)
+                Button("Browse Channels…") { actions?.browse() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
+                    .disabled(actions == nil)
+                Divider()
+            }
             if let sessions {
                 Button("Open Purlay Link…") {
                     openWindow(id: "main")
@@ -66,48 +69,57 @@ public struct PurlayCommands: Commands {
                 }
                 .keyboardShortcut("o", modifiers: [.command, .option])
             }
-            Button("Open Conversation in New Window") {
-                if let channel, let request = model.conversationWindowRequest(for: channel.id) {
-                    openWindow(id: "conversation", value: request)
+            if model.chatAvailable {
+                Button("Open Conversation in New Window") {
+                    if let channel, let request = model.conversationWindowRequest(for: channel.id) {
+                        openWindow(id: "conversation", value: request)
+                    }
                 }
+                .keyboardShortcut("n", modifiers: [.command, .option])
+                .disabled(channel == nil)
             }
-            .keyboardShortcut("n", modifiers: [.command, .option])
-            .disabled(channel == nil)
         }
         SidebarCommands()
         InspectorCommands()
-        CommandGroup(after: .sidebar) {
-            Toggle("Compact Messages", isOn: $compact)
-            Toggle("Always Show Timestamps", isOn: $timestamps)
-            Divider()
-        }
-        CommandGroup(after: .textEditing) {
-            Divider()
-            Button("Jump to…") { model.togglePalette() }
-                .keyboardShortcut("k")
-                .disabled(!ready)
-            Button("Search Messages…") { model.openSearch() }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-                .disabled(!ready)
-            Button("Search in Channel…") {
-                if let channel {
-                    model.openChannelSearch(channel.id)
+        if model.chatAvailable {
+            CommandGroup(after: .sidebar) {
+                Toggle("Compact Messages", isOn: $compact)
+                Toggle("Always Show Timestamps", isOn: $timestamps)
+                Divider()
+            }
+            CommandGroup(after: .textEditing) {
+                Divider()
+                Button("Jump to…") { model.togglePalette() }
+                    .keyboardShortcut("k")
+                    .disabled(!ready)
+                Button("Search Messages…") { model.openSearch() }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+                    .disabled(!ready)
+                Button("Search in Channel…") {
+                    if let channel {
+                        model.openChannelSearch(channel.id)
+                    }
                 }
+                .keyboardShortcut("f", modifiers: [.command, .option])
+                .disabled(channel == nil)
             }
-            .keyboardShortcut("f", modifiers: [.command, .option])
-            .disabled(channel == nil)
+            CommandMenu("Message") { messageItems }
+            CommandMenu("Channel") { channelItems }
+            CommandMenu("Deep Work") {
+                Button(model.deepWorkEnds == nil ? "Start Deep Work for an Hour" : "End Deep Work") {
+                    Task { await model.toggleDeepWork() }
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .disabled(!ready)
+                Divider()
+                DeepWorkItems(model: model)
+            }
         }
-        CommandMenu("Message") { messageItems }
-        CommandMenu("Channel") { channelItems }
-        CommandMenu("Go") { goItems }
-        CommandMenu("Deep Work") {
-            Button(model.deepWorkEnds == nil ? "Start Deep Work for an Hour" : "End Deep Work") {
-                Task { await model.toggleDeepWork() }
+        if model.chatAvailable || (model.me?.memberships.count ?? 0) > 1 {
+            CommandMenu("Go") {
+                if model.chatAvailable { goItems }
+                workspaceItems
             }
-            .keyboardShortcut("d", modifiers: [.command, .shift])
-            .disabled(!ready)
-            Divider()
-            DeepWorkItems(model: model)
         }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") {
@@ -121,7 +133,9 @@ public struct PurlayCommands: Commands {
                 .disabled(!ready)
         }
         CommandGroup(replacing: .help) {
-            Button("Keyboard Shortcuts") { model.shortcutsOpen = true }.keyboardShortcut("/")
+            if model.chatAvailable {
+                Button("Keyboard Shortcuts") { model.shortcutsOpen = true }.keyboardShortcut("/")
+            }
             Button("Copy Diagnostics") { DiagnosticsPasteboard.copy(model) }
         }
     }
@@ -213,35 +227,34 @@ public struct PurlayCommands: Commands {
     @ViewBuilder private var goItems: some View {
         Button("Inbox") { Task { await model.openInbox() } }
             .keyboardShortcut("i", modifiers: [.command, .shift])
-            .disabled(!ready)
-        if model.supportsReminders { Button("Reminders") { model.remindersOpen = true }.disabled(!ready) }
-        if model.supportsScheduling { Button("Scheduled Messages") { model.scheduledOpen = true }.disabled(!ready) }
-        Button("Saved Messages") { model.savedOpen = true }.disabled(!ready)
+            .disabled(!chatReady)
+        if model.supportsReminders { Button("Reminders") { model.remindersOpen = true }.disabled(!chatReady) }
+        if model.supportsScheduling { Button("Scheduled Messages") { model.scheduledOpen = true }.disabled(!chatReady) }
+        Button("Saved Messages") { model.savedOpen = true }.disabled(!chatReady)
         Button("Open Topics") { Task { await model.openUnresolved() } }
             .keyboardShortcut("u", modifiers: [.command, .option])
-            .disabled(!ready)
+            .disabled(!chatReady)
         Button("Pinned Messages") { model.pinsOpen = true }.disabled(channel == nil)
         // ⌥⌘D is the system's Dock hiding, which takes the key first; Drafts adds Shift.
         Button("Drafts") { model.draftsOpen = true }
             .keyboardShortcut("d", modifiers: [.command, .option, .shift])
-            .disabled(!ready)
-        workspaceItems
+            .disabled(!chatReady)
         Divider()
         Button("Previous Channel") { Task { await model.goToChannel(.previous) } }
             .keyboardShortcut(.upArrow, modifiers: .option)
-            .disabled(!ready)
+            .disabled(!chatReady)
         Button("Next Channel") { Task { await model.goToChannel(.next) } }
             .keyboardShortcut(.downArrow, modifiers: .option)
-            .disabled(!ready)
+            .disabled(!chatReady)
         Divider()
         Button("Previous Unread Channel") { Task { await model.goToUnread(.previous) } }
             .keyboardShortcut(.upArrow, modifiers: [.option, .shift])
-            .disabled(!ready)
+            .disabled(!chatReady)
         Button("Next Unread Channel") { Task { await model.goToUnread(.next) } }
             .keyboardShortcut(.downArrow, modifiers: [.option, .shift])
-            .disabled(!ready)
+            .disabled(!chatReady)
         Button("Mark All as Read") { MarkAllReadButton.markAllRead(model) }
             .keyboardShortcut(.escape, modifiers: .shift)
-            .disabled(!ready)
+            .disabled(!chatReady)
     }
 }
