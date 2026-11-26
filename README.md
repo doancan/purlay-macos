@@ -28,7 +28,7 @@
 | Stay connected | Stay focused |
 | :--- | :--- |
 | **Channels & direct messages** — keep team discussions and smaller conversations together. | **A focused Inbox** — filter mentions, direct messages, and threads; catch up on unread activity. |
-| **Threads & reactions** — reply in context and pick from 221 standard emoji, with search and recents. | **Deep Work** — quiet interruptions for a focus session, then return to what needs you. |
+| **Threads & reactions** — reply in context and pick from a catalogue of standard emoji, with search and recents. | **Deep Work** — quiet interruptions for a focus session, then return to what needs you. |
 | **Files & rich messages** — browse attachments, preview content, link cards, and read formatted messages and code. | **Saved messages & drafts** — keep useful context nearby and return to unfinished thoughts. |
 | **Issues & updates** — a native issues page, and an Updates tab for what the workspace's other modules tell you. | **Groups that follow you** — sidebar groups kept by the server, the same on every Mac and in the browser. |
 
@@ -78,11 +78,12 @@ Use Xcode 27 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen). The
 xcodegen generate
 xcodebuild -project Purlay.xcodeproj -scheme Purlay \
   -configuration Debug -destination 'platform=macOS,arch=arm64' build
+make verify    # what a pull request needs; `make setup` installs the pinned tools first
 ```
 
 The wire contract, design tokens and client engine come from [`purlay-swift`](https://github.com/purlay/purlay-swift), shared with [`purlay-ios`](https://github.com/purlay/purlay-ios). Built with the macOS 27 SDK and its newest features, it still runs on macOS 26.
 
-Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md). See the [development guide](docs/DEVELOPMENT.md) for the pinned API contract, local setup, signing, and release process, and the [testing guide](docs/TESTING.md) for validation. Contributions follow the [contributor agreement](CLA.md).
+Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md). The [documentation](docs/README.md) holds the architecture, conventions and decisions; see the [development guide](docs/development/DEVELOPMENT.md) for local setup, signing, and updates, the [release runbook](docs/runbooks/release.md), and the [testing guide](docs/development/TESTING.md) for validation. Contributions follow the [contributor agreement](CLA.md).
 
 ---
 

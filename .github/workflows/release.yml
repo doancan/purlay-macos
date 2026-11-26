@@ -16,6 +16,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history: `scripts/verify` scans it for secrets, and a shallow clone would scan one commit.
+          fetch-depth: 0
       - name: Check release version
         shell: bash
         run: |

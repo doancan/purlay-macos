@@ -29,6 +29,18 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           GITHUB_TOKEN: ${{ github.token }}
 
+  # The history is scanned for secrets on every pull request and every push, whatever the change touches: a document can carry one.
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - run: scripts/install-gitleaks
+      - name: Secrets
+        run: scripts/verify security
+
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -105,11 +117,11 @@ jobs:
 
   verify:
     if: always()
-    needs: [rules, changes, test, app]
+    needs: [rules, security, changes, test, app]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Every lane passed
         run: |
           echo '${{ toJSON(needs) }}'
-          test "${{ needs.rules.result == 'success' && needs.changes.result == 'success' && (needs.test.result == 'success' || (needs.changes.outputs.code == 'false' && needs.test.result == 'skipped')) && (needs.app.result == 'success' || (needs.changes.outputs.code == 'false' && needs.app.result == 'skipped')) }}" = "true"
+          test "${{ needs.rules.result == 'success' && needs.security.result == 'success' && needs.changes.result == 'success' && (needs.test.result == 'success' || (needs.changes.outputs.code == 'false' && needs.test.result == 'skipped')) && (needs.app.result == 'success' || (needs.changes.outputs.code == 'false' && needs.app.result == 'skipped')) }}" = "true"
