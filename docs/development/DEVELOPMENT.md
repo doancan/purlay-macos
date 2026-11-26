@@ -32,8 +32,8 @@ make verify-all        # every lane, with the Release build too: what a release 
 `scripts/verify` holds the lanes (`rules`, `test`, `app`, `security`); the Makefile is only the stable entry point
 ([ADR 0001](../decisions/0001-verify-entry-point-and-secret-scan.md)). To run a single lane while working, call it directly:
 `scripts/verify test` runs the format check, `PurlayUI`'s tests and the screens' snapshots.
-The repositories are private, so `scripts/check-shared-files` needs a token to read its owners' copies:
-`GITHUB_TOKEN="$(gh auth token)" make verify`. Without network, `PURLAY_OFFLINE=1` skips that one check; CI never does.
+The repositories are public, so `scripts/check-shared-files` needs no token to read its owners' copies, but an anonymous address may make 60 GitHub requests an hour and one run makes ten:
+`GITHUB_TOKEN="$(gh auth token)" make verify` lifts the limit. Without network, `PURLAY_OFFLINE=1` skips that one check; CI never does.
 
 Compiled code is cached by content in `~/Library/Caches/dev.purlay` (or `PURLAY_CACHE_DIR`), so the second run is much faster than the first.
 
