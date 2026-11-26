@@ -8,8 +8,8 @@
 # To move to a newer version: change both lines below, with the digest GitHub shows for `xcodegen.zip` on that release.
 set -euo pipefail
 
-VERSION=2.48.0
-SHA256=620c9f0dc10849f94728ab5df52d225ebab8187439dd6fee1925e59e80dff892
+VERSION=2.49.0
+SHA256=ae5598b33a19ad1e23e775d6648f97375c3529c970905f489358a21055b65e53
 
 HOME_DIR="${XCODEGEN_HOME:-$HOME/.local/share/purlay/xcodegen-$VERSION}"
 BIN="$HOME_DIR/xcodegen/bin"
