@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Design/purlay-logo.png" width="88" alt="Purlay logo">
+  <img src="Design/purlay.svg" width="88" alt="Purlay logo">
   <h1>Purlay for macOS</h1>
   <p>Your team’s conversations, at home on the Mac.</p>
   <p>A native SwiftUI client for <a href="https://github.com/purlay/purlay">Purlay</a>, with Liquid Glass, keyboard navigation, and room to focus.</p>

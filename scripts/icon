@@ -1,28 +1,24 @@
 #!/usr/bin/env swift
-// The app's icon, made from the logo (Design/purlay-logo.png): the logo's square is drawn into the macOS icon shape (a
-// rounded square of 824 on a 1024 canvas, transparent around it), at every size the asset catalog asks for. A full-bleed
-// square would be put in a grey plate by the system; this shape is shown as it is.
+// The app's icon, made from the logo (Design/purlay.svg): the mark is drawn into the macOS icon shape (a rounded square of
+// 824 on a 1024 canvas, transparent around it), at every size the asset catalog asks for. A full-bleed square would be put
+// in a grey plate by the system; this shape is shown as it is. The logo is a vector, so each size is drawn from it and not
+// scaled down from a larger picture, which keeps the small sizes sharp.
 //
 //   scripts/icon    write App/Resources/Assets.xcassets/AppIcon.appiconset from the logo
 import AppKit
 
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-let source = root.appendingPathComponent("Design/purlay-logo.png")
+let source = root.appendingPathComponent("Design/purlay.svg")
 let set = root.appendingPathComponent("App/Resources/Assets.xcassets/AppIcon.appiconset")
 
-guard let logo = NSImage(contentsOf: source), let logoImage = logo.cgImage(forProposedRect: nil, context: nil, hints: nil)
-else {
-    FileHandle.standardError.write(Data("FAIL: \(source.path) cannot be read\n".utf8))
+guard let logo = NSImage(contentsOf: source), logo.size.width > 0, logo.size.height > 0 else {
+    FileHandle.standardError.write(Data("FAIL: \(source.path) cannot be read as a picture\n".utf8))
     exit(1)
 }
 
-// The mark sits in the middle of the logo with a wide white margin; the middle 83 % is kept so the mark fills the shape
-// as Apple's own icons do, and its margin stays the logo's own white.
-let side = Double(min(logoImage.width, logoImage.height))
-let keep = side * 0.83
-let crop = CGRect(
-    x: (Double(logoImage.width) - keep) / 2, y: (Double(logoImage.height) - keep) / 2, width: keep, height: keep)
-guard let mark = logoImage.cropping(to: crop) else { exit(1) }
+// The mark sits in the middle of the logo's square with a wide margin; the middle 83 % is kept so the mark fills the shape
+// as Apple's own icons do, and the margin stays the logo's own (transparent, so the shape's white shows).
+let keep = 0.83
 
 func render(_ pixels: Int) -> Data {
     let scale = Double(pixels) / 1024
@@ -38,7 +34,13 @@ func render(_ pixels: Int) -> Data {
     context.clip()
     context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
     context.fill(shape)
-    context.draw(mark, in: shape)
+    // The logo's square, enlarged so that its middle 83 % is the shape.
+    let side = shape.width / keep
+    let logoRect = CGRect(x: shape.midX - side / 2, y: shape.midY - side / 2, width: side, height: side)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+    logo.draw(in: logoRect, from: .zero, operation: .sourceOver, fraction: 1)
+    NSGraphicsContext.restoreGraphicsState()
     guard let image = context.makeImage(),
         let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
     else { exit(1) }

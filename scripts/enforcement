@@ -20,8 +20,25 @@ pins() { # root: the purlay-swift version each file asks for
   grep -rhoE --include=Package.swift 'purlay-swift", from: "[0-9.]+"' "$root/Packages" | sed -E 's/.*from: "([0-9.]+)"/\1/'
 }
 
+png_size() { # file: its width and height from the PNG header, as WxH (od and bash only: this runs on a Linux runner too)
+  local w h
+  w="$(od -An -tx1 -j16 -N4 "$1" | tr -d ' \n')"; h="$(od -An -tx1 -j20 -N4 "$1" | tr -d ' \n')"
+  echo "$((16#$w))x$((16#$h))"
+}
+
 check() { # root
   local root="$1" failed=0
+  # The icon is the whole set the catalogue names, each at its own pixel size; scripts/icon writes it from Design/purlay.svg.
+  local set="$root/App/Resources/Assets.xcassets/AppIcon.appiconset" entry name pixels
+  for entry in icon_16x16.png:16 icon_16x16@2x.png:32 icon_32x32.png:32 icon_32x32@2x.png:64 icon_128x128.png:128 \
+    icon_128x128@2x.png:256 icon_256x256.png:256 icon_256x256@2x.png:512 icon_512x512.png:512 icon_512x512@2x.png:1024; do
+    name="${entry%%:*}"; pixels="${entry##*:}"
+    if [ ! -f "$set/$name" ] || ! grep -q "\"$name\"" "$set/Contents.json"; then
+      echo "FAIL: the icon set lacks $name" >&2; failed=1
+    elif [ "$(png_size "$set/$name")" != "${pixels}x${pixels}" ]; then
+      echo "FAIL: $name is $(png_size "$set/$name"), not ${pixels}x${pixels}" >&2; failed=1
+    fi
+  done
   # One macOS floor: the build settings, the project and every package say the same number.
   if [ "$(floors "$root" | sort -u | wc -l | tr -d ' ')" != "1" ]; then
     echo "FAIL: the macOS floor is not one number:" >&2; floors "$root" | sort | uniq -c >&2; failed=1
@@ -71,7 +88,17 @@ plant() { # name, file (relative), line
   if check "$copy" >/dev/null 2>&1; then echo "  NOT REFUSED  $1" >&2; fail=1; else echo "  refused      $1"; fi
   rm -rf "$copy"
 }
+plant_icon() { # name, shell command run in the copy's icon set
+  local copy
+  copy="$(mktemp -d)"
+  rsync -a --exclude .build --exclude .swiftpm Packages App Config project.yml "$copy"/
+  (cd "$copy/App/Resources/Assets.xcassets/AppIcon.appiconset" && eval "$2")
+  if check "$copy" >/dev/null 2>&1; then echo "  NOT REFUSED  $1" >&2; fail=1; else echo "  refused      $1"; fi
+  rm -rf "$copy"
+}
 check . >/dev/null
+plant_icon "an icon size missing" 'rm icon_16x16@2x.png'
+plant_icon "an icon at the wrong size" 'printf "\x00\x00\x01\x00" | dd of=icon_512x512.png bs=1 seek=16 conv=notrunc 2>/dev/null'
 plant "UI opens a session" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let session = URLSession.shared"
 plant "a second macOS floor" Packages/PurlayUI/Package.swift "// .macOS(.v15)"
 plant "a second purlay-swift pin" Packages/PurlayUI/Package.swift '// purlay-swift", from: "9.9.9"'

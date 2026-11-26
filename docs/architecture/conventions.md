@@ -19,6 +19,7 @@ What is true of this code today, and what `scripts/enforcement` or the compiler 
 - One type or one screen per file, the file named for it. Extensions of the model by feature are in `purlay-swift` (`AppModel+Issues`).
 - `project.yml` is the definition of the project; `Purlay.xcodeproj` is generated and never committed (`scripts/verify rules` fails if it is tracked).
 - New files in `Packages/PurlayUI/Sources/PurlayUI` need no registration: the package takes the folder.
+- The app icon is generated: `scripts/icon` writes `AppIcon.appiconset` from `Design/purlay.svg`, every size drawn from the vector. Change the SVG and run the script; never edit the PNGs. `scripts/enforcement` refuses a set with a size missing or at the wrong pixel size.
 
 ## Layers (enforced)
 
