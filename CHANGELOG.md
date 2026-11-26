@@ -4,6 +4,10 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+### Changed
+
+- The app's icon is the new Purlay mark, in the same rounded square as before.
+
 ### Fixed
 
 - A person at the keyboard no longer shows as away to everyone five minutes after connecting: the app now tells the server when you use it.
