@@ -157,9 +157,46 @@ extension SnapshotTests {
         }
     }
 
-    @Test("a workspace without chat")
-    func chatOff() throws {
-        _ = try draw(ChatOffView(model: model()), named: "chat-off")
+    @Test("a signed-in workspace without chat offers its core pages")
+    func chatOff() async throws {
+        let server = try ServerAddress.parse("https://purlay.example.test", allowsLocalHTTP: false)
+        let sessions = InMemorySessionStore()
+        try sessions.save(StoredSession(cookie: "snapshot", expiresAt: nil, origin: server.description), for: server)
+        let receipt = try JSONEncoder().encode(me(modules: [], role: "owner"))
+        let transport = ScriptedTransport([
+            ScriptedTransport.json(
+                200,
+                """
+                {"server":{"version":"0.8.0"},"contractVersion":1,"appUrl":"\(server.description)",
+                "minClient":{"macos":{"appVersion":"0.3.0","contractVersion":1,"downloadUrl":null}},
+                "auth":{"email":true,"github":true,"google":false,"oidc":null,"password":true,"signUp":"invite-only"}}
+                """
+            ),
+            .respond(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: receipt)),
+        ])
+        let model = AppModel(
+            AppEnvironment(
+                transport: transport, sessions: sessions, preferences: Preferences(),
+                authenticator: ScriptedAuthenticator([]), appVersion: SemanticVersion("0.3.0")!, deviceName: "Test Mac",
+                allowsLocalHTTP: false, serverAddress: server.description,
+                dataDirectory: FileManager.default.temporaryDirectory,
+                openSocket: { _, _ in preconditionFailure("a core-only workspace opens no socket") },
+                schedule: { _, _ in {} }, owner: InMemoryOwnerMemory()))
+        await model.launch()
+
+        #expect(model.phase == .ready)
+        #expect(!model.chatAvailable)
+        #expect(model.notices.isEmpty)
+        #expect(await transport.requests.map { $0.url.path } == ["/api/client", "/api/me"])
+        #expect(
+            Set(model.availableSettingsPages).isSuperset(of: [.profile, .workspace, .members, .invitations, .data]))
+        #expect(!model.availableSettingsPages.contains(.notifications))
+        #expect(!model.availableSettingsPages.contains(.integrations))
+        #expect(model.webURL(.workspace)?.path == "/w/acme/settings/general")
+        #expect(model.webURL(.members)?.path == "/w/acme/settings/members")
+        #expect(model.webURL(.invitations)?.path == "/w/acme/settings/invitations")
+        #expect(model.webURL(.data)?.path == "/w/acme/settings/data")
+        for dark in [true, false] { _ = try draw(RootView(model: model), dark: dark, named: "chat-off") }
     }
 }
 
@@ -226,14 +263,14 @@ extension SnapshotTests {
         return m
     }
 
-    private func me(modules: [String]) -> MeResponse {
+    private func me(modules: [String], role: String = "member") -> MeResponse {
         JSONDecoder.snapshot(
             MeResponse.self,
             """
             {"user":{"id":"00000000-0000-4000-8000-00000000aa01","username":"ada","displayName":"Ada","avatarUrl":null,\
             "email":"ada@example.test"},"profile":{"title":null,"timeZone":null,"status":null},\
             "memberships":[{"workspace":{"id":"00000000-0000-4000-8000-0000000000d1","name":"Acme","slug":"acme",\
-            "avatarUrl":null},"role":"member","joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":null}],\
+            "avatarUrl":null},"role":"\(role)","joinedAt":"2026-10-09T12:00:00.000Z","deepWorkUntil":null}],\
             "mayCreateWorkspace":false,"isServerAdmin":false,"nameFromGitHub":false,"mustEnrolTwoFactor":false,\
             "scheduledDeletions":[],"modules":[\(modules.map { "\"\($0)\"" }.joined(separator: ","))],"awayChosen":false}
             """)

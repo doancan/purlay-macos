@@ -165,9 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The Dock menu: the inbox, the channels with something unread, and Deep Work, as Mail lists its mailboxes there.
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
-        guard let model, model.phase == .ready else { return nil }
-        let menu = NSMenu()
         dockActions = []
+        guard let model, model.phase == .ready, model.chatAvailable else { return nil }
+        let menu = NSMenu()
         add(
             to: menu,
             model.attentionCount > 0 ? String(localized: "Inbox (\(model.attentionCount))") : String(localized: "Inbox")
@@ -201,7 +201,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func dockItem(_ item: NSMenuItem) {
-        guard dockActions.indices.contains(item.tag) else { return }
+        guard let model, model.phase == .ready, model.chatAvailable, dockActions.indices.contains(item.tag) else {
+            return
+        }
         NSApp.activate()
         NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
         dockActions[item.tag]()
