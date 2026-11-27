@@ -1174,6 +1174,16 @@
         }
       }
     },
+    "Adding bookmarks is temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu anda yer imi eklenemiyor. Tekrar deneyin."
+          }
+        }
+      }
+    },
     "Adding…": {
       "localizations": {
         "tr": {
@@ -7193,6 +7203,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kayıtlı Aramalar"
+          }
+        }
+      }
+    },
+    "Saved message changes are temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydedilen mesajlar şu anda güncellenemiyor. Tekrar deneyin."
           }
         }
       }

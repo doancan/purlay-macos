@@ -170,7 +170,7 @@ private struct SavedRow: View {
     let item: SavedItem
     let close: () -> Void
     @State private var changing = false
-    @State private var failed = false
+    @State private var outcome: AppModel.SavedWriteOutcome?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.space2) {
@@ -196,12 +196,7 @@ private struct SavedRow: View {
                     }
                     Divider()
                     Button("Remove from Saved", systemImage: "bookmark.slash") {
-                        changing = true
-                        Task {
-                            await model.removeSaved(item)
-                            failed = model.isSaved(item.message)
-                            changing = false
-                        }
+                        change { await model.removeSavedWithOutcome(item) }
                     }
                 } label: {
                     Label("Message Actions", systemImage: "ellipsis")
@@ -210,21 +205,34 @@ private struct SavedRow: View {
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(changing)
                 .help("Manage saved message")
             }
-            if failed {
-                Label("Couldn't update this message. Try again.", systemImage: "exclamationmark.circle")
-                    .font(.caption).foregroundStyle(Colors.dangerText.style)
-            }
+            if let feedback = outcome?.feedback { feedback.font(.caption) }
         }
         .padding(.vertical, Spacing.space2)
     }
 
     private func move(_ state: SavedState) {
+        change { await model.moveSavedWithOutcome(item, to: state) }
+    }
+
+    private func change(_ action: @escaping @MainActor () async -> AppModel.SavedWriteOutcome) {
         guard !changing else { return }
         changing = true
-        failed = false
+        outcome = nil
         Task {
-            failed = !(await model.moveSaved(item, to: state))
+            outcome = await action()
             changing = false
+        }
+    }
+}
+
+extension AppModel.SavedWriteOutcome {
+    var feedback: ActionFeedback? {
+        switch self {
+        case .updated: nil
+        case .temporarilyUnavailable:
+            ActionFeedback(message: "Saved message changes are temporarily unavailable. Try again.", isError: false)
+        case .failed:
+            ActionFeedback(message: "Couldn't update this message. Try again.", isError: true)
         }
     }
 }

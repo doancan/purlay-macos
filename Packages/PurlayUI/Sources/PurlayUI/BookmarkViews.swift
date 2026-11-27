@@ -105,7 +105,7 @@ struct AddBookmarkSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var address = ""
     @State private var title = ""
-    @State private var problem: LocalizedStringKey?
+    @State private var outcome: AppModel.BookmarkAddOutcome?
     @State private var busy = false
 
     private var url: String? { BookmarkAddress.url(address) }
@@ -121,14 +121,14 @@ struct AddBookmarkSheet: View {
                 Section {
                     TextField("Address", text: $address, prompt: Text("docs.example.com"))
                         .onSubmit(add)
-                        .onChange(of: address) { _, _ in problem = nil }
+                        .onChange(of: address) { _, _ in outcome = nil }
                     if !address.isEmpty && url == nil {
                         Text("Use a web address, like https://docs.example.com.")
                             .font(.caption).foregroundStyle(Colors.dangerText.style)
                     }
                     TextField("Name", text: $title, prompt: Text(url.map { BookmarkAddress.title("", for: $0) } ?? ""))
                         .onSubmit(add)
-                        .onChange(of: title) { _, _ in problem = nil }
+                        .onChange(of: title) { _, _ in outcome = nil }
                     Text("Optional. The site's name is used if left empty.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -136,9 +136,8 @@ struct AddBookmarkSheet: View {
             .formStyle(.grouped)
             .frame(height: 180)
             .disabled(busy)
-            if let problem {
-                Label(problem, systemImage: "exclamationmark.circle")
-                    .font(.callout).foregroundStyle(Colors.dangerText.style)
+            if let feedback = outcome?.feedback {
+                feedback.font(.callout)
                     .padding(.horizontal, Spacing.space5).padding(.bottom, Spacing.space3)
             }
             Divider()
@@ -164,14 +163,28 @@ struct AddBookmarkSheet: View {
     private func add() {
         guard url != nil, !busy else { return }
         busy = true
+        outcome = nil
         Task {
-            switch await model.addBookmark(title: title, address: address, in: channel) {
-            case .added: dismiss()
-            case .invalid: problem = "Check the address and the name, then try again."
-            case .full: problem = "This channel has as many bookmarks as it can hold. Remove one first."
-            case .failed: problem = "Could not add the bookmark. Check your connection and try again."
-            }
+            let result = await model.addBookmarkWithOutcome(title: title, address: address, in: channel)
             busy = false
+            if result == .added { dismiss() } else { outcome = result }
+        }
+    }
+}
+
+extension AppModel.BookmarkAddOutcome {
+    var feedback: ActionFeedback? {
+        switch self {
+        case .added: nil
+        case .temporarilyUnavailable:
+            ActionFeedback(message: "Adding bookmarks is temporarily unavailable. Try again.", isError: false)
+        case .invalid:
+            ActionFeedback(message: "Check the address and the name, then try again.", isError: true)
+        case .full:
+            ActionFeedback(
+                message: "This channel has as many bookmarks as it can hold. Remove one first.", isError: true)
+        case .failed:
+            ActionFeedback(message: "Could not add the bookmark. Check your connection and try again.", isError: true)
         }
     }
 }

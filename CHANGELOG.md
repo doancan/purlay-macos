@@ -4,6 +4,10 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep saved messages and the Add Bookmark form open when their Chat action is temporarily unavailable during a rollout.
+
 ## [0.3.1] — 2026-11-27
 
 ### Changed
