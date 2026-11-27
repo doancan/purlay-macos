@@ -247,7 +247,7 @@ struct ScheduledSheet: View {
     }
 
     private func refresh() async {
-        await model.loadScheduled(dismissOnUnavailable: { editing == nil })
+        await model.refreshScheduled(isEditing: { editing != nil })
     }
 
     private func sendNow(_ message: ScheduledMessage) {
