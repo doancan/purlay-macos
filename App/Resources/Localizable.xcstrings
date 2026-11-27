@@ -1174,6 +1174,16 @@
         }
       }
     },
+    "Adding bookmarks is temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu anda yer imi eklenemiyor. Tekrar deneyin."
+          }
+        }
+      }
+    },
     "Adding…": {
       "localizations": {
         "tr": {
@@ -4946,6 +4956,16 @@
         }
       }
     },
+    "Message reminders are temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj hatırlatıcıları geçici olarak kullanılamıyor. Tekrar deneyin."
+          }
+        }
+      }
+    },
     "Message spacing": {
       "localizations": {
         "tr": {
@@ -7187,6 +7207,16 @@
         }
       }
     },
+    "Saved message changes are temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydedilen mesajlar şu anda güncellenemiyor. Tekrar deneyin."
+          }
+        }
+      }
+    },
     "Saving draft…": {
       "localizations": {
         "tr": {
@@ -7303,6 +7333,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zamanlanmış mesaj eylemleri"
+          }
+        }
+      }
+    },
+    "Scheduled messages are temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamanlanmış mesajlar geçici olarak kullanılamıyor. Tekrar deneyin."
           }
         }
       }

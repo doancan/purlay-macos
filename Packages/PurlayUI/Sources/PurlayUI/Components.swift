@@ -112,6 +112,18 @@ struct EmptyState: View {
     }
 }
 
+struct ActionFeedback: View {
+    let message: LocalizedStringKey
+    let isError: Bool
+
+    var systemImage: String { isError ? "exclamationmark.circle" : "info.circle" }
+
+    var body: some View {
+        Label(message, systemImage: systemImage)
+            .foregroundStyle(isError ? Colors.dangerText.style : NativePalette.secondary.style)
+    }
+}
+
 // The small parts every screen is built from: a person's face, whether they are here, a count. Each takes its sizes and colours
 // from the tokens, so the sidebar, the feed and the thread draw a person the same way.
 

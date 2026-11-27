@@ -44,7 +44,7 @@ struct ComposerView: View {
         VStack(alignment: .leading, spacing: Spacing.space2) {
             if !state.commands.isEmpty { CommandList(state: state) }
             if !state.suggestions.isEmpty { SuggestionList(state: state) }
-            if let notice = state.notice { ComposerNotice(text: notice) { state.notice = nil } }
+            if let notice = state.notice { InlineInformation(text: notice) { state.notice = nil } }
             TypingLine(model: model, channel: channel)
             UploadChips(model: model, channel: channel, parent: parent)
             if model.isWaiting(channel: channel, parent: parent) {
@@ -364,16 +364,18 @@ private struct SuggestionList: View {
     }
 }
 
-private struct ComposerNotice: View {
+struct InlineInformation: View {
     let text: LocalizedStringKey
-    let dismiss: () -> Void
+    let dismiss: (() -> Void)?
 
     var body: some View {
         HStack {
-            Image(systemName: "info.circle")
-            Text(text)
+            Image(systemName: "info.circle").accessibilityHidden(true)
+            Text(text).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
             Spacer()
-            Button("Dismiss", systemImage: "xmark", action: dismiss).labelStyle(.iconOnly).buttonStyle(.borderless)
+            if let dismiss {
+                Button("Dismiss", systemImage: "xmark", action: dismiss).labelStyle(.iconOnly).buttonStyle(.borderless)
+            }
         }
         .font(.callout)
         .foregroundStyle(.secondary)
