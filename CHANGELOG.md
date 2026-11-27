@@ -4,6 +4,8 @@ User-facing changes to Purlay for macOS. Releases require macOS 26 or later.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-11-27
+
 ### Changed
 
 - The app's icon is the new Purlay mark, in the same rounded square as before.
