@@ -1,20 +1,21 @@
 # Move to a new `purlay-swift`
 
-The contract, tokens and client engine come from [`purlay-swift`](https://github.com/purlay/purlay-swift), pinned by version
-([ADR 0002](../decisions/0002-contract-tokens-and-engine-from-purlay-swift.md)). Order matters: the shared package first, then the pin here.
+The contract, tokens and client engine come from `purlay-swift`, pinned to one exact published version.
+[ADR 0002](../decisions/0002-contract-tokens-and-engine-from-purlay-swift.md)
 
 ## 1. In `purlay-swift`
 
-Make the change there and release it (its own `docs/development/releasing.md`). A change that needs both the model and a screen is
-two changes: do not start the one here until the release exists.
+Make the change there and wait for its release workflow to publish a GitHub Release for that version. Confirm the release is visible
+before changing this client's pin. SwiftPM can see the Git tag while verification or publication is still pending.
+[purlay-swift releases](https://github.com/purlay/purlay-swift/releases)
 
 ## 2. Here
 
-1. Raise the version in **both** places, to the same number:
-   - `project.yml`, under `packages: PurlaySwift: from:`
-   - `Packages/PurlayUI/Package.swift`, `.package(url: "https://github.com/purlay/purlay-swift", from: "…")`
+1. Set the same exact version in both places.
+   - `project.yml`, under `packages.PurlaySwift.exactVersion`
+   - `Packages/PurlayUI/Package.swift`, `.package(url: "https://github.com/purlay/purlay-swift", exact: "…")`
 
-   `scripts/enforcement` fails if they differ (`pins`), and `--demo` proves it does.
+   `scripts/enforcement` requires both exact declarations and checks that they agree. Its `--demo` exercises ranges, missing pins, and mismatches.
 2. `make verify`. XcodeGen regenerates the project and the build resolves the package; `Package.resolved` is not committed.
 3. If the contract moved to a newer server, state it in `docs/product/features/client-behaviour.md` ("Server features": the server the contract is pinned to,
    and the oldest the build reads) and in the changelog if a person would notice.
