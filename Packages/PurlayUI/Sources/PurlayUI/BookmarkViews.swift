@@ -173,7 +173,7 @@ struct AddBookmarkSheet: View {
 }
 
 extension AppModel.BookmarkAddOutcome {
-    var feedback: ActionFeedback? {
+    @MainActor var feedback: ActionFeedback? {
         switch self {
         case .added: nil
         case .temporarilyUnavailable:

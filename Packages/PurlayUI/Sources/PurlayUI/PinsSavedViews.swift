@@ -226,7 +226,7 @@ private struct SavedRow: View {
 }
 
 extension AppModel.SavedWriteOutcome {
-    var feedback: ActionFeedback? {
+    @MainActor var feedback: ActionFeedback? {
         switch self {
         case .updated: nil
         case .temporarilyUnavailable:
