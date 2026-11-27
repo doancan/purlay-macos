@@ -4946,6 +4946,16 @@
         }
       }
     },
+    "Message reminders are temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj hatırlatıcıları geçici olarak kullanılamıyor. Tekrar deneyin."
+          }
+        }
+      }
+    },
     "Message spacing": {
       "localizations": {
         "tr": {
@@ -7303,6 +7313,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zamanlanmış mesaj eylemleri"
+          }
+        }
+      }
+    },
+    "Scheduled messages are temporarily unavailable. Try again.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamanlanmış mesajlar geçici olarak kullanılamıyor. Tekrar deneyin."
           }
         }
       }

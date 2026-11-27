@@ -94,6 +94,22 @@ struct SnapshotTests {
 }
 
 extension SnapshotTests {
+    @Test("timing action information uses the existing inline status treatment in both appearances")
+    func timingActionFeedback() throws {
+        for dark in [true, false] {
+            _ = try draw(
+                VStack(alignment: .leading, spacing: 16) {
+                    TimingActionFeedback.schedulingUnavailable
+                    TimingActionFeedback.remindersUnavailable
+                    TimingActionFeedback(ReminderFailure.failed)
+                }
+                .padding(24)
+                .frame(width: 440, height: 200, alignment: .topLeading)
+                .background(Color(nsColor: .windowBackgroundColor)),
+                width: 440, height: 200, dark: dark, named: "timing-action-feedback")
+        }
+    }
+
     private func update(
         _ n: Int, kind: String = "issue_assigned", module: String = "issues", read: Bool = false, title: String?
     )
