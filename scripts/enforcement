@@ -14,10 +14,67 @@ floors() { # root: the macOS floor, as every file that declares one says it
   sed -n 's/^ *macOS: "\([0-9]*\)\..*"/\1/p' "$root/project.yml"
   grep -rhoE --include=Package.swift '\.macOS\(\.v[0-9]+\)' "$root/Packages" | sed -E 's/.*\.v([0-9]+).*/\1/'
 }
-pins() { # root: the purlay-swift version each file asks for
-  local root="$1"
-  grep -A2 'PurlaySwift:' "$root/project.yml" | sed -n 's/^ *from: \(.*\)$/\1/p'
-  grep -rhoE --include=Package.swift 'purlay-swift", from: "[0-9.]+"' "$root/Packages" | sed -E 's/.*from: "([0-9.]+)"/\1/'
+project_pin() { # project.yml: only the PurlaySwift entry under packages
+  awk '
+    { sub(/[[:space:]]+#.*/, "") }
+    /^[^[:space:]#]/ {
+      packages = ($0 ~ /^packages[[:space:]]*:[[:space:]]*$/)
+      if (packages) sections++
+      entry = 0
+    }
+    packages && /^  [^[:space:]#]/ {
+      entry = ($0 ~ /^  PurlaySwift[[:space:]]*:/)
+      if (entry) {
+        blocks++
+        if ($0 !~ /^  PurlaySwift:[[:space:]]*$/) unexpected++
+      }
+      next
+    }
+    entry && /^    url: https:\/\/github\.com\/purlay\/purlay-swift(\.git)?[[:space:]]*$/ { urls++; next }
+    entry && /^    exactVersion: [0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$/ { exact++; version = $2; next }
+    entry && $0 !~ /^[[:space:]]*(#.*)?$/ { unexpected++ }
+    END { if (sections != 1 || blocks != 1 || urls != 1 || exact != 1 || unexpected) exit 1; print version }
+  ' "$1"
+}
+
+package_pin() { # Package.swift, 1 if this package must directly declare purlay-swift
+  awk -v required="$2" '
+    /^[[:space:]]*\/\// { next }
+    { sub(/[[:space:]]+\/\/.*/, "") }
+    /"https:\/\/github\.com\/purlay\/purlay-swift(\.git)?"/ {
+      urls++
+      if ($0 ~ /^[[:space:]]*\.package\(url: "https:\/\/github\.com\/purlay\/purlay-swift(\.git)?", exact: "[0-9]+\.[0-9]+\.[0-9]+"\),?[[:space:]]*$/) {
+        exact++; split($0, values, "\""); version = values[4]
+      }
+    }
+    END {
+      if (!required && urls == 0) exit 0
+      if (urls != 1 || exact != 1) exit 1
+      print version
+    }
+  ' "$1"
+}
+
+check_pins() { # root
+  local root="$1" project version manifest manifests
+  local ui="$root/Packages/PurlayUI/Package.swift"
+  if ! project="$(project_pin "$root/project.yml")"; then
+    echo 'FAIL: project.yml must declare one packages.PurlaySwift.exactVersion' >&2; return 1
+  fi
+  if ! version="$(package_pin "$ui" 1)"; then
+    echo 'FAIL: Packages/PurlayUI/Package.swift must declare one exact purlay-swift dependency' >&2; return 1
+  fi
+  if [ "$version" != "$project" ]; then
+    echo "FAIL: the purlay-swift pins disagree ($project in project.yml, $version in PurlayUI)" >&2; return 1
+  fi
+  manifests="$(find "$root/Packages" \( -name .build -o -name .swiftpm \) -prune -o -name Package.swift -type f -print)" || return 1
+  while IFS= read -r manifest; do
+    [ -n "$manifest" ] && [ "$manifest" != "$ui" ] || continue
+    if ! version="$(package_pin "$manifest" 0)" || { [ -n "$version" ] && [ "$version" != "$project" ]; }; then
+      echo "FAIL: $manifest must use the same exact purlay-swift pin as project.yml" >&2; return 1
+    fi
+  done <<< "$manifests"
+  return 0
 }
 
 png_size() { # file: its width and height from the PNG header, as WxH (od and bash only: this runs on a Linux runner too)
@@ -43,10 +100,8 @@ check() { # root
   if [ "$(floors "$root" | sort -u | wc -l | tr -d ' ')" != "1" ]; then
     echo "FAIL: the macOS floor is not one number:" >&2; floors "$root" | sort | uniq -c >&2; failed=1
   fi
-  # One purlay-swift version: the project and every package ask for the same.
-  if [ "$(pins "$root" | sort -u | wc -l | tr -d ' ')" != "1" ]; then
-    echo "FAIL: purlay-swift is not pinned to one version:" >&2; pins "$root" | sort | uniq -c >&2; failed=1
-  fi
+  # The app and UI both require the same exact version, so a new tag cannot advance either one.
+  if ! check_pins "$root"; then failed=1; fi
   # The views open no connection: PurlayUI reaches the network only through PurlayKit's protocols (purlay-swift).
   if grep -rnE --exclude-dir=.build '\b(URLSession|URLRequest|NWConnection|URLSessionWebSocketTask)\b' "$root/Packages/PurlayUI/Sources"; then
     echo "FAIL: PurlayUI touches the network" >&2; failed=1
@@ -96,12 +151,38 @@ plant_icon() { # name, shell command run in the copy's icon set
   if check "$copy" >/dev/null 2>&1; then echo "  NOT REFUSED  $1" >&2; fail=1; else echo "  refused      $1"; fi
   rm -rf "$copy"
 }
+replace_pin() { # name, file (relative), sed expression, expected diagnostic
+  local copy report
+  copy="$(mktemp -d)"
+  rsync -a --exclude .build --exclude .swiftpm Packages App Config project.yml "$copy"/
+  sed -E "$3" "$copy/$2" > "$copy/$2.new"
+  mv "$copy/$2.new" "$copy/$2"
+  if report="$(check "$copy" 2>&1)" || ! grep -Fq "$4" <<< "$report"; then
+    echo "  NOT REFUSED  $1" >&2; printf '%s\n' "$report" >&2; fail=1
+  else
+    echo "  refused      $1"
+  fi
+  rm -rf "$copy"
+}
 check . >/dev/null
 plant_icon "an icon size missing" 'rm icon_16x16@2x.png'
 plant_icon "an icon at the wrong size" 'printf "\x00\x00\x01\x00" | dd of=icon_512x512.png bs=1 seek=16 conv=notrunc 2>/dev/null'
 plant "UI opens a session" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "let session = URLSession.shared"
 plant "a second macOS floor" Packages/PurlayUI/Package.swift "// .macOS(.v15)"
-plant "a second purlay-swift pin" Packages/PurlayUI/Package.swift '// purlay-swift", from: "9.9.9"'
+replace_pin "a ranged XcodeGen purlay-swift requirement" project.yml \
+  '/^  PurlaySwift:/,/^  PurlayUI:/ s/^    exactVersion:/    from:/' 'must declare one packages.PurlaySwift.exactVersion'
+replace_pin "a duplicate ranged XcodeGen purlay-swift requirement" project.yml \
+  '/^  PurlayUI:/i\
+  PurlaySwift: { url: https://github.com/purlay/purlay-swift, from: 0.2.0 }' \
+  'must declare one packages.PurlaySwift.exactVersion'
+replace_pin "a ranged SwiftPM purlay-swift requirement" Packages/PurlayUI/Package.swift \
+  's/, exact: /, from: /' 'must declare one exact purlay-swift dependency'
+replace_pin "a missing XcodeGen purlay-swift requirement" project.yml \
+  '/^  PurlaySwift:/,/^  PurlayUI:/ { /^  PurlayUI:/!d; }' 'must declare one packages.PurlaySwift.exactVersion'
+replace_pin "a missing SwiftPM purlay-swift requirement" Packages/PurlayUI/Package.swift \
+  '/\.package\(url: .*purlay-swift/d' 'must declare one exact purlay-swift dependency'
+replace_pin "different exact purlay-swift pins" Packages/PurlayUI/Package.swift \
+  's/, exact: "[0-9.]+"/, exact: "999.0.0"/' 'the purlay-swift pins disagree'
 plant "a dependency M-8 does not allow" project.yml "      - url: x # .package(url: \"https://example.test/KeychainAccess\")"
 plant "Sparkle in the UI package" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "import Sparkle"
 plant "an unchecked Sendable" Packages/PurlayUI/Sources/PurlayUI/PurlayUI.swift "extension Foo: @unchecked Sendable {}"
