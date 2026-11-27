@@ -9,7 +9,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [.library(name: "PurlayUI", targets: ["PurlayUI"])],
     dependencies: [
-        .package(url: "https://github.com/purlay/purlay-swift", exact: "0.3.0")
+        .package(url: "https://github.com/purlay/purlay-swift", exact: "0.3.1")
     ],
     targets: [
         .target(
